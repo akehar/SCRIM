@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: scrim-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: IMAGE_MODEL
+        value: gemini-3.1-flash-image
+      - key: VISION_MODEL
+        value: gemini-3.5-flash

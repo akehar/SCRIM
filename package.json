@@ -1,0 +1,17 @@
+{
+  "name": "scrim-backend",
+  "version": "0.1.0",
+  "description": "Scrim: natural-light gaffer assistant backend. Sun timing + Gemini diagnosis + Gemini render.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "express": "^4.19.2",
+    "suncalc": "^1.9.0"
+  }
+}

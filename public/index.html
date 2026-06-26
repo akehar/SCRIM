@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Scrim test</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; max-width: 640px; margin-inline: auto; line-height: 1.5; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; opacity: 0.7; font-size: 14px; }
+  button { font-size: 16px; padding: 12px 16px; border-radius: 10px; border: 1px solid currentColor; background: transparent; color: inherit; width: 100%; cursor: pointer; }
+  input[type=file] { display: none; }
+  label.cta { display: block; text-align: center; font-size: 16px; padding: 14px; border-radius: 10px; border: 1px solid currentColor; cursor: pointer; margin-bottom: 12px; }
+  .hint { font-size: 14px; opacity: 0.7; margin: 6px 0 16px; }
+  .card { border: 1px solid rgba(128,128,128,0.3); border-radius: 12px; padding: 14px; margin: 14px 0; }
+  .card h2 { font-size: 15px; margin: 0 0 8px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row img { width: 100%; border-radius: 10px; }
+  .col { flex: 1 1 45%; min-width: 140px; }
+  .col span { font-size: 12px; opacity: 0.7; }
+  ul { margin: 6px 0 0; padding-left: 18px; }
+  code { font-size: 13px; }
+  .status { font-size: 14px; opacity: 0.8; min-height: 20px; }
+</style>
+</head>
+<body>
+  <h1>Scrim test</h1>
+  <p class="sub">Point at your scene, snap a frame, and see what the light is doing.</p>
+
+  <label class="cta" for="shot">Take or choose a photo</label>
+  <input id="shot" type="file" accept="image/*" capture="environment" />
+  <p class="hint">Allow location when asked. The sun timing needs it.</p>
+  <p class="status" id="status"></p>
+
+  <div id="out"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function getLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("no geolocation"));
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+      (e) => reject(e),
+      { enableHighAccuracy: false, timeout: 8000 }
+    );
+  });
+}
+
+// Downscale before upload so payloads stay small and fast.
+function fileToDataUrl(file, maxSide = 1280) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function fmt(t) {
+  if (!t) return "n/a";
+  return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+$("shot").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $("out").innerHTML = "";
+  $("status").textContent = "Reading the frame and the sun...";
+  try {
+    const [dataUrl, loc] = await Promise.all([fileToDataUrl(file), getLocation()]);
+    const res = await fetch("/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image: dataUrl,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || "request failed");
+    $("status").textContent = "";
+
+    const s = j.sun || {};
+    const d = j.diagnosis || {};
+    const probs = (d.problems || []).map((p) => `<li>${p}</li>`).join("");
+    const fixes = (d.fixes || []).map((f) => `<li>${f}</li>`).join("");
+
+    $("out").innerHTML = `
+      <div class="card">
+        <h2>The sun right now</h2>
+        <div>${s.now ? s.now.altitudeDeg + "&deg; up, from the " + s.now.direction + " &mdash; " + s.now.quality : ""}</div>
+        <div style="margin-top:8px;font-size:14px;opacity:0.85">
+          Morning golden hour: ${fmt(s.morningGoldenHour?.start)}&ndash;${fmt(s.morningGoldenHour?.end)}<br>
+          Evening golden hour: ${fmt(s.eveningGoldenHour?.start)}&ndash;${fmt(s.eveningGoldenHour?.end)}<br>
+          Blue hour: ${fmt(s.blueHour?.start)}&ndash;${fmt(s.blueHour?.end)}
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>What the light is doing</h2>
+        <div style="font-size:14px">${d.direction || ""} &middot; ${d.hardness || ""} &middot; ${d.colorTemp || ""} &middot; ${d.contrast || ""} contrast</div>
+        ${probs ? `<div style="margin-top:8px"><strong style="font-size:13px">Problems</strong><ul>${probs}</ul></div>` : ""}
+        ${fixes ? `<div style="margin-top:8px"><strong style="font-size:13px">How to soften it</strong><ul>${fixes}</ul></div>` : ""}
+      </div>
+
+      <div class="card">
+        <h2>Before and after</h2>
+        <div class="row">
+          <div class="col"><span>Now</span><img src="${dataUrl}" alt="original"></div>
+          <div class="col"><span>Softened preview</span>${j.render ? `<img src="${j.render}" alt="softened">` : "<div style='font-size:13px;opacity:0.7'>render unavailable</div>"}</div>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    $("status").textContent = "Error: " + (err.message || err);
+  }
+});
+</script>
+</body>
+</html>
