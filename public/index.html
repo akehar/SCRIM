@@ -233,18 +233,29 @@ let state = null;        // {frame, diagnosis} of the last analyzed shot
 
 /* ---------- location + sun ---------- */
 
-// iOS Safari can stall getCurrentPosition without firing EITHER callback
-// (pending permission prompt, Precise Location off), so enforce our own deadline.
+// iOS WebKit (Safari AND Chrome on iPhone) can stall getCurrentPosition without
+// firing EITHER callback. After our own deadline, fall back to watchPosition —
+// the well-known workaround that usually still delivers a fix there.
 function getPosition(opts) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("This browser has no geolocation."));
-    let done = false;
-    const deadline = setTimeout(() => { if (!done) { done = true; reject(new Error("location timed out")); } }, (opts.timeout || 6000) + 3000);
-    navigator.geolocation.getCurrentPosition(
-      (p) => { if (done) return; done = true; clearTimeout(deadline); resolve(p); },
-      (e) => { if (done) return; done = true; clearTimeout(deadline); reject(e); },
-      opts
-    );
+    const wait = (opts.timeout || 6000) + 3000;
+    let done = false, watchId = null, watchDeadline = null;
+    const finish = (fn, v) => {
+      if (done) return;
+      done = true;
+      clearTimeout(gcpDeadline); clearTimeout(watchDeadline);
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      fn(v);
+    };
+    const gcpDeadline = setTimeout(() => {
+      if (done) return;
+      try {
+        watchId = navigator.geolocation.watchPosition((p) => finish(resolve, p), (e) => finish(reject, e), opts);
+        watchDeadline = setTimeout(() => finish(reject, new Error("location timed out")), wait);
+      } catch { finish(reject, new Error("location timed out")); }
+    }, wait);
+    navigator.geolocation.getCurrentPosition((p) => finish(resolve, p), (e) => finish(reject, e), opts);
   });
 }
 
