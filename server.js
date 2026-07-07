@@ -31,6 +31,31 @@ function lightQuality(altDeg) {
   return "harsh and overhead, the hardest light of the day";
 }
 
+function validDate(d) {
+  return d instanceof Date && !Number.isNaN(d.getTime());
+}
+
+// The next (or currently open) soft-light window, so the UI can run a countdown.
+// Checks today and tomorrow; near the poles some windows never happen, hence the guards.
+function nextGoldenWindow(lat, lng, now) {
+  const windows = [];
+  for (const dayOffset of [0, 1]) {
+    const day = new Date(now.getTime() + dayOffset * 86400000);
+    const t = SunCalc.getTimes(day, lat, lng);
+    if (validDate(t.sunrise) && validDate(t.goldenHourEnd)) {
+      windows.push({ label: "morning golden hour", start: t.sunrise, end: t.goldenHourEnd });
+    }
+    if (validDate(t.goldenHour) && validDate(t.sunset)) {
+      windows.push({ label: "evening golden hour", start: t.goldenHour, end: t.sunset });
+    }
+  }
+  windows.sort((a, b) => a.start - b.start);
+  const open = windows.find((w) => w.start <= now && now < w.end);
+  if (open) return { ...open, active: true, minutesUntil: 0, minutesLeft: Math.round((open.end - now) / 60000) };
+  const next = windows.find((w) => w.start > now);
+  return next ? { ...next, active: false, minutesUntil: Math.round((next.start - now) / 60000) } : null;
+}
+
 function sunReport(lat, lng, when) {
   const date = when ? new Date(when) : new Date();
   const pos = SunCalc.getPosition(date, lat, lng);
@@ -46,6 +71,7 @@ function sunReport(lat, lng, when) {
       direction: compass(bearing),
       quality: lightQuality(altDeg),
     },
+    nextGoldenHour: nextGoldenWindow(lat, lng, date),
     morningGoldenHour: { start: times.sunrise, end: times.goldenHourEnd },
     eveningGoldenHour: { start: times.goldenHour, end: times.sunset },
     blueHour: { start: times.sunset, end: times.dusk },
@@ -127,13 +153,14 @@ app.post("/analyze", async (req, res) => {
 
     const [diagnosis, render] = await Promise.all([
       diagnose(data, mime, sun).catch((e) => ({ error: String(e?.message || e) })),
-      renderSoftened(data, mime, lookHint).catch(() => null),
+      renderSoftened(data, mime, lookHint).catch((e) => ({ error: String(e?.message || e) })),
     ]);
 
     res.json({
       sun,
       diagnosis,
-      render: render ? `data:${render.mimeType};base64,${render.data}` : null,
+      render: render && !render.error ? `data:${render.mimeType};base64,${render.data}` : null,
+      renderError: render?.error || (render ? null : "model returned no image"),
     });
   } catch (err) {
     console.error(err);
@@ -141,7 +168,23 @@ app.post("/analyze", async (req, res) => {
   }
 });
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+// Sun-only report: no image, no AI, no key needed. Cheap enough to poll.
+app.get("/sun", (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: "Need lat and lng query params." });
+  }
+  res.json(sunReport(lat, lng, req.query.t));
+});
+
+// gemini:false tells the test page to explain itself instead of failing silently.
+app.get("/health", (_req, res) => res.json({ ok: true, gemini: Boolean(process.env.GEMINI_API_KEY) }));
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log("scrim backend listening on :" + port));
+app.listen(port, () => {
+  console.log("scrim backend listening on :" + port);
+  if (!process.env.GEMINI_API_KEY) {
+    console.warn("GEMINI_API_KEY is not set: sun timing works, diagnosis and render will fail.");
+  }
+});

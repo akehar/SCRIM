@@ -1,6 +1,10 @@
 # Scrim (backend)
 
-The weekend slice of Scrim, a natural-light gaffer assistant. One endpoint that, given a photo plus a location and time, returns:
+The weekend slice of Scrim, a natural-light gaffer assistant.
+
+Sun apps (PhotoPills, Sun Seeker) tell you where the sun will be but never look at your frame. AI relighters fix the photo afterwards but teach you nothing on set. Scrim sits in the gap: it reads *your* frame right now, names the problem in plain language, gives you a physical or timing fix, and shows a preview of what softer light would do — so you get it right in camera.
+
+One endpoint that, given a photo plus a location and time, returns:
 
 1. **A sun report** computed locally with `suncalc`: the sun's current angle, direction, and quality, plus today's golden hour and blue hour windows. No AI, works offline once moved onto the phone.
 2. **A lighting diagnosis** from a Gemini vision model: direction, hardness, colour temperature, contrast, the problems, and specific softening or timing fixes.
@@ -52,7 +56,11 @@ Response:
 }
 ```
 
-`GET /health` returns `{ "ok": true }`.
+The `sun` object also carries `nextGoldenHour` — the next (or currently open) golden-hour window with `minutesUntil`/`minutesLeft`, which drives the test page's live countdown. If a Gemini call fails, the response says why in `diagnosis.error` / `renderError` instead of going quiet.
+
+`GET /sun?lat=41.55&lng=-8.42` returns just the sun report — no image, no AI, no key needed. The test page calls it on load so the countdown works before you ever take a photo.
+
+`GET /health` returns `{ "ok": true, "gemini": true|false }` — `gemini:false` means `GEMINI_API_KEY` isn't set on the server, and the test page shows a banner explaining that instead of failing silently.
 
 ## Run locally
 

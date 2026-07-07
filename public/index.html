@@ -3,47 +3,81 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Scrim test</title>
+<title>Scrim</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: light dark;
+    --gold: #c8871a;
+    --line: rgba(128,128,128,0.28);
+    --dim: rgba(128,128,128,0.85);
+  }
+  @media (prefers-color-scheme: dark) { :root { --gold: #e6a83c; } }
+  * { box-sizing: border-box; }
   body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; max-width: 640px; margin-inline: auto; line-height: 1.5; }
-  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
-  p.sub { margin: 0 0 20px; opacity: 0.7; font-size: 14px; }
-  button { font-size: 16px; padding: 12px 16px; border-radius: 10px; border: 1px solid currentColor; background: transparent; color: inherit; width: 100%; cursor: pointer; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0 0 2px; }
+  p.sub { margin: 0 0 16px; opacity: 0.7; font-size: 14px; }
+  .banner { border: 1px solid var(--gold); color: var(--gold); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 0 0 14px; display: none; }
+  .card { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin: 0 0 8px; font-weight: 600; }
+  .verdict { font-size: 18px; font-weight: 650; line-height: 1.35; }
+  .countdown { font-variant-numeric: tabular-nums; color: var(--gold); font-weight: 650; }
+  .times { margin-top: 10px; font-size: 14px; opacity: 0.85; }
+  .times div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .times span:last-child { font-variant-numeric: tabular-nums; }
+  label.cta { display: block; text-align: center; font-size: 16px; font-weight: 600; padding: 14px; border-radius: 12px; border: 1px solid currentColor; cursor: pointer; margin: 14px 0 8px; }
   input[type=file] { display: none; }
-  label.cta { display: block; text-align: center; font-size: 16px; padding: 14px; border-radius: 10px; border: 1px solid currentColor; cursor: pointer; margin-bottom: 12px; }
-  .hint { font-size: 14px; opacity: 0.7; margin: 6px 0 16px; }
-  .card { border: 1px solid rgba(128,128,128,0.3); border-radius: 12px; padding: 14px; margin: 14px 0; }
-  .card h2 { font-size: 15px; margin: 0 0 8px; }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .row img { width: 100%; border-radius: 10px; }
-  .col { flex: 1 1 45%; min-width: 140px; }
-  .col span { font-size: 12px; opacity: 0.7; }
-  ul { margin: 6px 0 0; padding-left: 18px; }
-  code { font-size: 13px; }
-  .status { font-size: 14px; opacity: 0.8; min-height: 20px; }
+  input[type=text] { width: 100%; font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: inherit; }
+  .hint { font-size: 13px; opacity: 0.65; margin: 6px 0 0; }
+  .status { font-size: 14px; opacity: 0.85; min-height: 20px; margin: 10px 0 0; }
+  .err { color: #c0392b; }
+  @media (prefers-color-scheme: dark) { .err { color: #e07060; } }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 2px; }
+  .chip { font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; opacity: 0.9; }
+  ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+  .listhead { font-size: 12.5px; font-weight: 650; margin-top: 10px; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.05em; }
+  /* before/after slider */
+  .compare { position: relative; border-radius: 12px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .compare img { display: block; width: 100%; pointer-events: none; }
+  .compare .after { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--pos, 50%)); }
+  .compare .handle { position: absolute; top: 0; bottom: 0; left: var(--pos, 50%); width: 2px; background: #fff; box-shadow: 0 0 4px rgba(0,0,0,0.6); }
+  .compare .handle::after { content: "◂ ▸"; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #fff; color: #111; font-size: 11px; padding: 4px 7px; border-radius: 999px; white-space: nowrap; }
+  .taglabels { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.65; margin-top: 6px; }
+  .skeleton { height: 14px; border-radius: 6px; background: var(--line); animation: pulse 1.2s ease-in-out infinite; margin: 8px 0; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
 </style>
 </head>
 <body>
-  <h1>Scrim test</h1>
-  <p class="sub">Point at your scene, snap a frame, and see what the light is doing.</p>
+  <h1>Scrim</h1>
+  <p class="sub">Point at your scene. Scrim reads the light, tells you the fix, and shows you what softer looks like.</p>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="card" id="sunCard">
+    <h2>The sun right now</h2>
+    <div id="sunNow"><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:55%"></div></div>
+    <div class="times" id="sunTimes"></div>
+  </div>
 
   <label class="cta" for="shot">Take or choose a photo</label>
   <input id="shot" type="file" accept="image/*" capture="environment" />
-  <p class="hint">Allow location when asked. The sun timing needs it.</p>
+  <input id="lookHint" type="text" placeholder="Optional look note, e.g. moody warm" autocomplete="off" />
+  <p class="hint">Allow location when asked — the sun timing needs it. The photo goes to the server for analysis only.</p>
   <p class="status" id="status"></p>
 
   <div id="out"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
+let loc = null;
+let sun = null;
 
 function getLocation() {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error("no geolocation"));
+    if (loc) return resolve(loc);
+    if (!navigator.geolocation) return reject(new Error("This browser has no geolocation."));
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
-      (e) => reject(e),
+      (p) => { loc = { latitude: p.coords.latitude, longitude: p.coords.longitude }; resolve(loc); },
+      () => reject(new Error("Location was denied. Sun timing needs it — allow location and reload.")),
       { enableHighAccuracy: false, timeout: 8000 }
     );
   });
@@ -64,72 +98,171 @@ function fileToDataUrl(file, maxSide = 1280) {
       URL.revokeObjectURL(url);
       resolve(c.toDataURL("image/jpeg", 0.85));
     };
-    img.onerror = reject;
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read that image.")); };
     img.src = url;
   });
 }
 
 function fmt(t) {
   if (!t) return "n/a";
-  return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const d = new Date(t);
+  return Number.isNaN(d.getTime()) ? "n/a" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function fmtDur(mins) {
+  if (mins < 1) return "now";
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m} min`;
+}
+
+function goldenLine() {
+  const g = sun?.nextGoldenHour;
+  if (!g) return "";
+  const start = new Date(g.start), end = new Date(g.end);
+  const now = Date.now();
+  if (now >= start && now < end) {
+    return `<span class="countdown">Golden hour is on — ${fmtDur(Math.round((end - now) / 60000))} left.</span> Shoot now.`;
+  }
+  if (now < start) {
+    return `Next soft light: <span class="countdown">${g.label} in ${fmtDur(Math.round((start - now) / 60000))}</span> (${fmt(start)}–${fmt(end)}).`;
+  }
+  return "";
+}
+
+function renderSunCard() {
+  if (!sun) return;
+  const n = sun.now;
+  $("sunNow").innerHTML = `
+    <div>${n.altitudeDeg}&deg; up, from the ${n.direction} &mdash; ${n.quality}.</div>
+    <div style="margin-top:6px">${goldenLine()}</div>`;
+  $("sunTimes").innerHTML = `
+    <div><span>Morning golden hour</span><span>${fmt(sun.morningGoldenHour?.start)}&ndash;${fmt(sun.morningGoldenHour?.end)}</span></div>
+    <div><span>Evening golden hour</span><span>${fmt(sun.eveningGoldenHour?.start)}&ndash;${fmt(sun.eveningGoldenHour?.end)}</span></div>
+    <div><span>Blue hour</span><span>${fmt(sun.blueHour?.start)}&ndash;${fmt(sun.blueHour?.end)}</span></div>`;
+}
+
+async function loadSun() {
+  try {
+    const l = await getLocation();
+    const r = await fetch(`/sun?lat=${l.latitude}&lng=${l.longitude}`);
+    if (!r.ok) throw new Error("sun endpoint failed");
+    sun = await r.json();
+    renderSunCard();
+  } catch (e) {
+    $("sunNow").innerHTML = `<span class="err">${e.message || e}</span>`;
+    $("sunTimes").innerHTML = "";
+  }
+}
+
+// Tick the countdown locally; refetch when a window boundary passes so the label flips.
+setInterval(() => {
+  if (!sun) return;
+  const g = sun.nextGoldenHour;
+  if (g && Date.now() >= new Date(g.active ? g.end : g.start)) loadSun();
+  else renderSunCard();
+}, 30000);
+
+async function checkBackend() {
+  try {
+    const h = await (await fetch("/health")).json();
+    if (h.gemini === false) {
+      const b = $("banner");
+      b.style.display = "block";
+      b.textContent = "The server has no GEMINI_API_KEY set. Sun timing works, but light diagnosis and the softened preview will fail until the key is added on the server.";
+    }
+  } catch { /* health is best-effort */ }
+}
+
+function verdictFor(d) {
+  const g = sun?.nextGoldenHour;
+  const now = Date.now();
+  const inGolden = g && now >= new Date(g.start) && now < new Date(g.end);
+  const wait = g && !inGolden ? ` Or wait — <span class="countdown">golden hour in ${fmtDur(Math.round((new Date(g.start) - now) / 60000))}</span>.` : "";
+  if (d.hardness === "hard") return `Hard light. Soften it with the moves below.${wait}`;
+  if (d.hardness === "medium") return `Workable light, worth one softening move.${wait}`;
+  if (d.hardness === "soft") return "You're in soft light. Shoot now.";
+  return "";
+}
+
+function compareBlock(before, after) {
+  return `
+    <div class="compare" id="cmp" style="--pos:50%">
+      <img src="${before}" alt="original">
+      <div class="after"><img src="${after}" alt="softened"></div>
+      <div class="handle"></div>
+    </div>
+    <div class="taglabels"><span>Now</span><span>Softened preview</span></div>
+    <p class="hint">Drag to compare. The preview is directional — it shows what softer light would do, it doesn't measure it.</p>`;
+}
+
+function wireCompare() {
+  const el = $("cmp");
+  if (!el) return;
+  const move = (x) => {
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--pos", `${Math.max(0, Math.min(100, ((x - r.left) / r.width) * 100))}%`);
+  };
+  el.addEventListener("pointerdown", (e) => { el.setPointerCapture(e.pointerId); move(e.clientX); });
+  el.addEventListener("pointermove", (e) => { if (e.buttons) move(e.clientX); });
 }
 
 $("shot").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  e.target.value = "";
   $("out").innerHTML = "";
-  $("status").textContent = "Reading the frame and the sun...";
+  $("status").textContent = "Reading the frame…";
   try {
-    const [dataUrl, loc] = await Promise.all([fileToDataUrl(file), getLocation()]);
+    const [dataUrl, l] = await Promise.all([fileToDataUrl(file), getLocation()]);
+    $("status").textContent = "Asking the gaffer… (10–30 s)";
     const res = await fetch("/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         image: dataUrl,
-        latitude: loc.latitude,
-        longitude: loc.longitude,
+        latitude: l.latitude,
+        longitude: l.longitude,
         timestamp: new Date().toISOString(),
+        lookHint: $("lookHint").value.trim() || undefined,
       }),
     });
     const j = await res.json();
-    if (!res.ok) throw new Error(j.error || "request failed");
+    if (!res.ok) throw new Error(j.error || `request failed (${res.status})`);
     $("status").textContent = "";
+    if (j.sun) { sun = j.sun; renderSunCard(); }
 
-    const s = j.sun || {};
     const d = j.diagnosis || {};
+    const chips = [d.hardness && d.hardness + " light", d.colorTemp, d.contrast && d.contrast + " contrast", d.direction]
+      .filter(Boolean).map((c) => `<span class="chip">${c}</span>`).join("");
     const probs = (d.problems || []).map((p) => `<li>${p}</li>`).join("");
     const fixes = (d.fixes || []).map((f) => `<li>${f}</li>`).join("");
+    const verdict = verdictFor(d);
 
     $("out").innerHTML = `
       <div class="card">
-        <h2>The sun right now</h2>
-        <div>${s.now ? s.now.altitudeDeg + "&deg; up, from the " + s.now.direction + " &mdash; " + s.now.quality : ""}</div>
-        <div style="margin-top:8px;font-size:14px;opacity:0.85">
-          Morning golden hour: ${fmt(s.morningGoldenHour?.start)}&ndash;${fmt(s.morningGoldenHour?.end)}<br>
-          Evening golden hour: ${fmt(s.eveningGoldenHour?.start)}&ndash;${fmt(s.eveningGoldenHour?.end)}<br>
-          Blue hour: ${fmt(s.blueHour?.start)}&ndash;${fmt(s.blueHour?.end)}
-        </div>
-      </div>
-
-      <div class="card">
         <h2>What the light is doing</h2>
-        <div style="font-size:14px">${d.direction || ""} &middot; ${d.hardness || ""} &middot; ${d.colorTemp || ""} &middot; ${d.contrast || ""} contrast</div>
-        ${probs ? `<div style="margin-top:8px"><strong style="font-size:13px">Problems</strong><ul>${probs}</ul></div>` : ""}
-        ${fixes ? `<div style="margin-top:8px"><strong style="font-size:13px">How to soften it</strong><ul>${fixes}</ul></div>` : ""}
+        ${d.error
+          ? `<div class="err" style="font-size:14px">Diagnosis failed: ${d.error}</div>`
+          : `${verdict ? `<div class="verdict">${verdict}</div>` : ""}
+             <div class="chips">${chips}</div>
+             ${probs ? `<div class="listhead">Problems</div><ul>${probs}</ul>` : ""}
+             ${fixes ? `<div class="listhead">How to soften it</div><ul>${fixes}</ul>` : ""}`}
       </div>
-
       <div class="card">
         <h2>Before and after</h2>
-        <div class="row">
-          <div class="col"><span>Now</span><img src="${dataUrl}" alt="original"></div>
-          <div class="col"><span>Softened preview</span>${j.render ? `<img src="${j.render}" alt="softened">` : "<div style='font-size:13px;opacity:0.7'>render unavailable</div>"}</div>
-        </div>
-      </div>
-    `;
+        ${j.render
+          ? compareBlock(dataUrl, j.render)
+          : `<img src="${dataUrl}" alt="original" style="width:100%;border-radius:12px">
+             <div class="err" style="font-size:13px;margin-top:8px">Softened preview unavailable${j.renderError ? ": " + j.renderError : ""}.</div>`}
+      </div>`;
+    wireCompare();
   } catch (err) {
-    $("status").textContent = "Error: " + (err.message || err);
+    $("status").innerHTML = `<span class="err">${err.message || err}</span>`;
   }
 });
+
+checkBackend();
+loadSun();
 </script>
 </body>
 </html>
