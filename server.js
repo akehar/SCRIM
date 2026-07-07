@@ -92,8 +92,17 @@ Judge ONLY the lighting on the subject and scene. Reply with strict JSON, no mar
   "colorTemp": "warm" | "neutral" | "cool",
   "contrast": "low" | "balanced" | "high",
   "problems": ["at most 3 short plain-language issues"],
-  "fixes": ["at most 3 specific softening or timing moves, e.g. add a 4x4 silk, bounce the shadow side, move into open shade, wait for golden hour at a given time"]
-}`;
+  "fixes": ["at most 3 specific softening or timing moves, e.g. add a 4x4 silk, bounce the shadow side, move into open shade, wait for golden hour at a given time"],
+  "diagram": {
+    "sunFrom": {"x": 0.0-1.0, "y": 0.0-1.0},
+    "subject": {"x": 0.0-1.0, "y": 0.0-1.0},
+    "marks": [{"x": 0.0-1.0, "y": 0.0-1.0, "tool": "silk" | "bounce" | "flag" | "shade" | "move" | "wait", "label": "2-4 words"}]
+  }
+}
+For "diagram", all coordinates are fractions of the frame (x rightward, y downward).
+"sunFrom" is the point on or near the frame edge where the main light enters.
+"subject" is the centre of the main subject.
+"marks" has exactly one entry per entry in "fixes", in the same order: the spot IN THE FRAME where that move happens (where the silk or bounce goes, where the subject should move to, or the subject itself for a timing fix).`;
 
   const res = await ai.models.generateContent({
     model: VISION_MODEL,

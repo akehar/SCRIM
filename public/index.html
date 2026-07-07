@@ -3,73 +3,204 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Scrim</title>
+<meta name="description" content="Scrim reads the natural light in your frame, tells you the fix, and shows you what softer looks like." />
+<meta name="theme-color" content="#0c0b09" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#faf7f1" media="(prefers-color-scheme: light)" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<title>Scrim — shape the light you already have</title>
 <style>
   :root {
-    color-scheme: light dark;
-    --gold: #c8871a;
-    --line: rgba(128,128,128,0.28);
-    --dim: rgba(128,128,128,0.85);
+    color-scheme: dark light;
+    --bg: #0c0b09;
+    --surface: #161411;
+    --line: #2a2721;
+    --ink: #f4efe6;
+    --muted: #9b937f;
+    --gold: #e8a33d;
+    --gold-ink: #201503;
+    --err: #e06a55;
+    --radius: 16px;
   }
-  @media (prefers-color-scheme: dark) { :root { --gold: #e6a83c; } }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #faf7f1; --surface: #ffffff; --line: #e4dfd3;
+      --ink: #201d17; --muted: #7a7263; --gold: #b67614; --gold-ink: #fff;
+      --err: #b3402e;
+    }
+  }
   * { box-sizing: border-box; }
-  body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; max-width: 640px; margin-inline: auto; line-height: 1.5; }
-  h1 { font-size: 20px; font-weight: 650; margin: 0 0 2px; }
-  p.sub { margin: 0 0 16px; opacity: 0.7; font-size: 14px; }
-  .banner { border: 1px solid var(--gold); color: var(--gold); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 0 0 14px; display: none; }
-  .card { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
-  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin: 0 0 8px; font-weight: 600; }
-  .verdict { font-size: 18px; font-weight: 650; line-height: 1.35; }
-  .countdown { font-variant-numeric: tabular-nums; color: var(--gold); font-weight: 650; }
-  .times { margin-top: 10px; font-size: 14px; opacity: 0.85; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink);
+    margin: 0; line-height: 1.5;
+    padding: calc(14px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));
+    max-width: 680px; margin-inline: auto;
+  }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+  .wordmark { font-size: 19px; font-weight: 750; letter-spacing: 0.34em; margin: 0; }
+  .wordmark b { color: var(--gold); font-weight: inherit; }
+  .tagline { margin: 0 0 18px; color: var(--muted); font-size: 13.5px; }
+  .pill { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+
+  .banner { border: 1px solid var(--gold); color: var(--gold); border-radius: 12px; padding: 10px 14px; font-size: 13.5px; margin: 0 0 14px; display: none; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin: 12px 0; }
+  .card h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 10px; font-weight: 650; }
+
+  /* hero countdown */
+  .clock { font-size: clamp(26px, 8vw, 34px); font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; line-height: 1.15; }
+  .clock em { font-style: normal; color: var(--gold); }
+  .sunline { font-size: 14.5px; margin-top: 6px; }
+  .times { margin-top: 12px; font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
   .times div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
-  .times span:last-child { font-variant-numeric: tabular-nums; }
-  label.cta { display: block; text-align: center; font-size: 16px; font-weight: 600; padding: 14px; border-radius: 12px; border: 1px solid currentColor; cursor: pointer; margin: 14px 0 8px; }
+  .times span:last-child { font-variant-numeric: tabular-nums; color: var(--ink); }
+
+  /* actions */
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 10px; }
+  .btn {
+    appearance: none; font: inherit; font-size: 15.5px; font-weight: 650; text-align: center;
+    padding: 14px 12px; border-radius: 14px; cursor: pointer; min-height: 50px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    transition: transform 0.08s ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn.primary { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
   input[type=file] { display: none; }
-  input[type=text] { width: 100%; font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: inherit; }
-  .hint { font-size: 13px; opacity: 0.65; margin: 6px 0 0; }
-  .status { font-size: 14px; opacity: 0.85; min-height: 20px; margin: 10px 0 0; }
-  .err { color: #c0392b; }
-  @media (prefers-color-scheme: dark) { .err { color: #e07060; } }
-  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 2px; }
-  .chip { font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; opacity: 0.9; }
-  ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
-  .listhead { font-size: 12.5px; font-weight: 650; margin-top: 10px; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.05em; }
-  /* before/after slider */
+  input[type=text] {
+    width: 100%; font: inherit; font-size: 14px; padding: 12px 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink); margin-top: 2px;
+  }
+  input[type=text]::placeholder { color: var(--muted); }
+  .hint { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+  .status { font-size: 14px; min-height: 21px; margin: 12px 0 0; }
+  .err { color: var(--err); }
+
+  /* viewfinder */
+  #finder { display: none; }
+  #finder.open { display: block; }
+  .vfwrap { position: relative; border-radius: var(--radius); overflow: hidden; background: #000; }
+  .vfwrap video { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
+  .vfbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+  .shutter {
+    width: 64px; height: 64px; border-radius: 50%; border: 4px solid var(--ink);
+    background: var(--gold); cursor: pointer; margin-inline: auto; flex: 0 0 auto;
+    transition: transform 0.08s ease;
+  }
+  .shutter:active { transform: scale(0.92); }
+  .vfside { flex: 1 1 0; display: flex; }
+  .vfside.right { justify-content: flex-end; }
+  select, .ghost {
+    font: inherit; font-size: 13px; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; max-width: 100%; cursor: pointer;
+  }
+  details { margin-top: 12px; font-size: 13.5px; color: var(--muted); }
+  details summary { cursor: pointer; color: var(--ink); font-weight: 600; font-size: 13.5px; }
+  details li { margin: 6px 0; }
+
+  /* results */
+  .verdict { font-size: 18px; font-weight: 700; line-height: 1.35; }
+  .verdict .gold { color: var(--gold); font-variant-numeric: tabular-nums; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 2px; }
+  .chip { font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; color: var(--muted); }
+  .listhead { font-size: 11.5px; font-weight: 650; margin-top: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  ol.fixes, ul.probs { margin: 6px 0 0; padding-left: 0; list-style: none; font-size: 14.5px; }
+  ul.probs li { padding-left: 16px; position: relative; margin: 4px 0; }
+  ul.probs li::before { content: ""; position: absolute; left: 2px; top: 0.62em; width: 5px; height: 5px; border-radius: 50%; background: var(--err); }
+  ol.fixes li { display: flex; gap: 10px; margin: 8px 0; align-items: baseline; }
+  .num {
+    flex: 0 0 auto; width: 21px; height: 21px; border-radius: 50%; background: var(--gold); color: var(--gold-ink);
+    font-size: 12.5px; font-weight: 750; display: inline-flex; align-items: center; justify-content: center;
+    transform: translateY(3px);
+  }
+
+  /* frame viewer: tabs + overlay + compare */
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tab {
+    font: inherit; font-size: 13px; font-weight: 650; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); background: transparent; color: var(--muted);
+  }
+  .tab[aria-selected="true"] { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
+  .frame { position: relative; border-radius: 12px; overflow: hidden; }
+  .frame img { display: block; width: 100%; }
+  .frame svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .legend .key { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 3px; background: var(--gold); border-radius: 2px; }
+
   .compare { position: relative; border-radius: 12px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
   .compare img { display: block; width: 100%; pointer-events: none; }
   .compare .after { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--pos, 50%)); }
   .compare .handle { position: absolute; top: 0; bottom: 0; left: var(--pos, 50%); width: 2px; background: #fff; box-shadow: 0 0 4px rgba(0,0,0,0.6); }
-  .compare .handle::after { content: "◂ ▸"; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #fff; color: #111; font-size: 11px; padding: 4px 7px; border-radius: 999px; white-space: nowrap; }
-  .taglabels { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.65; margin-top: 6px; }
+  .compare .handle::after {
+    content: "◂ ▸"; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    background: #fff; color: #111; font-size: 11px; padding: 5px 8px; border-radius: 999px; white-space: nowrap;
+  }
+  .taglabels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+
   .skeleton { height: 14px; border-radius: 6px; background: var(--line); animation: pulse 1.2s ease-in-out infinite; margin: 8px 0; }
   @keyframes pulse { 50% { opacity: 0.4; } }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton { animation: none; }
+    .btn, .shutter { transition: none; }
+  }
 </style>
 </head>
 <body>
-  <h1>Scrim</h1>
-  <p class="sub">Point at your scene. Scrim reads the light, tells you the fix, and shows you what softer looks like.</p>
+  <header>
+    <h1 class="wordmark">SCR<b>I</b>M</h1>
+    <span class="pill" id="locPill">locating…</span>
+  </header>
+  <p class="tagline">Shape the light you already have.</p>
 
   <div class="banner" id="banner"></div>
 
   <div class="card" id="sunCard">
-    <h2>The sun right now</h2>
-    <div id="sunNow"><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:55%"></div></div>
+    <h2>Next soft light</h2>
+    <div id="clock" class="clock"><span class="skeleton" style="display:block;width:70%"></span></div>
+    <div class="sunline" id="sunNow"><span class="skeleton" style="display:block;width:50%"></span></div>
     <div class="times" id="sunTimes"></div>
   </div>
 
-  <label class="cta" for="shot">Take or choose a photo</label>
+  <div class="actions">
+    <button class="btn primary" id="openCam" type="button">Open camera</button>
+    <label class="btn" for="shot">Upload photo</label>
+  </div>
   <input id="shot" type="file" accept="image/*" capture="environment" />
-  <input id="lookHint" type="text" placeholder="Optional look note, e.g. moody warm" autocomplete="off" />
-  <p class="hint">Allow location when asked — the sun timing needs it. The photo goes to the server for analysis only.</p>
-  <p class="status" id="status"></p>
+  <input id="lookHint" type="text" placeholder="Optional look note — e.g. moody warm, clean commercial" autocomplete="off" />
+  <p class="hint">Works with the phone camera, or a pro camera plugged in over USB. Frames go to the server for analysis only.</p>
 
+  <div class="card" id="finder">
+    <h2>Viewfinder</h2>
+    <div class="vfwrap"><video id="vf" autoplay playsinline muted></video></div>
+    <div class="vfbar">
+      <div class="vfside"><select id="camSel" aria-label="Camera" hidden></select></div>
+      <button class="shutter" id="snap" type="button" aria-label="Analyze this frame"></button>
+      <div class="vfside right"><button class="ghost" id="closeCam" type="button">Close</button></div>
+    </div>
+    <details>
+      <summary>Connect a pro camera (Sony a7S III, DJI Osmo Pocket 3…)</summary>
+      <ul>
+        <li><strong>DJI Osmo Pocket 3:</strong> plug into this device over USB-C and switch the camera to <em>Webcam Mode</em>. It appears in the camera menu above — no drivers.</li>
+        <li><strong>Sony a7S III / a7 IV / FX3:</strong> Setup&nbsp;→&nbsp;USB&nbsp;→ <em>USB Streaming</em>, then connect over USB. The camera shows up as a video source.</li>
+        <li><strong>Anything with HDMI out:</strong> a small HDMI→USB capture stick makes any cinema camera appear as a source here.</li>
+        <li>Then pick it in the camera menu that appears at the bottom-left of the viewfinder.</li>
+      </ul>
+    </details>
+  </div>
+
+  <p class="status" id="status" role="status"></p>
   <div id="out"></div>
 
 <script>
+"use strict";
 const $ = (id) => document.getElementById(id);
 let loc = null;
 let sun = null;
+let stream = null;
+
+/* ---------- location + sun ---------- */
 
 function getLocation() {
   return new Promise((resolve, reject) => {
@@ -83,58 +214,42 @@ function getLocation() {
   });
 }
 
-// Downscale before upload so payloads stay small and fast.
-function fileToDataUrl(file, maxSide = 1280) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const c = document.createElement("canvas");
-      c.width = w; c.height = h;
-      c.getContext("2d").drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      resolve(c.toDataURL("image/jpeg", 0.85));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read that image.")); };
-    img.src = url;
-  });
-}
-
 function fmt(t) {
   if (!t) return "n/a";
   const d = new Date(t);
   return Number.isNaN(d.getTime()) ? "n/a" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function fmtClock(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  return (h ? h + ":" : "") + String(m).padStart(h ? 2 : 1, "0") + ":" + String(ss).padStart(2, "0");
+}
+
 function fmtDur(mins) {
   if (mins < 1) return "now";
-  const h = Math.floor(mins / 60), m = mins % 60;
+  const h = Math.floor(mins / 60), m = Math.round(mins % 60);
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m} min`;
 }
 
-function goldenLine() {
+function renderClock() {
   const g = sun?.nextGoldenHour;
-  if (!g) return "";
-  const start = new Date(g.start), end = new Date(g.end);
-  const now = Date.now();
+  if (!g) { $("clock").innerHTML = "No golden hour at this latitude right now."; return; }
+  const start = new Date(g.start), end = new Date(g.end), now = Date.now();
   if (now >= start && now < end) {
-    return `<span class="countdown">Golden hour is on — ${fmtDur(Math.round((end - now) / 60000))} left.</span> Shoot now.`;
+    $("clock").innerHTML = `<em>Golden hour</em> — ${fmtClock(end - now)} left`;
+  } else if (now < start) {
+    $("clock").innerHTML = `Golden hour in <em>${fmtClock(start - now)}</em>`;
+  } else {
+    loadSun(); // window just passed; refresh
   }
-  if (now < start) {
-    return `Next soft light: <span class="countdown">${g.label} in ${fmtDur(Math.round((start - now) / 60000))}</span> (${fmt(start)}–${fmt(end)}).`;
-  }
-  return "";
 }
 
 function renderSunCard() {
   if (!sun) return;
   const n = sun.now;
-  $("sunNow").innerHTML = `
-    <div>${n.altitudeDeg}&deg; up, from the ${n.direction} &mdash; ${n.quality}.</div>
-    <div style="margin-top:6px">${goldenLine()}</div>`;
+  renderClock();
+  $("sunNow").innerHTML = `Sun ${n.altitudeDeg}&deg; up, from the ${n.direction} &mdash; ${n.quality}.`;
   $("sunTimes").innerHTML = `
     <div><span>Morning golden hour</span><span>${fmt(sun.morningGoldenHour?.start)}&ndash;${fmt(sun.morningGoldenHour?.end)}</span></div>
     <div><span>Evening golden hour</span><span>${fmt(sun.eveningGoldenHour?.start)}&ndash;${fmt(sun.eveningGoldenHour?.end)}</span></div>
@@ -144,23 +259,19 @@ function renderSunCard() {
 async function loadSun() {
   try {
     const l = await getLocation();
+    $("locPill").textContent = `${l.latitude.toFixed(2)}, ${l.longitude.toFixed(2)}`;
     const r = await fetch(`/sun?lat=${l.latitude}&lng=${l.longitude}`);
     if (!r.ok) throw new Error("sun endpoint failed");
     sun = await r.json();
     renderSunCard();
   } catch (e) {
-    $("sunNow").innerHTML = `<span class="err">${e.message || e}</span>`;
-    $("sunTimes").innerHTML = "";
+    $("locPill").textContent = "no location";
+    $("clock").innerHTML = `<span class="err" style="font-size:15px;font-weight:400">${e.message || e}</span>`;
+    $("sunNow").textContent = "";
   }
 }
 
-// Tick the countdown locally; refetch when a window boundary passes so the label flips.
-setInterval(() => {
-  if (!sun) return;
-  const g = sun.nextGoldenHour;
-  if (g && Date.now() >= new Date(g.active ? g.end : g.start)) loadSun();
-  else renderSunCard();
-}, 30000);
+setInterval(() => { if (sun) renderClock(); }, 1000);
 
 async function checkBackend() {
   try {
@@ -168,58 +279,105 @@ async function checkBackend() {
     if (h.gemini === false) {
       const b = $("banner");
       b.style.display = "block";
-      b.textContent = "The server has no GEMINI_API_KEY set. Sun timing works, but light diagnosis and the softened preview will fail until the key is added on the server.";
+      b.textContent = "The server has no GEMINI_API_KEY set. Sun timing works, but the diagnosis, diagram, and softened preview will fail until the key is added on the server.";
     }
-  } catch { /* health is best-effort */ }
+  } catch { /* best effort */ }
 }
 
-function verdictFor(d) {
-  const g = sun?.nextGoldenHour;
-  const now = Date.now();
-  const inGolden = g && now >= new Date(g.start) && now < new Date(g.end);
-  const wait = g && !inGolden ? ` Or wait — <span class="countdown">golden hour in ${fmtDur(Math.round((new Date(g.start) - now) / 60000))}</span>.` : "";
-  if (d.hardness === "hard") return `Hard light. Soften it with the moves below.${wait}`;
-  if (d.hardness === "medium") return `Workable light, worth one softening move.${wait}`;
-  if (d.hardness === "soft") return "You're in soft light. Shoot now.";
-  return "";
+/* ---------- imaging ---------- */
+
+function downscale(source, sw, sh, maxSide = 1280) {
+  const scale = Math.min(1, maxSide / Math.max(sw, sh));
+  const w = Math.round(sw * scale), h = Math.round(sh * scale);
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  c.getContext("2d").drawImage(source, 0, 0, w, h);
+  return { dataUrl: c.toDataURL("image/jpeg", 0.85), w, h };
 }
 
-function compareBlock(before, after) {
-  return `
-    <div class="compare" id="cmp" style="--pos:50%">
-      <img src="${before}" alt="original">
-      <div class="after"><img src="${after}" alt="softened"></div>
-      <div class="handle"></div>
-    </div>
-    <div class="taglabels"><span>Now</span><span>Softened preview</span></div>
-    <p class="hint">Drag to compare. The preview is directional — it shows what softer light would do, it doesn't measure it.</p>`;
+function fileToFrame(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => { const f = downscale(img, img.width, img.height); URL.revokeObjectURL(url); resolve(f); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read that image.")); };
+    img.src = url;
+  });
 }
 
-function wireCompare() {
-  const el = $("cmp");
-  if (!el) return;
-  const move = (x) => {
-    const r = el.getBoundingClientRect();
-    el.style.setProperty("--pos", `${Math.max(0, Math.min(100, ((x - r.left) / r.width) * 100))}%`);
-  };
-  el.addEventListener("pointerdown", (e) => { el.setPointerCapture(e.pointerId); move(e.clientX); });
-  el.addEventListener("pointermove", (e) => { if (e.buttons) move(e.clientX); });
+/* ---------- viewfinder ---------- */
+
+async function startStream(deviceId) {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  const video = deviceId
+    ? { deviceId: { exact: deviceId }, width: { ideal: 1920 } }
+    : { facingMode: "environment", width: { ideal: 1920 } };
+  stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+  $("vf").srcObject = stream;
 }
+
+async function listCameras() {
+  const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+  const sel = $("camSel");
+  if (cams.length < 2) { sel.hidden = true; return; }
+  const current = stream?.getVideoTracks()[0]?.getSettings().deviceId;
+  sel.innerHTML = cams.map((c, i) => `<option value="${c.deviceId}" ${c.deviceId === current ? "selected" : ""}>${c.label || "Camera " + (i + 1)}</option>`).join("");
+  sel.hidden = false;
+}
+
+$("openCam").addEventListener("click", async () => {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    $("status").innerHTML = `<span class="err">Live view needs a modern browser over HTTPS — use Upload photo instead.</span>`;
+    return;
+  }
+  try {
+    $("finder").classList.add("open");
+    await startStream();
+    await listCameras();
+    $("finder").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (e) {
+    $("finder").classList.remove("open");
+    $("status").innerHTML = `<span class="err">Camera was denied or is unavailable (${e.name || e.message}). Upload a photo instead.</span>`;
+  }
+});
+
+$("camSel").addEventListener("change", async (e) => {
+  try { await startStream(e.target.value); } catch { /* keep old stream error state */ }
+});
+
+$("closeCam").addEventListener("click", () => {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = null;
+  $("finder").classList.remove("open");
+});
+
+$("snap").addEventListener("click", () => {
+  const v = $("vf");
+  if (!v.videoWidth) return;
+  analyze(downscale(v, v.videoWidth, v.videoHeight));
+});
 
 $("shot").addEventListener("change", async (e) => {
   const file = e.target.files[0];
-  if (!file) return;
   e.target.value = "";
+  if (!file) return;
+  try { analyze(await fileToFrame(file)); }
+  catch (err) { $("status").innerHTML = `<span class="err">${err.message || err}</span>`; }
+});
+
+/* ---------- analysis + results ---------- */
+
+async function analyze(frame) {
   $("out").innerHTML = "";
   $("status").textContent = "Reading the frame…";
   try {
-    const [dataUrl, l] = await Promise.all([fileToDataUrl(file), getLocation()]);
+    const l = await getLocation();
     $("status").textContent = "Asking the gaffer… (10–30 s)";
     const res = await fetch("/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        image: dataUrl,
+        image: frame.dataUrl,
         latitude: l.latitude,
         longitude: l.longitude,
         timestamp: new Date().toISOString(),
@@ -230,36 +388,134 @@ $("shot").addEventListener("change", async (e) => {
     if (!res.ok) throw new Error(j.error || `request failed (${res.status})`);
     $("status").textContent = "";
     if (j.sun) { sun = j.sun; renderSunCard(); }
-
-    const d = j.diagnosis || {};
-    const chips = [d.hardness && d.hardness + " light", d.colorTemp, d.contrast && d.contrast + " contrast", d.direction]
-      .filter(Boolean).map((c) => `<span class="chip">${c}</span>`).join("");
-    const probs = (d.problems || []).map((p) => `<li>${p}</li>`).join("");
-    const fixes = (d.fixes || []).map((f) => `<li>${f}</li>`).join("");
-    const verdict = verdictFor(d);
-
-    $("out").innerHTML = `
-      <div class="card">
-        <h2>What the light is doing</h2>
-        ${d.error
-          ? `<div class="err" style="font-size:14px">Diagnosis failed: ${d.error}</div>`
-          : `${verdict ? `<div class="verdict">${verdict}</div>` : ""}
-             <div class="chips">${chips}</div>
-             ${probs ? `<div class="listhead">Problems</div><ul>${probs}</ul>` : ""}
-             ${fixes ? `<div class="listhead">How to soften it</div><ul>${fixes}</ul>` : ""}`}
-      </div>
-      <div class="card">
-        <h2>Before and after</h2>
-        ${j.render
-          ? compareBlock(dataUrl, j.render)
-          : `<img src="${dataUrl}" alt="original" style="width:100%;border-radius:12px">
-             <div class="err" style="font-size:13px;margin-top:8px">Softened preview unavailable${j.renderError ? ": " + j.renderError : ""}.</div>`}
-      </div>`;
-    wireCompare();
+    renderResults(frame, j);
   } catch (err) {
     $("status").innerHTML = `<span class="err">${err.message || err}</span>`;
   }
-});
+}
+
+function verdictFor(d) {
+  const g = sun?.nextGoldenHour;
+  const now = Date.now();
+  const inGolden = g && now >= new Date(g.start) && now < new Date(g.end);
+  const wait = g && !inGolden && new Date(g.start) > now
+    ? ` Or wait — <span class="gold">golden hour in ${fmtDur((new Date(g.start) - now) / 60000)}</span>.` : "";
+  if (d.hardness === "hard") return `Hard light. Work the moves below.${wait}`;
+  if (d.hardness === "medium") return `Workable light — one move makes it better.${wait}`;
+  if (d.hardness === "soft") return "You're in soft light. Shoot now.";
+  return "";
+}
+
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+const TOOL_NAMES = { silk: "silk / diffusion", bounce: "bounce", flag: "flag / negative fill", shade: "open shade", move: "move here", wait: "wait it out" };
+
+function clamp01(v) { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : null; }
+
+// Draw the gaffer diagram over the frame: sun ray in, subject anchor, numbered marks per fix.
+function diagramSvg(diagram, w, h) {
+  if (!diagram) return "";
+  const px = (p) => { const x = clamp01(p?.x), y = clamp01(p?.y); return x == null || y == null ? null : { x: x * w, y: y * h }; };
+  const sunFrom = px(diagram.sunFrom);
+  const subject = px(diagram.subject);
+  const marks = Array.isArray(diagram.marks) ? diagram.marks.map((m) => ({ ...m, p: px(m) })).filter((m) => m.p) : [];
+  if (!sunFrom && !subject && !marks.length) return "";
+  const u = Math.min(w, h) / 100; // scale unit so the diagram reads the same at any resolution
+  let els = "";
+  if (sunFrom && subject) {
+    const dx = subject.x - sunFrom.x, dy = subject.y - sunFrom.y, len = Math.hypot(dx, dy) || 1;
+    const tip = { x: sunFrom.x + dx * 0.42, y: sunFrom.y + dy * 0.42 };
+    const ah = 4 * u, ang = Math.atan2(dy, dx);
+    els += `<line x1="${sunFrom.x}" y1="${sunFrom.y}" x2="${tip.x}" y2="${tip.y}" stroke="#e8a33d" stroke-width="${1.2 * u}" stroke-dasharray="${3 * u} ${2 * u}" stroke-linecap="round"/>`;
+    els += `<path d="M ${tip.x + Math.cos(ang) * ah} ${tip.y + Math.sin(ang) * ah}
+      L ${tip.x + Math.cos(ang + 2.5) * ah} ${tip.y + Math.sin(ang + 2.5) * ah}
+      L ${tip.x + Math.cos(ang - 2.5) * ah} ${tip.y + Math.sin(ang - 2.5) * ah} Z" fill="#e8a33d"/>`;
+    const lx = Math.min(Math.max(sunFrom.x, 6 * u), w - 6 * u), ly = Math.min(Math.max(sunFrom.y - 2.5 * u, 5 * u), h - 2 * u);
+    els += `<text x="${lx}" y="${ly}" font-size="${4 * u}" font-weight="700" fill="#e8a33d" stroke="rgba(0,0,0,0.75)" stroke-width="${0.8 * u}" paint-order="stroke" text-anchor="middle" font-family="system-ui">SUN</text>`;
+  }
+  if (subject) {
+    els += `<circle cx="${subject.x}" cy="${subject.y}" r="${5 * u}" fill="none" stroke="#ffffff" stroke-width="${0.7 * u}" stroke-dasharray="${1.6 * u} ${1.6 * u}" opacity="0.9"/>`;
+  }
+  marks.forEach((m, i) => {
+    const { x, y } = m.p;
+    const r = 4.4 * u;
+    els += `<circle cx="${x}" cy="${y}" r="${r}" fill="#e8a33d" stroke="rgba(0,0,0,0.4)" stroke-width="${0.5 * u}"/>`;
+    els += `<text x="${x}" y="${y + 1.6 * u}" font-size="${4.6 * u}" font-weight="800" fill="#201503" text-anchor="middle" font-family="system-ui">${i + 1}</text>`;
+    if (m.label) {
+      const below = y < h - 12 * u;
+      const ty = below ? y + r + 4.6 * u : y - r - 2.4 * u;
+      const tx = Math.min(Math.max(x, 14 * u), w - 14 * u);
+      els += `<text x="${tx}" y="${ty}" font-size="${3.6 * u}" font-weight="650" fill="#fff" stroke="rgba(0,0,0,0.8)" stroke-width="${0.9 * u}" paint-order="stroke" text-anchor="middle" font-family="system-ui">${esc(m.label)}</text>`;
+    }
+  });
+  return `<svg viewBox="0 0 ${w} ${h}" aria-label="Lighting diagram overlay">${els}</svg>`;
+}
+
+function renderResults(frame, j) {
+  const d = j.diagnosis || {};
+  const chips = [d.hardness && d.hardness + " light", d.colorTemp, d.contrast && d.contrast + " contrast", d.direction]
+    .filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join("");
+  const probs = (d.problems || []).map((p) => `<li>${esc(p)}</li>`).join("");
+  const fixes = (d.fixes || []).map((f, i) => `<li><span class="num">${i + 1}</span><span>${esc(f)}</span></li>`).join("");
+  const verdict = verdictFor(d);
+  const overlay = diagramSvg(d.diagram, frame.w, frame.h);
+  const marks = Array.isArray(d.diagram?.marks) ? d.diagram.marks : [];
+  const legendTools = [...new Set(marks.map((m) => TOOL_NAMES[m.tool]).filter(Boolean))];
+
+  const diagramPane = `
+    <div class="frame">${`<img src="${frame.dataUrl}" alt="your frame">`}${overlay}</div>
+    ${overlay ? `<div class="legend">
+        <span class="key"><span class="swatch"></span>sun direction</span>
+        ${legendTools.map((t) => `<span class="key"><span class="num" style="transform:none;width:16px;height:16px;font-size:10px">#</span>${esc(t)}</span>`).join("")}
+      </div>` : `<p class="hint">No diagram came back for this frame.</p>`}`;
+
+  const comparePane = j.render
+    ? `<div class="compare" id="cmp" style="--pos:50%">
+         <img src="${frame.dataUrl}" alt="original">
+         <div class="after"><img src="${j.render}" alt="softened"></div>
+         <div class="handle"></div>
+       </div>
+       <div class="taglabels"><span>Now</span><span>Softened preview</span></div>
+       <p class="hint">Drag to compare. The preview is directional — it shows what softer light would do, it doesn't measure it.</p>`
+    : `<div class="frame"><img src="${frame.dataUrl}" alt="original"></div>
+       <p class="err" style="font-size:13px;margin:8px 0 0">Softened preview unavailable${j.renderError ? ": " + esc(j.renderError) : ""}.</p>`;
+
+  $("out").innerHTML = `
+    <div class="card">
+      <h2>The read</h2>
+      ${d.error
+        ? `<div class="err" style="font-size:14px">Diagnosis failed: ${esc(d.error)}</div>`
+        : `${verdict ? `<div class="verdict">${verdict}</div>` : ""}
+           <div class="chips">${chips}</div>
+           ${probs ? `<div class="listhead">Problems</div><ul class="probs">${probs}</ul>` : ""}
+           ${fixes ? `<div class="listhead">The fix — numbers match the diagram</div><ol class="fixes">${fixes}</ol>` : ""}`}
+    </div>
+    <div class="card">
+      <h2>Your frame</h2>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-pane="pane-diagram" type="button">Lighting diagram</button>
+        <button class="tab" role="tab" aria-selected="false" data-pane="pane-compare" type="button">Before / after</button>
+      </div>
+      <div id="pane-diagram" role="tabpanel">${diagramPane}</div>
+      <div id="pane-compare" role="tabpanel" hidden>${comparePane}</div>
+    </div>`;
+
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
+    document.querySelectorAll("[role=tabpanel]").forEach((p) => { p.hidden = p.id !== t.dataset.pane; });
+  }));
+
+  const cmp = $("cmp");
+  if (cmp) {
+    const move = (x) => {
+      const r = cmp.getBoundingClientRect();
+      cmp.style.setProperty("--pos", `${Math.max(0, Math.min(100, ((x - r.left) / r.width) * 100))}%`);
+    };
+    cmp.addEventListener("pointerdown", (e) => { cmp.setPointerCapture(e.pointerId); move(e.clientX); });
+    cmp.addEventListener("pointermove", (e) => { if (e.buttons) move(e.clientX); });
+  }
+  $("out").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
 
 checkBackend();
 loadSun();

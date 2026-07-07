@@ -1,0 +1,12 @@
+{
+  "name": "Scrim",
+  "short_name": "Scrim",
+  "description": "Reads the natural light in your frame, tells you the fix, and shows you what softer looks like.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0b09",
+  "theme_color": "#0c0b09",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

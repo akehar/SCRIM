@@ -7,10 +7,10 @@ Sun apps (PhotoPills, Sun Seeker) tell you where the sun will be but never look 
 One endpoint that, given a photo plus a location and time, returns:
 
 1. **A sun report** computed locally with `suncalc`: the sun's current angle, direction, and quality, plus today's golden hour and blue hour windows. No AI, works offline once moved onto the phone.
-2. **A lighting diagnosis** from a Gemini vision model: direction, hardness, colour temperature, contrast, the problems, and specific softening or timing fixes.
+2. **A lighting diagnosis** from a Gemini vision model: direction, hardness, colour temperature, contrast, the problems, and specific softening or timing fixes — plus a `diagram` with frame-space coordinates (where the sun enters, where the subject is, and a numbered mark per fix) that the test page draws directly on the photo.
 3. **A softened render** from Nano Banana (`gemini-3.1-flash-image`): the same frame re-lit toward a soft, warm, golden-hour look, subject and framing kept intact.
 
-It ships with a tiny test page so you can try it from your phone before any native app exists.
+It ships with a test page (dark, set-friendly, installable as a PWA) so you can try it from your phone before any native app exists. The page has a live viewfinder built on `getUserMedia`, so besides the phone camera it can read any camera that presents as a video source: a DJI Osmo Pocket 3 in Webcam Mode over USB-C, a Sony a7S III / a7 IV / FX3 with USB Streaming enabled, or any HDMI camera through a cheap HDMI-to-USB capture stick.
 
 > The render is a directional preview, not a final grade. It shows the person what softer light would do, it does not measure it.
 
