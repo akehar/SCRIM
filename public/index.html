@@ -233,19 +233,48 @@ let state = null;        // {frame, diagnosis} of the last analyzed shot
 
 /* ---------- location + sun ---------- */
 
-function getLocation(force = false) {
+// iOS Safari can stall getCurrentPosition without firing EITHER callback
+// (pending permission prompt, Precise Location off), so enforce our own deadline.
+function getPosition(opts) {
   return new Promise((resolve, reject) => {
-    if (loc && !force) return resolve(loc);
     if (!navigator.geolocation) return reject(new Error("This browser has no geolocation."));
+    let done = false;
+    const deadline = setTimeout(() => { if (!done) { done = true; reject(new Error("location timed out")); } }, (opts.timeout || 8000) + 4000);
     navigator.geolocation.getCurrentPosition(
-      (p) => {
-        loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
-        resolve(loc);
-      },
-      () => reject(new Error("Location was denied. Sun timing needs it — allow location and reload.")),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: force ? 0 : 30000 }
+      (p) => { if (done) return; done = true; clearTimeout(deadline); resolve(p); },
+      (e) => { if (done) return; done = true; clearTimeout(deadline); reject(e); },
+      opts
     );
   });
+}
+
+// Two-stage: a fast coarse fix fills the page immediately, then GPS refines in the background.
+async function getLocation(force = false) {
+  if (loc && !force) return loc;
+  try {
+    const p = await getPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: force ? 0 : 300000 });
+    loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
+  } catch {
+    throw new Error("Location unavailable. Allow location for this site (on iPhone also check Precise Location), then tap the pill up top to retry.");
+  }
+  refineLocation();
+  return loc;
+}
+
+let refining = false;
+async function refineLocation() {
+  if (refining) return;
+  refining = true;
+  try {
+    const p = await getPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    const better = !loc || !loc.accuracy || (p.coords.accuracy && p.coords.accuracy < loc.accuracy * 0.8);
+    if (better) {
+      loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
+      $("locPill").textContent = pillText(loc);
+      fetchSun(loc).catch(() => {});
+    }
+  } catch { /* keep the coarse fix */ }
+  finally { refining = false; }
 }
 
 function fmt(t) {
@@ -290,15 +319,24 @@ function renderSunCard() {
     <div><span>Blue hour</span><span>${fmt(sun.blueHour?.start)}&ndash;${fmt(sun.blueHour?.end)}</span></div>`;
 }
 
+function pillText(l) {
+  const acc = l.accuracy != null ? ` · ±${l.accuracy < 1000 ? Math.round(l.accuracy) + " m" : (l.accuracy / 1000).toFixed(1) + " km"}` : "";
+  return `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)}${acc}`;
+}
+
+async function fetchSun(l) {
+  const r = await fetch(`/sun?lat=${l.latitude}&lng=${l.longitude}`);
+  if (!r.ok) throw new Error("sun endpoint failed");
+  sun = await r.json();
+  renderSunCard();
+}
+
 async function loadSun(forceLoc = false) {
   try {
+    $("locPill").textContent = "locating…";
     const l = await getLocation(forceLoc);
-    const acc = l.accuracy != null ? ` · ±${l.accuracy < 1000 ? Math.round(l.accuracy) + " m" : (l.accuracy / 1000).toFixed(1) + " km"}` : "";
-    $("locPill").textContent = `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)}${acc}`;
-    const r = await fetch(`/sun?lat=${l.latitude}&lng=${l.longitude}`);
-    if (!r.ok) throw new Error("sun endpoint failed");
-    sun = await r.json();
-    renderSunCard();
+    $("locPill").textContent = pillText(l);
+    await fetchSun(l);
   } catch (e) {
     $("locPill").textContent = "no location — tap to retry";
     $("clock").innerHTML = `<span class="err" style="font-size:15px;font-weight:400">${e.message || e}</span>`;
