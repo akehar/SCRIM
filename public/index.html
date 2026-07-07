@@ -239,7 +239,7 @@ function getPosition(opts) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("This browser has no geolocation."));
     let done = false;
-    const deadline = setTimeout(() => { if (!done) { done = true; reject(new Error("location timed out")); } }, (opts.timeout || 8000) + 4000);
+    const deadline = setTimeout(() => { if (!done) { done = true; reject(new Error("location timed out")); } }, (opts.timeout || 6000) + 3000);
     navigator.geolocation.getCurrentPosition(
       (p) => { if (done) return; done = true; clearTimeout(deadline); resolve(p); },
       (e) => { if (done) return; done = true; clearTimeout(deadline); reject(e); },
@@ -259,16 +259,18 @@ function geoErrorMessage(e) {
 async function getLocation(force = false) {
   if (loc && !force) return loc;
   let lastErr = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const p = await getPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: force ? 0 : 300000 });
+      const p = await getPosition({ enableHighAccuracy: false, timeout: 6000, maximumAge: force ? 0 : 300000 });
       loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
       refineLocation();
       return loc;
     } catch (e) {
       lastErr = e;
-      if (e && e.code === 1) break; // denied: retrying won't help
-      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+      // Only a genuine transient no-fix (code 2) is worth one retry. A denial (1)
+      // won't change, and a stalled browser (our own timeout) just burns the clock.
+      if (!e || e.code !== 2) break;
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
   try {
