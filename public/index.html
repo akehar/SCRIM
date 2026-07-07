@@ -248,17 +248,37 @@ function getPosition(opts) {
   });
 }
 
+function geoErrorMessage(e) {
+  if (e && e.code === 1) return "Location is blocked for this site in the browser. iPhone Chrome: tap ⋯ → Page Info (or the tune icon by the address bar) → Permissions → allow Location. Then tap the pill up top to retry.";
+  if (e && e.code === 2) return "The phone couldn't get a position fix — usually temporary. Tap the pill up top to retry.";
+  return "Location timed out. Tap the pill up top to retry.";
+}
+
 // Two-stage: a fast coarse fix fills the page immediately, then GPS refines in the background.
+// Transient no-fix failures get retried; a saved manual location is the last resort.
 async function getLocation(force = false) {
   if (loc && !force) return loc;
-  try {
-    const p = await getPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: force ? 0 : 300000 });
-    loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
-  } catch {
-    throw new Error("Location unavailable. Allow location for this site (on iPhone also check Precise Location), then tap the pill up top to retry.");
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const p = await getPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: force ? 0 : 300000 });
+      loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
+      refineLocation();
+      return loc;
+    } catch (e) {
+      lastErr = e;
+      if (e && e.code === 1) break; // denied: retrying won't help
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    }
   }
-  refineLocation();
-  return loc;
+  try {
+    const saved = JSON.parse(localStorage.getItem("scrim-manual-loc"));
+    if (Array.isArray(saved)) {
+      loc = { latitude: saved[0], longitude: saved[1], accuracy: null, manual: true };
+      return loc;
+    }
+  } catch { /* no saved manual location */ }
+  throw new Error(geoErrorMessage(lastErr));
 }
 
 let refining = false;
@@ -320,6 +340,7 @@ function renderSunCard() {
 }
 
 function pillText(l) {
+  if (l.manual) return `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)} · manual`;
   const acc = l.accuracy != null ? ` · ±${l.accuracy < 1000 ? Math.round(l.accuracy) + " m" : (l.accuracy / 1000).toFixed(1) + " km"}` : "";
   return `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)}${acc}`;
 }
@@ -340,8 +361,26 @@ async function loadSun(forceLoc = false) {
   } catch (e) {
     $("locPill").textContent = "no location — tap to retry";
     $("clock").innerHTML = `<span class="err" style="font-size:15px;font-weight:400">${e.message || e}</span>`;
-    $("sunNow").textContent = "";
+    $("sunNow").innerHTML = `
+      <div class="hint">Or set your location manually — paste "lat, lng" from any maps app (long-press a spot in Google Maps to copy its coordinates):</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input id="manualLoc" type="text" inputmode="decimal" placeholder="41.550, -8.420" style="flex:1;margin-top:0">
+        <button class="ghost" id="useManual" type="button">Use</button>
+      </div>`;
+    $("useManual").addEventListener("click", applyManualLocation);
+    $("manualLoc").addEventListener("keydown", (ev) => { if (ev.key === "Enter") applyManualLocation(); });
   }
+}
+
+function applyManualLocation() {
+  const m = $("manualLoc").value.trim().match(/^(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)$/);
+  if (!m) { $("manualLoc").style.borderColor = "var(--err)"; return; }
+  const lat = Number(m[1]), lng = Number(m[2]);
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) { $("manualLoc").style.borderColor = "var(--err)"; return; }
+  localStorage.setItem("scrim-manual-loc", JSON.stringify([lat, lng]));
+  loc = { latitude: lat, longitude: lng, accuracy: null, manual: true };
+  $("locPill").textContent = pillText(loc);
+  fetchSun(loc).catch(() => {});
 }
 
 $("locPill").addEventListener("click", () => loadSun(true));
