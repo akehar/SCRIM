@@ -57,6 +57,8 @@ Response:
 }
 ```
 
+`POST /plan` — the brief-aware plan. `{ "image": "...", "brief": "...", "diagnosis": {…}, "latitude": …, "longitude": … }` → `{ "plan": { "approach": "one-line treatment", "fixes": […], "diagram": {…} } }`. Same cheap vision model as `/analyze`: when the user picks a look, the moves and the diagram redraw **for that brief** (a dramatic brief shapes hard light rather than softening it) instead of staying stuck on the default read. "Gaffer's call" reuses the plan from the read, no extra call.
+
 `POST /render` — the relight. `{ "image": "...", "brief": "text or \"auto\"", "diagnosis": {…} }` → `{ "render": "data:...", "error": null }`. The brief is the director's direction (the test page offers preset looks — Soft & golden, Dramatic, Dappled canopy, Clean commercial — plus free text); `"auto"` is the **gaffer's call**, where the model picks the treatment that fixes the diagnosed problems. Passing the `diagnosis` from `/analyze` grounds the relight in the read. The prompt insists on a lighting change (shadow edges, source size, motivated sources), not a color grade.
 
 The `sun` object also carries `nextGoldenHour` — the next (or currently open) golden-hour window with `minutesUntil`/`minutesLeft`, which drives the test page's live countdown. If a Gemini call fails, the response says why in `diagnosis.error` / the render `error` instead of going quiet.

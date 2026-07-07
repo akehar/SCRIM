@@ -557,24 +557,80 @@ function diagramSvg(diagram, w, h) {
   return `<svg viewBox="0 0 ${w} ${h}" aria-label="Lighting diagram overlay">${els}</svg>`;
 }
 
-function renderResults() {
-  const { frame } = state;
+// The gaffer's own plan from the read: what runs when the brief is "Gaffer's call".
+function basePlan() {
   const d = state.diagnosis;
-  const chips = [d.hardness && d.hardness + " light", d.colorTemp, d.contrast && d.contrast + " contrast", d.direction]
-    .filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join("");
-  const probs = (d.problems || []).map((p) => `<li>${esc(p)}</li>`).join("");
-  const fixes = (d.fixes || []).map((f, i) => `<li><span class="num">${i + 1}</span><span>${esc(f)}</span></li>`).join("");
-  const verdict = verdictFor(d);
-  const overlay = diagramSvg(d.diagram, frame.w, frame.h);
-  const marks = Array.isArray(d.diagram?.marks) ? d.diagram.marks : [];
-  const legendTools = [...new Set(marks.map((m) => TOOL_NAMES[m.tool]).filter(Boolean))];
+  return { name: "Gaffer's call", approach: null, fixes: d.fixes || [], diagram: d.diagram };
+}
 
-  const diagramPane = `
-    <div class="frame">${`<img src="${frame.dataUrl}" alt="your frame">`}${overlay}</div>
+function updatePlanUI() {
+  const p = state.plan;
+  const fixes = (p.fixes || []).map((f, i) => `<li><span class="num">${i + 1}</span><span>${esc(f)}</span></li>`).join("");
+  $("planName").textContent = p.name;
+  $("planBody").innerHTML = `
+    ${p.approach ? `<div style="font-size:14.5px;font-weight:600">${esc(p.approach)}</div>` : ""}
+    ${fixes ? `<div class="listhead">The moves — numbers match the diagram</div><ol class="fixes">${fixes}</ol>` : `<p class="hint">No moves came back for this brief.</p>`}`;
+
+  const overlay = diagramSvg(p.diagram, state.frame.w, state.frame.h);
+  const marks = Array.isArray(p.diagram?.marks) ? p.diagram.marks : [];
+  const legendTools = [...new Set(marks.map((m) => TOOL_NAMES[m.tool]).filter(Boolean))];
+  $("pane-diagram").innerHTML = `
+    <div class="frame">${`<img src="${state.frame.dataUrl}" alt="your frame">`}${overlay}</div>
     ${overlay ? `<div class="legend">
         <span class="key"><span class="swatch"></span>sun direction</span>
         ${legendTools.map((t) => `<span class="key"><span class="num" style="transform:none;width:16px;height:16px;font-size:10px">#</span>${esc(t)}</span>`).join("")}
-      </div>` : `<p class="hint">No diagram came back for this frame.</p>`}`;
+      </div>` : `<p class="hint">No diagram came back for this brief.</p>`}`;
+}
+
+function setPlanning(on) {
+  document.querySelectorAll(".look").forEach((b) => { b.disabled = on; });
+  if (on) $("planStatus").innerHTML = "Drawing the plan… (5–20 s)";
+  $("planCard").style.opacity = on ? "0.6" : "";
+  $("pane-diagram").style.opacity = on ? "0.6" : "";
+}
+
+async function fetchPlan(brief, name) {
+  setPlanning(true);
+  try {
+    const l = await getLocation();
+    const res = await fetch("/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image: state.frame.dataUrl,
+        brief,
+        diagnosis: state.diagnosis,
+        latitude: l.latitude,
+        longitude: l.longitude,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+    const j = await res.json();
+    if (!res.ok || j.plan?.error) throw new Error(j.plan?.error || j.error || `plan failed (${res.status})`);
+    state.plan = { name, approach: j.plan.approach || null, fixes: j.plan.fixes || [], diagram: j.plan.diagram };
+    updatePlanUI();
+    $("planStatus").innerHTML = "";
+  } catch (e) {
+    $("planStatus").innerHTML = `<span class="err">Plan failed: ${esc(e.message || e)} — showing the previous plan.</span>`;
+  } finally {
+    setPlanning(false);
+  }
+}
+
+function currentBrief() {
+  const custom = $("customBrief").value.trim();
+  if (custom) return custom;
+  const picked = document.querySelector('.look[aria-pressed="true"]')?.dataset.look;
+  return LOOKS.find((l) => l.id === picked)?.brief || "auto";
+}
+
+function renderResults() {
+  const d = state.diagnosis;
+  state.plan = basePlan();
+  const chips = [d.hardness && d.hardness + " light", d.colorTemp, d.contrast && d.contrast + " contrast", d.direction]
+    .filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join("");
+  const probs = (d.problems || []).map((p) => `<li>${esc(p)}</li>`).join("");
+  const verdict = verdictFor(d);
 
   $("out").innerHTML = `
     <div class="card">
@@ -583,8 +639,7 @@ function renderResults() {
         ? `<div class="err" style="font-size:14px">Diagnosis failed: ${esc(d.error)}</div>`
         : `${verdict ? `<div class="verdict">${verdict}</div>` : ""}
            <div class="chips">${chips}</div>
-           ${probs ? `<div class="listhead">Problems</div><ul class="probs">${probs}</ul>` : ""}
-           ${fixes ? `<div class="listhead">The fix — numbers match the diagram</div><ol class="fixes">${fixes}</ol>` : ""}`}
+           ${probs ? `<div class="listhead">Problems</div><ul class="probs">${probs}</ul>` : ""}`}
     </div>
 
     <div class="card" id="briefCard">
@@ -592,11 +647,18 @@ function renderResults() {
       <div class="looks">
         ${LOOKS.map((l) => `<button class="look" type="button" data-look="${l.id}" aria-pressed="${l.id === "auto"}">${l.name}<span class="sub">${l.sub}</span></button>`).join("")}
       </div>
-      <input id="customBrief" type="text" placeholder="…or type your own — e.g. backlit rim, silhouette against the sky" autocomplete="off" />
-      <div class="actions" style="margin:12px 0 0;grid-template-columns:1fr">
+      <input id="customBrief" type="text" placeholder="…or type your own and press return — e.g. backlit rim, silhouette" autocomplete="off" enterkeyhint="go" />
+      <p class="hint">Pick a look and the plan below redraws for it. The relight only happens when you press Light it.</p>
+      <p class="status" id="planStatus"></p>
+    </div>
+
+    <div class="card" id="planCard">
+      <h2>The plan — <span id="planName" style="color:var(--gold);text-transform:none;letter-spacing:0">Gaffer's call</span></h2>
+      <div id="planBody"></div>
+      <div class="actions" style="margin:14px 0 0;grid-template-columns:1fr">
         <button class="btn primary" id="lightIt" type="button">Light it</button>
       </div>
-      <p class="hint">The relight is the expensive call — nothing renders until you press this. One press, one render.</p>
+      <p class="hint">One press, one render — the relight follows this plan and brief.</p>
       <p class="status" id="renderStatus"></p>
     </div>
 
@@ -606,17 +668,30 @@ function renderResults() {
         <button class="tab" role="tab" aria-selected="true" data-pane="pane-diagram" type="button">Lighting diagram</button>
         <button class="tab" role="tab" aria-selected="false" data-pane="pane-compare" type="button" id="compareTab" disabled style="opacity:0.5">Before / after</button>
       </div>
-      <div id="pane-diagram" role="tabpanel">${diagramPane}</div>
+      <div id="pane-diagram" role="tabpanel"></div>
       <div id="pane-compare" role="tabpanel" hidden></div>
     </div>`;
 
-  // look chips: radio behaviour; typing a custom brief deselects them
+  updatePlanUI();
+
+  // look chips: radio behaviour; picking one redraws the plan for that brief
   document.querySelectorAll(".look").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".look").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
     $("customBrief").value = "";
+    const look = LOOKS.find((l) => l.id === b.dataset.look);
+    if (look.id === "auto") { state.plan = basePlan(); updatePlanUI(); $("planStatus").innerHTML = ""; }
+    else fetchPlan(look.brief, look.name);
   }));
+
+  // custom brief: deselects chips as you type, plans on return
   $("customBrief").addEventListener("input", () => {
     if ($("customBrief").value.trim()) document.querySelectorAll(".look").forEach((x) => x.setAttribute("aria-pressed", "false"));
+  });
+  $("customBrief").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && $("customBrief").value.trim()) {
+      e.preventDefault();
+      fetchPlan($("customBrief").value.trim(), "Your brief");
+    }
   });
 
   $("lightIt").addEventListener("click", relight);
@@ -634,9 +709,7 @@ function renderResults() {
 
 async function relight() {
   if (!state) return;
-  const custom = $("customBrief").value.trim();
-  const picked = document.querySelector('.look[aria-pressed="true"]')?.dataset.look;
-  const brief = custom || LOOKS.find((l) => l.id === picked)?.brief || "auto";
+  const brief = currentBrief();
   const btn = $("lightIt");
   btn.disabled = true;
   btn.textContent = "Lighting… (10–30 s)";

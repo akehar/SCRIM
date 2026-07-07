@@ -82,27 +82,64 @@ function sunReport(lat, lng, when) {
 
 // ---------- Gemini call 1: diagnose the light ----------
 
+const DIAGRAM_SPEC = `"diagram": {
+    "sunFrom": {"x": 0.0-1.0, "y": 0.0-1.0},
+    "subject": {"x": 0.0-1.0, "y": 0.0-1.0},
+    "marks": [{"x": 0.0-1.0, "y": 0.0-1.0, "tool": "silk" | "bounce" | "flag" | "shade" | "move" | "wait", "label": "2-4 words"}]
+  }
+For "diagram", all coordinates are fractions of the frame (x rightward, y downward).
+"sunFrom" is the point on or near the frame edge where the main light enters.
+"subject" is the centre of the main subject.
+"marks" has exactly one entry per entry in "fixes", in the same order: the spot IN THE FRAME where that move happens (where the silk or bounce goes, where the subject should move to, or the subject itself for a timing fix).`;
+
 async function diagnose(data, mime, sun) {
   const prompt = `You are an experienced gaffer looking at a single frame lit by natural light.
 Right now the sun is ${sun.now.altitudeDeg} degrees above the horizon, coming from the ${sun.now.direction}, and the light is ${sun.now.quality}.
-Judge ONLY the lighting on the subject and scene. Reply with strict JSON, no markdown, exactly this shape:
+Judge ONLY the lighting on the subject and scene. "fixes" is YOUR call as the gaffer: the treatment you would run if the director gave no direction. Reply with strict JSON, no markdown, exactly this shape:
 {
   "direction": "where the main light comes from, in plain words",
   "hardness": "soft" | "medium" | "hard",
   "colorTemp": "warm" | "neutral" | "cool",
   "contrast": "low" | "balanced" | "high",
   "problems": ["at most 3 short plain-language issues"],
-  "fixes": ["at most 3 specific softening or timing moves, e.g. add a 4x4 silk, bounce the shadow side, move into open shade, wait for golden hour at a given time"],
-  "diagram": {
-    "sunFrom": {"x": 0.0-1.0, "y": 0.0-1.0},
-    "subject": {"x": 0.0-1.0, "y": 0.0-1.0},
-    "marks": [{"x": 0.0-1.0, "y": 0.0-1.0, "tool": "silk" | "bounce" | "flag" | "shade" | "move" | "wait", "label": "2-4 words"}]
-  }
+  "fixes": ["at most 3 specific practical moves, e.g. add a 4x4 silk, bounce the shadow side, move into open shade, wait for golden hour at a given time"],
+  ${DIAGRAM_SPEC}
+}`;
+
+  const res = await ai.models.generateContent({
+    model: VISION_MODEL,
+    contents: [{
+      role: "user",
+      parts: [
+        { inlineData: { mimeType: mime, data } },
+        { text: prompt },
+      ],
+    }],
+    config: { responseMimeType: "application/json" },
+  });
+
+  const text = res.text ?? res.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ?? "{}";
+  try { return JSON.parse(text); } catch { return { raw: text }; }
 }
-For "diagram", all coordinates are fractions of the frame (x rightward, y downward).
-"sunFrom" is the point on or near the frame edge where the main light enters.
-"subject" is the centre of the main subject.
-"marks" has exactly one entry per entry in "fixes", in the same order: the spot IN THE FRAME where that move happens (where the silk or bounce goes, where the subject should move to, or the subject itself for a timing fix).`;
+
+// ---------- Gemini call 1b: plan for a brief ----------
+
+// Same cheap vision model as diagnose: redraws the moves and the diagram for the
+// director's brief, so the plan matches what the user actually wants.
+async function plan(data, mime, sun, brief, diagnosis) {
+  const read = diagnosis && !diagnosis.error
+    ? `Your earlier read of this frame: key from ${diagnosis.direction || "unknown"}, ${diagnosis.hardness || "?"} light, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none listed"}.`
+    : "";
+  const prompt = `You are an experienced gaffer planning natural-light work on location.
+Right now the sun is ${sun.now.altitudeDeg} degrees above the horizon, coming from the ${sun.now.direction}, and the light is ${sun.now.quality}.
+${read}
+The director's brief for this frame: "${brief}".
+Plan at most 3 practical moves — grip gear (silk, bounce, flag), repositioning, or timing — that get THIS frame to THAT brief. Do not default to softening; serve the brief (a dramatic brief may mean shaping hard light, a dappled brief may mean placing broken shade). Reply with strict JSON, no markdown, exactly this shape:
+{
+  "approach": "one short sentence: the treatment you're going for",
+  "fixes": ["at most 3 specific practical moves, in shooting order"],
+  ${DIAGRAM_SPEC}
+}`;
 
   const res = await ai.models.generateContent({
     model: VISION_MODEL,
@@ -177,6 +214,24 @@ app.post("/analyze", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "analyze failed", detail: String(err?.message || err) });
+  }
+});
+
+// The plan: cheap vision call that redraws fixes + diagram for the director's brief.
+app.post("/plan", async (req, res) => {
+  try {
+    const { image, brief, diagnosis, latitude, longitude, timestamp } = req.body || {};
+    if (!image || !brief || latitude == null || longitude == null) {
+      return res.status(400).json({ error: "Need image (base64), brief, latitude, longitude." });
+    }
+    const { mime, data } = parseImage(image);
+    const sun = sunReport(Number(latitude), Number(longitude), timestamp);
+    const p = await plan(data, mime, sun, String(brief).slice(0, 500), diagnosis)
+      .catch((e) => ({ error: String(e?.message || e) }));
+    res.json({ plan: p });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "plan failed", detail: String(err?.message || err) });
   }
 });
 
