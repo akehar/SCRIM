@@ -42,7 +42,7 @@
   .wordmark { font-size: 19px; font-weight: 750; letter-spacing: 0.34em; margin: 0; }
   .wordmark b { color: var(--gold); font-weight: inherit; }
   .tagline { margin: 0 0 18px; color: var(--muted); font-size: 13.5px; }
-  .pill { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+  .pill { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; cursor: pointer; background: none; font-family: inherit; }
 
   .banner { border: 1px solid var(--gold); color: var(--gold); border-radius: 12px; padding: 10px 14px; font-size: 13.5px; margin: 0 0 14px; display: none; }
 
@@ -57,8 +57,15 @@
   .times div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
   .times span:last-child { font-variant-numeric: tabular-nums; color: var(--ink); }
 
+  /* compass */
+  .compassrow { display: flex; align-items: center; gap: 14px; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .dial { flex: 0 0 auto; width: 56px; height: 56px; }
+  .dial .needle { transform-origin: 50% 50%; transition: transform 0.25s ease-out; }
+  .compasstext { font-size: 14px; }
+  .compasstext small { display: block; color: var(--muted); font-size: 12.5px; }
+
   /* actions */
-  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 10px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 8px; }
   .btn {
     appearance: none; font: inherit; font-size: 15.5px; font-weight: 650; text-align: center;
     padding: 14px 12px; border-radius: 14px; cursor: pointer; min-height: 50px;
@@ -67,10 +74,11 @@
   }
   .btn:active { transform: scale(0.98); }
   .btn.primary { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
   input[type=file] { display: none; }
   input[type=text] {
     width: 100%; font: inherit; font-size: 14px; padding: 12px 14px; border-radius: 12px;
-    border: 1px solid var(--line); background: var(--surface); color: var(--ink); margin-top: 2px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink); margin-top: 8px;
   }
   input[type=text]::placeholder { color: var(--muted); }
   .hint { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
@@ -89,7 +97,7 @@
     transition: transform 0.08s ease;
   }
   .shutter:active { transform: scale(0.92); }
-  .vfside { flex: 1 1 0; display: flex; }
+  .vfside { flex: 1 1 0; display: flex; min-width: 0; }
   .vfside.right { justify-content: flex-end; }
   select, .ghost {
     font: inherit; font-size: 13px; color: var(--ink); background: var(--surface);
@@ -114,6 +122,15 @@
     font-size: 12.5px; font-weight: 750; display: inline-flex; align-items: center; justify-content: center;
     transform: translateY(3px);
   }
+
+  /* brief the gaffer */
+  .looks { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 0; }
+  .look {
+    font: inherit; font-size: 13.5px; font-weight: 600; padding: 9px 14px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); background: transparent; color: var(--ink); min-height: 40px;
+  }
+  .look[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
+  .look .sub { display: block; font-weight: 400; font-size: 11px; color: inherit; opacity: 0.75; }
 
   /* frame viewer: tabs + overlay + compare */
   .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
@@ -143,14 +160,14 @@
   @keyframes pulse { 50% { opacity: 0.4; } }
   @media (prefers-reduced-motion: reduce) {
     .skeleton { animation: none; }
-    .btn, .shutter { transition: none; }
+    .btn, .shutter, .dial .needle { transition: none; }
   }
 </style>
 </head>
 <body>
   <header>
     <h1 class="wordmark">SCR<b>I</b>M</h1>
-    <span class="pill" id="locPill">locating…</span>
+    <button class="pill" id="locPill" type="button" title="Tap to refresh location">locating…</button>
   </header>
   <p class="tagline">Shape the light you already have.</p>
 
@@ -161,6 +178,20 @@
     <div id="clock" class="clock"><span class="skeleton" style="display:block;width:70%"></span></div>
     <div class="sunline" id="sunNow"><span class="skeleton" style="display:block;width:50%"></span></div>
     <div class="times" id="sunTimes"></div>
+    <div class="compassrow" id="compassRow">
+      <button class="ghost" id="findSun" type="button">Find the sun</button>
+      <div class="compasstext" id="compassHint" style="color:var(--muted);font-size:12.5px">Point your phone anywhere — the needle tracks the sun.</div>
+      <svg class="dial" id="dial" viewBox="0 0 56 56" style="display:none" aria-label="Sun direction relative to where you point">
+        <circle cx="28" cy="28" r="26" fill="none" stroke="var(--line)" stroke-width="2"/>
+        <text x="28" y="10" font-size="8" fill="var(--muted)" text-anchor="middle">▲</text>
+        <g class="needle" id="needle">
+          <line x1="28" y1="28" x2="28" y2="8" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="28" cy="8" r="4" fill="var(--gold)"/>
+        </g>
+        <circle cx="28" cy="28" r="3" fill="var(--muted)"/>
+      </svg>
+      <div class="compasstext" id="compassTxt" hidden></div>
+    </div>
   </div>
 
   <div class="actions">
@@ -168,24 +199,23 @@
     <label class="btn" for="shot">Upload photo</label>
   </div>
   <input id="shot" type="file" accept="image/*" capture="environment" />
-  <input id="lookHint" type="text" placeholder="Optional look note — e.g. moody warm, clean commercial" autocomplete="off" />
-  <p class="hint">Works with the phone camera, or a pro camera plugged in over USB. Frames go to the server for analysis only.</p>
+  <p class="hint">Works with the phone camera, or a pro camera plugged in over USB. Frames go to the server for analysis only — nothing is rendered until you ask.</p>
 
   <div class="card" id="finder">
     <h2>Viewfinder</h2>
     <div class="vfwrap"><video id="vf" autoplay playsinline muted></video></div>
     <div class="vfbar">
-      <div class="vfside"><select id="camSel" aria-label="Camera" hidden></select></div>
+      <div class="vfside"><select id="camSel" aria-label="Camera lens" hidden></select></div>
       <button class="shutter" id="snap" type="button" aria-label="Analyze this frame"></button>
       <div class="vfside right"><button class="ghost" id="closeCam" type="button">Close</button></div>
     </div>
     <details>
       <summary>Connect a pro camera (Sony a7S III, DJI Osmo Pocket 3…)</summary>
       <ul>
-        <li><strong>DJI Osmo Pocket 3:</strong> plug into this device over USB-C and switch the camera to <em>Webcam Mode</em>. It appears in the camera menu above — no drivers.</li>
+        <li><strong>DJI Osmo Pocket 3:</strong> plug into this device over USB-C and switch the camera to <em>Webcam Mode</em>. It appears in the lens menu — no drivers.</li>
         <li><strong>Sony a7S III / a7 IV / FX3:</strong> Setup&nbsp;→&nbsp;USB&nbsp;→ <em>USB Streaming</em>, then connect over USB. The camera shows up as a video source.</li>
         <li><strong>Anything with HDMI out:</strong> a small HDMI→USB capture stick makes any cinema camera appear as a source here.</li>
-        <li>Then pick it in the camera menu that appears at the bottom-left of the viewfinder.</li>
+        <li>The lens menu refreshes automatically when a camera is plugged in.</li>
       </ul>
     </details>
   </div>
@@ -196,20 +226,24 @@
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
-let loc = null;
+let loc = null;          // {latitude, longitude, accuracy}
 let sun = null;
 let stream = null;
+let state = null;        // {frame, diagnosis} of the last analyzed shot
 
 /* ---------- location + sun ---------- */
 
-function getLocation() {
+function getLocation(force = false) {
   return new Promise((resolve, reject) => {
-    if (loc) return resolve(loc);
+    if (loc && !force) return resolve(loc);
     if (!navigator.geolocation) return reject(new Error("This browser has no geolocation."));
     navigator.geolocation.getCurrentPosition(
-      (p) => { loc = { latitude: p.coords.latitude, longitude: p.coords.longitude }; resolve(loc); },
+      (p) => {
+        loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
+        resolve(loc);
+      },
       () => reject(new Error("Location was denied. Sun timing needs it — allow location and reload.")),
-      { enableHighAccuracy: false, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: force ? 0 : 30000 }
     );
   });
 }
@@ -256,22 +290,25 @@ function renderSunCard() {
     <div><span>Blue hour</span><span>${fmt(sun.blueHour?.start)}&ndash;${fmt(sun.blueHour?.end)}</span></div>`;
 }
 
-async function loadSun() {
+async function loadSun(forceLoc = false) {
   try {
-    const l = await getLocation();
-    $("locPill").textContent = `${l.latitude.toFixed(2)}, ${l.longitude.toFixed(2)}`;
+    const l = await getLocation(forceLoc);
+    const acc = l.accuracy != null ? ` · ±${l.accuracy < 1000 ? Math.round(l.accuracy) + " m" : (l.accuracy / 1000).toFixed(1) + " km"}` : "";
+    $("locPill").textContent = `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)}${acc}`;
     const r = await fetch(`/sun?lat=${l.latitude}&lng=${l.longitude}`);
     if (!r.ok) throw new Error("sun endpoint failed");
     sun = await r.json();
     renderSunCard();
   } catch (e) {
-    $("locPill").textContent = "no location";
+    $("locPill").textContent = "no location — tap to retry";
     $("clock").innerHTML = `<span class="err" style="font-size:15px;font-weight:400">${e.message || e}</span>`;
     $("sunNow").textContent = "";
   }
 }
 
+$("locPill").addEventListener("click", () => loadSun(true));
 setInterval(() => { if (sun) renderClock(); }, 1000);
+setInterval(() => { if (sun) loadSun(); }, 5 * 60 * 1000); // keep azimuth fresh
 
 async function checkBackend() {
   try {
@@ -279,10 +316,50 @@ async function checkBackend() {
     if (h.gemini === false) {
       const b = $("banner");
       b.style.display = "block";
-      b.textContent = "The server has no GEMINI_API_KEY set. Sun timing works, but the diagnosis, diagram, and softened preview will fail until the key is added on the server.";
+      b.textContent = "The server has no GEMINI_API_KEY set. Sun timing works, but the read, diagram, and relight will fail until the key is added on the server.";
     }
   } catch { /* best effort */ }
 }
+
+/* ---------- find the sun (device compass) ---------- */
+
+let compassOn = false;
+function handleOrientation(e) {
+  let heading = null;
+  if (typeof e.webkitCompassHeading === "number") heading = e.webkitCompassHeading; // iOS: deg clockwise from north
+  else if (e.absolute && typeof e.alpha === "number") heading = (360 - e.alpha) % 360;
+  if (heading == null || !sun) return;
+  compassOn = true;
+  const rel = ((sun.now.azimuthDeg - heading) % 360 + 360) % 360;
+  $("dial").style.display = "";
+  $("compassTxt").hidden = false;
+  $("compassHint").hidden = true;
+  $("findSun").hidden = true;
+  $("needle").style.transform = `rotate(${rel}deg)`;
+  const signed = rel > 180 ? rel - 360 : rel;
+  let where;
+  if (Math.abs(signed) <= 12) where = "You're facing the sun";
+  else if (Math.abs(signed) >= 168) where = "Sun is behind you";
+  else where = `Sun is ${Math.abs(Math.round(signed))}&deg; to your ${signed > 0 ? "right" : "left"}`;
+  $("compassTxt").innerHTML = `${where}<small>${sun.now.altitudeDeg}&deg; above the horizon</small>`;
+}
+
+$("findSun").addEventListener("click", async () => {
+  const attach = () => {
+    window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+    window.addEventListener("deviceorientation", handleOrientation, true);
+    setTimeout(() => {
+      if (!compassOn) $("compassHint").textContent = "No compass on this device — use the times above instead.";
+    }, 2500);
+  };
+  try {
+    if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      const s = await DeviceOrientationEvent.requestPermission();
+      if (s !== "granted") { $("compassHint").textContent = "Compass permission was denied."; return; }
+    }
+    attach();
+  } catch { $("compassHint").textContent = "Compass unavailable on this device."; }
+});
 
 /* ---------- imaging ---------- */
 
@@ -305,24 +382,44 @@ function fileToFrame(file) {
   });
 }
 
-/* ---------- viewfinder ---------- */
+/* ---------- viewfinder + lens picker ---------- */
+
+// Virtual multi-lens devices (iOS "Back Dual/Triple Camera") silently deliver the wide
+// lens no matter what you meant, so only list physical, single-lens sources.
+function isVirtualLens(label) { return /\b(dual|triple)\b/i.test(label); }
 
 async function startStream(deviceId) {
-  if (stream) stream.getTracks().forEach((t) => t.stop());
+  const old = stream;
   const video = deviceId
     ? { deviceId: { exact: deviceId }, width: { ideal: 1920 } }
     : { facingMode: "environment", width: { ideal: 1920 } };
-  stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+  if (old) old.getTracks().forEach((t) => t.stop()); // iOS allows one live camera at a time
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+  } catch (e) {
+    if (deviceId) { // failed switch: fall back to the default camera instead of a dead finder
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    } else { throw e; }
+  }
   $("vf").srcObject = stream;
+  await syncLensList();
 }
 
-async function listCameras() {
-  const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+// Rebuild the lens menu and select whichever lens is ACTUALLY delivering frames.
+async function syncLensList() {
+  const cams = (await navigator.mediaDevices.enumerateDevices())
+    .filter((d) => d.kind === "videoinput" && !isVirtualLens(d.label));
   const sel = $("camSel");
   if (cams.length < 2) { sel.hidden = true; return; }
-  const current = stream?.getVideoTracks()[0]?.getSettings().deviceId;
-  sel.innerHTML = cams.map((c, i) => `<option value="${c.deviceId}" ${c.deviceId === current ? "selected" : ""}>${c.label || "Camera " + (i + 1)}</option>`).join("");
+  const activeId = stream?.getVideoTracks()[0]?.getSettings().deviceId;
+  sel.innerHTML = cams.map((c, i) =>
+    `<option value="${c.deviceId}" ${c.deviceId === activeId ? "selected" : ""}>${c.label || "Camera " + (i + 1)}</option>`
+  ).join("");
   sel.hidden = false;
+}
+
+if (navigator.mediaDevices?.addEventListener) {
+  navigator.mediaDevices.addEventListener("devicechange", () => { if (stream) syncLensList(); });
 }
 
 $("openCam").addEventListener("click", async () => {
@@ -333,7 +430,6 @@ $("openCam").addEventListener("click", async () => {
   try {
     $("finder").classList.add("open");
     await startStream();
-    await listCameras();
     $("finder").scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (e) {
     $("finder").classList.remove("open");
@@ -342,7 +438,8 @@ $("openCam").addEventListener("click", async () => {
 });
 
 $("camSel").addEventListener("change", async (e) => {
-  try { await startStream(e.target.value); } catch { /* keep old stream error state */ }
+  try { await startStream(e.target.value); }
+  catch { $("status").innerHTML = `<span class="err">Could not switch to that lens.</span>`; }
 });
 
 $("closeCam").addEventListener("click", () => {
@@ -365,14 +462,15 @@ $("shot").addEventListener("change", async (e) => {
   catch (err) { $("status").innerHTML = `<span class="err">${err.message || err}</span>`; }
 });
 
-/* ---------- analysis + results ---------- */
+/* ---------- the read ---------- */
 
 async function analyze(frame) {
   $("out").innerHTML = "";
+  state = null;
   $("status").textContent = "Reading the frame…";
   try {
     const l = await getLocation();
-    $("status").textContent = "Asking the gaffer… (10–30 s)";
+    $("status").textContent = "Asking the gaffer… (5–20 s)";
     const res = await fetch("/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -381,14 +479,14 @@ async function analyze(frame) {
         latitude: l.latitude,
         longitude: l.longitude,
         timestamp: new Date().toISOString(),
-        lookHint: $("lookHint").value.trim() || undefined,
       }),
     });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `request failed (${res.status})`);
     $("status").textContent = "";
     if (j.sun) { sun = j.sun; renderSunCard(); }
-    renderResults(frame, j);
+    state = { frame, diagnosis: j.diagnosis || {} };
+    renderResults();
   } catch (err) {
     $("status").innerHTML = `<span class="err">${err.message || err}</span>`;
   }
@@ -410,6 +508,14 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 
 const TOOL_NAMES = { silk: "silk / diffusion", bounce: "bounce", flag: "flag / negative fill", shade: "open shade", move: "move here", wait: "wait it out" };
 
+const LOOKS = [
+  { id: "auto", name: "Gaffer's call", sub: "let the AI decide", brief: "auto" },
+  { id: "golden", name: "Soft & golden", sub: "late-day warmth", brief: "Soften toward late golden hour: a low warm key, gentle fill on the shadow side, soft shadow edges, warm believable skin." },
+  { id: "drama", name: "Dramatic", sub: "shaped hard light", brief: "Dramatic and moody: keep the light directional and hard but shape it — a strong single key, deep controlled shadows with negative fill, cinematic contrast, nothing washed out." },
+  { id: "dapple", name: "Dappled canopy", sub: "light through leaves", brief: "Dappled light as if the sun comes through tree leaves overhead: broken pools of soft warm light drifting across the subject, soft shadow edges, background a touch darker so the subject reads." },
+  { id: "clean", name: "Clean commercial", sub: "big soft key", brief: "Bright clean commercial look: a large soft key like an overcast sky or a big silk, open transparent shadows, neutral accurate color, crisp but flattering." },
+];
+
 function clamp01(v) { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : null; }
 
 // Draw the gaffer diagram over the frame: sun ray in, subject anchor, numbered marks per fix.
@@ -420,10 +526,10 @@ function diagramSvg(diagram, w, h) {
   const subject = px(diagram.subject);
   const marks = Array.isArray(diagram.marks) ? diagram.marks.map((m) => ({ ...m, p: px(m) })).filter((m) => m.p) : [];
   if (!sunFrom && !subject && !marks.length) return "";
-  const u = Math.min(w, h) / 100; // scale unit so the diagram reads the same at any resolution
+  const u = Math.min(w, h) / 100;
   let els = "";
   if (sunFrom && subject) {
-    const dx = subject.x - sunFrom.x, dy = subject.y - sunFrom.y, len = Math.hypot(dx, dy) || 1;
+    const dx = subject.x - sunFrom.x, dy = subject.y - sunFrom.y;
     const tip = { x: sunFrom.x + dx * 0.42, y: sunFrom.y + dy * 0.42 };
     const ah = 4 * u, ang = Math.atan2(dy, dx);
     els += `<line x1="${sunFrom.x}" y1="${sunFrom.y}" x2="${tip.x}" y2="${tip.y}" stroke="#e8a33d" stroke-width="${1.2 * u}" stroke-dasharray="${3 * u} ${2 * u}" stroke-linecap="round"/>`;
@@ -451,8 +557,9 @@ function diagramSvg(diagram, w, h) {
   return `<svg viewBox="0 0 ${w} ${h}" aria-label="Lighting diagram overlay">${els}</svg>`;
 }
 
-function renderResults(frame, j) {
-  const d = j.diagnosis || {};
+function renderResults() {
+  const { frame } = state;
+  const d = state.diagnosis;
   const chips = [d.hardness && d.hardness + " light", d.colorTemp, d.contrast && d.contrast + " contrast", d.direction]
     .filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join("");
   const probs = (d.problems || []).map((p) => `<li>${esc(p)}</li>`).join("");
@@ -469,17 +576,6 @@ function renderResults(frame, j) {
         ${legendTools.map((t) => `<span class="key"><span class="num" style="transform:none;width:16px;height:16px;font-size:10px">#</span>${esc(t)}</span>`).join("")}
       </div>` : `<p class="hint">No diagram came back for this frame.</p>`}`;
 
-  const comparePane = j.render
-    ? `<div class="compare" id="cmp" style="--pos:50%">
-         <img src="${frame.dataUrl}" alt="original">
-         <div class="after"><img src="${j.render}" alt="softened"></div>
-         <div class="handle"></div>
-       </div>
-       <div class="taglabels"><span>Now</span><span>Softened preview</span></div>
-       <p class="hint">Drag to compare. The preview is directional — it shows what softer light would do, it doesn't measure it.</p>`
-    : `<div class="frame"><img src="${frame.dataUrl}" alt="original"></div>
-       <p class="err" style="font-size:13px;margin:8px 0 0">Softened preview unavailable${j.renderError ? ": " + esc(j.renderError) : ""}.</p>`;
-
   $("out").innerHTML = `
     <div class="card">
       <h2>The read</h2>
@@ -490,31 +586,96 @@ function renderResults(frame, j) {
            ${probs ? `<div class="listhead">Problems</div><ul class="probs">${probs}</ul>` : ""}
            ${fixes ? `<div class="listhead">The fix — numbers match the diagram</div><ol class="fixes">${fixes}</ol>` : ""}`}
     </div>
+
+    <div class="card" id="briefCard">
+      <h2>Brief the gaffer</h2>
+      <div class="looks">
+        ${LOOKS.map((l) => `<button class="look" type="button" data-look="${l.id}" aria-pressed="${l.id === "auto"}">${l.name}<span class="sub">${l.sub}</span></button>`).join("")}
+      </div>
+      <input id="customBrief" type="text" placeholder="…or type your own — e.g. backlit rim, silhouette against the sky" autocomplete="off" />
+      <div class="actions" style="margin:12px 0 0;grid-template-columns:1fr">
+        <button class="btn primary" id="lightIt" type="button">Light it</button>
+      </div>
+      <p class="hint">The relight is the expensive call — nothing renders until you press this. One press, one render.</p>
+      <p class="status" id="renderStatus"></p>
+    </div>
+
     <div class="card">
       <h2>Your frame</h2>
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" aria-selected="true" data-pane="pane-diagram" type="button">Lighting diagram</button>
-        <button class="tab" role="tab" aria-selected="false" data-pane="pane-compare" type="button">Before / after</button>
+        <button class="tab" role="tab" aria-selected="false" data-pane="pane-compare" type="button" id="compareTab" disabled style="opacity:0.5">Before / after</button>
       </div>
       <div id="pane-diagram" role="tabpanel">${diagramPane}</div>
-      <div id="pane-compare" role="tabpanel" hidden>${comparePane}</div>
+      <div id="pane-compare" role="tabpanel" hidden></div>
     </div>`;
 
+  // look chips: radio behaviour; typing a custom brief deselects them
+  document.querySelectorAll(".look").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll(".look").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    $("customBrief").value = "";
+  }));
+  $("customBrief").addEventListener("input", () => {
+    if ($("customBrief").value.trim()) document.querySelectorAll(".look").forEach((x) => x.setAttribute("aria-pressed", "false"));
+  });
+
+  $("lightIt").addEventListener("click", relight);
+
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+    if (t.disabled) return;
     document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
     document.querySelectorAll("[role=tabpanel]").forEach((p) => { p.hidden = p.id !== t.dataset.pane; });
   }));
 
-  const cmp = $("cmp");
-  if (cmp) {
+  $("out").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* ---------- the relight ---------- */
+
+async function relight() {
+  if (!state) return;
+  const custom = $("customBrief").value.trim();
+  const picked = document.querySelector('.look[aria-pressed="true"]')?.dataset.look;
+  const brief = custom || LOOKS.find((l) => l.id === picked)?.brief || "auto";
+  const btn = $("lightIt");
+  btn.disabled = true;
+  btn.textContent = "Lighting… (10–30 s)";
+  $("renderStatus").textContent = "";
+  try {
+    const res = await fetch("/render", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: state.frame.dataUrl, brief, diagnosis: state.diagnosis }),
+    });
+    const j = await res.json();
+    if (!res.ok || j.error) throw new Error(j.error || `render failed (${res.status})`);
+
+    $("pane-compare").innerHTML = `
+      <div class="compare" id="cmp" style="--pos:50%">
+        <img src="${state.frame.dataUrl}" alt="original">
+        <div class="after"><img src="${j.render}" alt="relit"></div>
+        <div class="handle"></div>
+      </div>
+      <div class="taglabels"><span>Now</span><span>Relit</span></div>
+      <p class="hint">Drag to compare. The relight is directional — it shows what the move would do, it doesn't measure it.</p>`;
+    const tab = $("compareTab");
+    tab.disabled = false;
+    tab.style.opacity = "";
+    tab.click();
+    const cmp = $("cmp");
     const move = (x) => {
       const r = cmp.getBoundingClientRect();
       cmp.style.setProperty("--pos", `${Math.max(0, Math.min(100, ((x - r.left) / r.width) * 100))}%`);
     };
     cmp.addEventListener("pointerdown", (e) => { cmp.setPointerCapture(e.pointerId); move(e.clientX); });
     cmp.addEventListener("pointermove", (e) => { if (e.buttons) move(e.clientX); });
+    btn.textContent = "Light it again";
+  } catch (err) {
+    $("renderStatus").innerHTML = `<span class="err">${err.message || err}</span>`;
+    btn.textContent = "Light it";
+  } finally {
+    btn.disabled = false;
   }
-  $("out").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 checkBackend();

@@ -120,12 +120,21 @@ For "diagram", all coordinates are fractions of the frame (x rightward, y downwa
   try { return JSON.parse(text); } catch { return { raw: text }; }
 }
 
-// ---------- Gemini call 2: render the softened look ----------
+// ---------- Gemini call 2: relight to a brief ----------
 
-async function renderSoftened(data, mime, lookHint) {
-  const prompt = `Re-light this exact photo as if the harsh natural light had been softened and warmed toward golden hour.
-Keep the same subject, framing, composition, background, and geometry EXACTLY. Change ONLY the light:
-soften the hard shadows, gently warm the tone, lower the contrast on faces, keep it photographic and realistic, not stylised.${lookHint ? " Look note: " + lookHint : ""}`;
+async function renderLook(data, mime, brief, diagnosis) {
+  const read = diagnosis && !diagnosis.error
+    ? `A gaffer read this frame as: key from ${diagnosis.direction || "unknown"}, ${diagnosis.hardness || "?"} light, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none listed"}.`
+    : "";
+  const wants = brief && brief !== "auto"
+    ? `The director's brief: ${brief}.`
+    : `No brief was given — make the gaffer's call yourself: pick the single treatment that best fixes the problems above and keep it believable for this location and time of day.`;
+
+  const prompt = `Relight this exact photograph. This is a LIGHTING change, not a color grade: the geometry of the light must change, not just the tones.
+${read}
+${wants}
+What must change: the direction, apparent size, and quality of the light on the subject. Reshape shadow EDGES (a bigger apparent source means a softer penumbra), open or deepen shadow AREAS, tame or add speculars and catchlights, and keep every effect motivated by a plausible physical source — sun angle, bounce, silk, flag, or foliage.
+What must NOT change: subject identity and pose, framing, composition, lens perspective, background content, and scene geometry. Photorealistic, like the scene was reshot under the new lighting — not stylised, not a filter.`;
 
   const res = await ai.models.generateContent({
     model: IMAGE_MODEL,
@@ -143,37 +152,50 @@ soften the hard shadows, gently warm the tone, lower the contrast on faces, keep
   return img ? { mimeType: img.inlineData.mimeType, data: img.inlineData.data } : null;
 }
 
-// ---------- the one endpoint ----------
+// accept either a data URL or raw base64
+function parseImage(image) {
+  let mime = "image/jpeg";
+  let data = image;
+  const m = /^data:(.+?);base64,(.*)$/s.exec(image);
+  if (m) { mime = m[1]; data = m[2]; }
+  return { mime, data };
+}
 
+// ---------- endpoints ----------
+
+// The read: sun + diagnosis + diagram. Cheap vision call, no image generation.
 app.post("/analyze", async (req, res) => {
   try {
-    const { image, latitude, longitude, timestamp, lookHint } = req.body || {};
+    const { image, latitude, longitude, timestamp } = req.body || {};
     if (!image || latitude == null || longitude == null) {
       return res.status(400).json({ error: "Need image (base64), latitude, longitude." });
     }
-
-    // accept either a data URL or raw base64
-    let mime = "image/jpeg";
-    let data = image;
-    const m = /^data:(.+?);base64,(.*)$/s.exec(image);
-    if (m) { mime = m[1]; data = m[2]; }
-
+    const { mime, data } = parseImage(image);
     const sun = sunReport(Number(latitude), Number(longitude), timestamp);
-
-    const [diagnosis, render] = await Promise.all([
-      diagnose(data, mime, sun).catch((e) => ({ error: String(e?.message || e) })),
-      renderSoftened(data, mime, lookHint).catch((e) => ({ error: String(e?.message || e) })),
-    ]);
-
-    res.json({
-      sun,
-      diagnosis,
-      render: render && !render.error ? `data:${render.mimeType};base64,${render.data}` : null,
-      renderError: render?.error || (render ? null : "model returned no image"),
-    });
+    const diagnosis = await diagnose(data, mime, sun).catch((e) => ({ error: String(e?.message || e) }));
+    res.json({ sun, diagnosis });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "analyze failed", detail: String(err?.message || err) });
+  }
+});
+
+// The relight: only called when the user asks, so no renders are wasted.
+// brief is free text, or "auto" for the gaffer's call. diagnosis (from /analyze) grounds the render.
+app.post("/render", async (req, res) => {
+  try {
+    const { image, brief, diagnosis } = req.body || {};
+    if (!image) return res.status(400).json({ error: "Need image (base64)." });
+    const { mime, data } = parseImage(image);
+    const render = await renderLook(data, mime, typeof brief === "string" ? brief.slice(0, 500) : "auto", diagnosis)
+      .catch((e) => ({ error: String(e?.message || e) }));
+    res.json({
+      render: render && !render.error ? `data:${render.mimeType};base64,${render.data}` : null,
+      error: render?.error || (render ? null : "model returned no image"),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "render failed", detail: String(err?.message || err) });
   }
 });
 

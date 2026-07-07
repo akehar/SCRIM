@@ -14,9 +14,11 @@ It ships with a test page (dark, set-friendly, installable as a PWA) so you can 
 
 > The render is a directional preview, not a final grade. It shows the person what softer light would do, it does not measure it.
 
-## Endpoint
+## Endpoints
 
-`POST /analyze`
+The read and the render are split so renders are never wasted: `/analyze` is the cheap vision call, `/render` only fires when the user presses **Light it**.
+
+`POST /analyze` — the read.
 
 Request:
 
@@ -25,8 +27,7 @@ Request:
   "image": "data:image/jpeg;base64,...",
   "latitude": 41.55,
   "longitude": -8.42,
-  "timestamp": "2026-06-26T12:00:00Z",
-  "lookHint": "optional, e.g. moody warm"
+  "timestamp": "2026-06-26T12:00:00Z"
 }
 ```
 
@@ -50,13 +51,15 @@ Response:
     "colorTemp": "neutral",
     "contrast": "high",
     "problems": ["harsh shadows under the eyes", "blown highlights on the forehead"],
-    "fixes": ["put a 4x4 silk between sun and subject", "bounce the shadow side", "or wait for golden hour at 19:42"]
-  },
-  "render": "data:image/png;base64,..."
+    "fixes": ["put a 4x4 silk between sun and subject", "bounce the shadow side", "or wait for golden hour at 19:42"],
+    "diagram": { "sunFrom": {"x": 0.1, "y": 0.1}, "subject": {"x": 0.5, "y": 0.55}, "marks": [{"x": 0.3, "y": 0.2, "tool": "silk", "label": "4x4 silk here"}] }
+  }
 }
 ```
 
-The `sun` object also carries `nextGoldenHour` — the next (or currently open) golden-hour window with `minutesUntil`/`minutesLeft`, which drives the test page's live countdown. If a Gemini call fails, the response says why in `diagnosis.error` / `renderError` instead of going quiet.
+`POST /render` — the relight. `{ "image": "...", "brief": "text or \"auto\"", "diagnosis": {…} }` → `{ "render": "data:...", "error": null }`. The brief is the director's direction (the test page offers preset looks — Soft & golden, Dramatic, Dappled canopy, Clean commercial — plus free text); `"auto"` is the **gaffer's call**, where the model picks the treatment that fixes the diagnosed problems. Passing the `diagnosis` from `/analyze` grounds the relight in the read. The prompt insists on a lighting change (shadow edges, source size, motivated sources), not a color grade.
+
+The `sun` object also carries `nextGoldenHour` — the next (or currently open) golden-hour window with `minutesUntil`/`minutesLeft`, which drives the test page's live countdown. If a Gemini call fails, the response says why in `diagnosis.error` / the render `error` instead of going quiet.
 
 `GET /sun?lat=41.55&lng=-8.42` returns just the sun report — no image, no AI, no key needed. The test page calls it on load so the countdown works before you ever take a photo.
 
