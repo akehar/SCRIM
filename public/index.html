@@ -233,65 +233,51 @@ let state = null;        // {frame, diagnosis} of the last analyzed shot
 
 /* ---------- location + sun ---------- */
 
-// iOS WebKit (Safari AND Chrome on iPhone) can stall getCurrentPosition without
-// firing EITHER callback. After our own deadline, fall back to watchPosition —
-// the well-known workaround that usually still delivers a fix there.
-function getPosition(opts) {
+// One acquisition budget. getCurrentPosition and watchPosition run in PARALLEL from
+// the start — whichever delivers first wins. Native timeouts and transient no-fix
+// errors do NOT abort the wait (the watch keeps trying, and first fixes can take
+// 10-20 s on phones); only a hard permission denial ends it early.
+function acquirePosition({ highAccuracy = false, totalMs = 20000 } = {}) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("This browser has no geolocation."));
-    const wait = (opts.timeout || 6000) + 3000;
-    let done = false, watchId = null, watchDeadline = null;
+    let done = false, watchId = null;
     const finish = (fn, v) => {
       if (done) return;
       done = true;
-      clearTimeout(gcpDeadline); clearTimeout(watchDeadline);
+      clearTimeout(hardStop);
       if (watchId != null) navigator.geolocation.clearWatch(watchId);
       fn(v);
     };
-    const gcpDeadline = setTimeout(() => {
-      if (done) return;
-      try {
-        watchId = navigator.geolocation.watchPosition((p) => finish(resolve, p), (e) => finish(reject, e), opts);
-        watchDeadline = setTimeout(() => finish(reject, new Error("location timed out")), wait);
-      } catch { finish(reject, new Error("location timed out")); }
-    }, wait);
-    navigator.geolocation.getCurrentPosition((p) => finish(resolve, p), (e) => finish(reject, e), opts);
+    const hardStop = setTimeout(() => finish(reject, new Error("location timed out")), totalMs);
+    const opts = { enableHighAccuracy: highAccuracy, maximumAge: 60000, timeout: totalMs };
+    const onErr = (e) => { if (e && e.code === 1) finish(reject, e); };
+    try { watchId = navigator.geolocation.watchPosition((p) => finish(resolve, p), onErr, opts); } catch { /* one-shot still runs */ }
+    navigator.geolocation.getCurrentPosition((p) => finish(resolve, p), onErr, opts);
   });
 }
 
 function geoErrorMessage(e) {
   if (e && e.code === 1) return "Location is blocked for this site in the browser. iPhone Chrome: tap ⋯ → Page Info (or the tune icon by the address bar) → Permissions → allow Location. Then tap the pill up top to retry.";
-  if (e && e.code === 2) return "The phone couldn't get a position fix — usually temporary. Tap the pill up top to retry.";
-  return "Location timed out. Tap the pill up top to retry.";
+  return "No location fix after 20 seconds. iOS location sometimes wedges — toggle Airplane Mode on and off or reopen the tab, then tap the pill to retry. Or set your location manually below.";
 }
 
-// Two-stage: a fast coarse fix fills the page immediately, then GPS refines in the background.
-// Transient no-fix failures get retried; a saved manual location is the last resort.
 async function getLocation(force = false) {
   if (loc && !force) return loc;
-  let lastErr = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const p = await getPosition({ enableHighAccuracy: false, timeout: 6000, maximumAge: force ? 0 : 300000 });
-      loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
-      refineLocation();
-      return loc;
-    } catch (e) {
-      lastErr = e;
-      // Only a genuine transient no-fix (code 2) is worth one retry. A denial (1)
-      // won't change, and a stalled browser (our own timeout) just burns the clock.
-      if (!e || e.code !== 2) break;
-      await new Promise((r) => setTimeout(r, 500));
-    }
-  }
   try {
-    const saved = JSON.parse(localStorage.getItem("scrim-manual-loc"));
-    if (Array.isArray(saved)) {
-      loc = { latitude: saved[0], longitude: saved[1], accuracy: null, manual: true };
-      return loc;
-    }
-  } catch { /* no saved manual location */ }
-  throw new Error(geoErrorMessage(lastErr));
+    const p = await acquirePosition({ totalMs: 20000 });
+    loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
+    refineLocation();
+    return loc;
+  } catch (e) {
+    try {
+      const saved = JSON.parse(localStorage.getItem("scrim-manual-loc"));
+      if (Array.isArray(saved)) {
+        loc = { latitude: saved[0], longitude: saved[1], accuracy: null, manual: true };
+        return loc;
+      }
+    } catch { /* no saved manual location */ }
+    throw new Error(geoErrorMessage(e));
+  }
 }
 
 let refining = false;
@@ -299,7 +285,7 @@ async function refineLocation() {
   if (refining) return;
   refining = true;
   try {
-    const p = await getPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    const p = await acquirePosition({ highAccuracy: true, totalMs: 25000 });
     const better = !loc || !loc.accuracy || (p.coords.accuracy && p.coords.accuracy < loc.accuracy * 0.8);
     if (better) {
       loc = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy };
@@ -366,12 +352,19 @@ async function fetchSun(l) {
 }
 
 async function loadSun(forceLoc = false) {
+  const t0 = Date.now();
+  const ticker = setInterval(() => {
+    const s = Math.round((Date.now() - t0) / 1000);
+    if (s >= 3) $("locPill").textContent = `locating… ${s}s`;
+  }, 1000);
   try {
     $("locPill").textContent = "locating…";
     const l = await getLocation(forceLoc);
+    clearInterval(ticker);
     $("locPill").textContent = pillText(l);
     await fetchSun(l);
   } catch (e) {
+    clearInterval(ticker);
     $("locPill").textContent = "no location — tap to retry";
     $("clock").innerHTML = `<span class="err" style="font-size:15px;font-weight:400">${e.message || e}</span>`;
     $("sunNow").innerHTML = `
