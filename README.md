@@ -10,7 +10,11 @@ One endpoint that, given a photo plus a location and time, returns:
 2. **A lighting diagnosis** from a Gemini vision model: direction, hardness, colour temperature, contrast, the problems, and specific softening or timing fixes — plus a `diagram` with frame-space coordinates (where the sun enters, where the subject is, and a numbered mark per fix) that the test page draws directly on the photo.
 3. **A softened render** from Nano Banana (`gemini-3.1-flash-image`): the same frame re-lit toward a soft, warm, golden-hour look, subject and framing kept intact.
 
-It ships with a test page (dark, set-friendly, installable as a PWA) so you can try it from your phone before any native app exists. The page has a live viewfinder built on `getUserMedia`, so besides the phone camera it can read any camera that presents as a video source: a DJI Osmo Pocket 3 in Webcam Mode over USB-C, a Sony a7S III / a7 IV / FX3 with USB Streaming enabled, or any HDMI camera through a cheap HDMI-to-USB capture stick.
+It ships as an app-shell web app (dark, set-friendly, installable as a PWA) with three screens:
+
+- **Now** — ticking golden-hour countdown, the sun's arc for the day with golden/blue bands and a now-cursor, cloud-cover-aware timing (Open-Meteo, no key), a sun compass, and a "you've read light here before" note when you return to a logged spot.
+- **Shoot** — live viewfinder built on `getUserMedia` (phone lenses, or any camera that presents as a video source: Osmo Pocket 3 Webcam Mode, Sony a7S III/a7 IV/FX3 USB Streaming, HDMI via capture stick) with an AR sun-path overlay on the feed; then the read → brief → plan → relight flow, a **Check my work** re-check loop (`POST /recheck` grades a before/after pair: cleared / remaining / new problems), and a shareable call-sheet PNG (frame + burned-in diagram + moves + windows).
+- **Log** — scene memory: the last 12 reads with thumbnail, light summary, time, and distance from where you stand.
 
 > The render is a directional preview, not a final grade. It shows the person what softer light would do, it does not measure it.
 

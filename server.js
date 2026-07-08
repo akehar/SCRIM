@@ -56,6 +56,23 @@ function nextGoldenWindow(lat, lng, now) {
   return next ? { ...next, active: false, minutesUntil: Math.round((next.start - now) / 60000) } : null;
 }
 
+// The sun's arc sampled every 30 min for ~36 h: drives the AR overlay and the day timeline.
+function sunPath(lat, lng, from) {
+  const start = new Date(from);
+  start.setMinutes(0, 0, 0);
+  const points = [];
+  for (let i = 0; i <= 72; i++) {
+    const t = new Date(start.getTime() + i * 30 * 60000);
+    const p = SunCalc.getPosition(t, lat, lng);
+    points.push({
+      t,
+      azimuthDeg: Math.round((rad2deg(p.azimuth) + 180 + 360) % 360),
+      altitudeDeg: Math.round(rad2deg(p.altitude)),
+    });
+  }
+  return points;
+}
+
 function sunReport(lat, lng, when) {
   const date = when ? new Date(when) : new Date();
   const pos = SunCalc.getPosition(date, lat, lng);
@@ -65,6 +82,7 @@ function sunReport(lat, lng, when) {
   const bearing = (rad2deg(pos.azimuth) + 180 + 360) % 360;
 
   return {
+    path: sunPath(lat, lng, date),
     now: {
       altitudeDeg: Math.round(altDeg),
       azimuthDeg: Math.round(bearing),
@@ -232,6 +250,53 @@ app.post("/plan", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "plan failed", detail: String(err?.message || err) });
+  }
+});
+
+// The re-check: BEFORE and AFTER frames, did the moves work?
+async function recheckRead(beforeData, beforeMime, afterData, afterMime, diagnosis) {
+  const earlier = diagnosis && !diagnosis.error
+    ? `The BEFORE frame was read as: ${diagnosis.hardness || "?"} light from ${diagnosis.direction || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none listed"}.`
+    : "";
+  const prompt = `You are the same gaffer checking your own work. The first image is BEFORE, the second is AFTER the crew applied the plan.
+${earlier}
+Compare ONLY the lighting on the subject and scene. Reply with strict JSON, no markdown, exactly this shape:
+{
+  "verdict": "better" | "same" | "worse",
+  "cleared": ["problems from before that are now fixed"],
+  "remaining": ["problems still present"],
+  "new": ["any new lighting problems the fix introduced"],
+  "note": "one sentence of direction for the next tweak, or praise if it's right"
+}`;
+  const res = await ai.models.generateContent({
+    model: VISION_MODEL,
+    contents: [{
+      role: "user",
+      parts: [
+        { inlineData: { mimeType: beforeMime, data: beforeData } },
+        { text: "BEFORE" },
+        { inlineData: { mimeType: afterMime, data: afterData } },
+        { text: "AFTER" },
+        { text: prompt },
+      ],
+    }],
+    config: { responseMimeType: "application/json" },
+  });
+  const text = res.text ?? res.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ?? "{}";
+  try { return JSON.parse(text); } catch { return { raw: text }; }
+}
+
+app.post("/recheck", async (req, res) => {
+  try {
+    const { before, after, diagnosis } = req.body || {};
+    if (!before || !after) return res.status(400).json({ error: "Need before and after images (base64)." });
+    const b = parseImage(before), a = parseImage(after);
+    const check = await recheckRead(b.data, b.mime, a.data, a.mime, diagnosis)
+      .catch((e) => ({ error: String(e?.message || e) }));
+    res.json({ check });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "recheck failed", detail: String(err?.message || err) });
   }
 });
 

@@ -20,13 +20,14 @@
     --gold: #e8a33d;
     --gold-ink: #201503;
     --err: #e06a55;
+    --okc: #7fb069;
     --radius: 16px;
   }
   @media (prefers-color-scheme: light) {
     :root {
       --bg: #faf7f1; --surface: #ffffff; --line: #e4dfd3;
       --ink: #201d17; --muted: #7a7263; --gold: #b67614; --gold-ink: #fff;
-      --err: #b3402e;
+      --err: #b3402e; --okc: #3e7d32;
     }
   }
   * { box-sizing: border-box; }
@@ -34,41 +35,62 @@
   body {
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     background: var(--bg); color: var(--ink);
-    margin: 0; line-height: 1.5;
-    padding: calc(14px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));
-    max-width: 680px; margin-inline: auto;
+    margin: 0; line-height: 1.45;
+    height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
   }
-  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
-  .wordmark { font-size: 19px; font-weight: 750; letter-spacing: 0.34em; margin: 0; }
+  header {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+    padding: calc(10px + env(safe-area-inset-top)) 18px 8px;
+  }
+  .wordmark { font-size: 17px; font-weight: 750; letter-spacing: 0.32em; margin: 0; }
   .wordmark b { color: var(--gold); font-weight: inherit; }
-  .tagline { margin: 0 0 18px; color: var(--muted); font-size: 13.5px; }
-  .pill { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; cursor: pointer; background: none; font-family: inherit; }
+  .pill { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; cursor: pointer; background: none; font-family: inherit; max-width: 55%; overflow: hidden; text-overflow: ellipsis; }
 
-  .banner { border: 1px solid var(--gold); color: var(--gold); border-radius: 12px; padding: 10px 14px; font-size: 13.5px; margin: 0 0 14px; display: none; }
+  main { flex: 1 1 auto; position: relative; overflow: hidden; }
+  .screen {
+    position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 4px 16px calc(12px + env(safe-area-inset-bottom));
+    display: none; animation: fadein 0.18s ease;
+  }
+  .screen.active { display: block; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin: 12px 0; }
-  .card h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 10px; font-weight: 650; }
+  nav.tabbar {
+    flex: 0 0 auto; display: flex; border-top: 1px solid var(--line); background: var(--surface);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tabbtn {
+    flex: 1; font: inherit; font-size: 12px; font-weight: 650; letter-spacing: 0.04em;
+    background: none; border: none; color: var(--muted); padding: 10px 0 8px; cursor: pointer;
+  }
+  .tabbtn .ico { display: block; font-size: 17px; margin-bottom: 1px; }
+  .tabbtn[aria-selected="true"] { color: var(--gold); }
 
-  /* hero countdown */
-  .clock { font-size: clamp(26px, 8vw, 34px); font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; line-height: 1.15; }
+  .banner { border: 1px solid var(--gold); color: var(--gold); border-radius: 12px; padding: 8px 12px; font-size: 12.5px; margin: 6px 0; display: none; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 15px; margin: 8px 0; }
+  .card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 7px; font-weight: 650; }
+
+  .clock { font-size: clamp(23px, 7vw, 30px); font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; line-height: 1.12; }
   .clock em { font-style: normal; color: var(--gold); }
-  .sunline { font-size: 14.5px; margin-top: 6px; }
-  .times { margin-top: 12px; font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
-  .times div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .sunline { font-size: 13.5px; margin-top: 4px; }
+  .weather { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+  .timeline { width: 100%; height: 74px; display: block; margin-top: 2px; }
+  .times { font-size: 12.5px; color: var(--muted); }
+  .times div { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
   .times span:last-child { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .herenote { font-size: 12.5px; color: var(--gold); margin-top: 6px; display: none; }
 
-  /* compass */
-  .compassrow { display: flex; align-items: center; gap: 14px; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
-  .dial { flex: 0 0 auto; width: 56px; height: 56px; }
+  .compassrow { display: flex; align-items: center; gap: 12px; }
+  .dial { flex: 0 0 auto; width: 48px; height: 48px; }
   .dial .needle { transform-origin: 50% 50%; transition: transform 0.25s ease-out; }
-  .compasstext { font-size: 14px; }
-  .compasstext small { display: block; color: var(--muted); font-size: 12.5px; }
+  .compasstext { font-size: 13px; }
+  .compasstext small { display: block; color: var(--muted); font-size: 11.5px; }
 
-  /* actions */
-  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 8px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0; }
   .btn {
-    appearance: none; font: inherit; font-size: 15.5px; font-weight: 650; text-align: center;
-    padding: 14px 12px; border-radius: 14px; cursor: pointer; min-height: 50px;
+    appearance: none; font: inherit; font-size: 15px; font-weight: 650; text-align: center;
+    padding: 13px 12px; border-radius: 14px; cursor: pointer; min-height: 48px;
     border: 1px solid var(--line); background: var(--surface); color: var(--ink);
     transition: transform 0.08s ease;
   }
@@ -77,22 +99,28 @@
   .btn:disabled { opacity: 0.55; cursor: default; }
   input[type=file] { display: none; }
   input[type=text] {
-    width: 100%; font: inherit; font-size: 14px; padding: 12px 14px; border-radius: 12px;
+    width: 100%; font: inherit; font-size: 14px; padding: 11px 13px; border-radius: 12px;
     border: 1px solid var(--line); background: var(--surface); color: var(--ink); margin-top: 8px;
   }
   input[type=text]::placeholder { color: var(--muted); }
-  .hint { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
-  .status { font-size: 14px; min-height: 21px; margin: 12px 0 0; }
+  .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  .status { font-size: 13.5px; min-height: 19px; margin: 8px 0 0; }
   .err { color: var(--err); }
+  .good { color: var(--okc); }
 
-  /* viewfinder */
   #finder { display: none; }
   #finder.open { display: block; }
   .vfwrap { position: relative; border-radius: var(--radius); overflow: hidden; background: #000; }
   .vfwrap video { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
-  .vfbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+  .arstrip { position: absolute; top: 0; left: 0; width: 100%; height: 56px; pointer-events: none; }
+  .arenable {
+    position: absolute; top: 8px; right: 8px; font: inherit; font-size: 11.5px; font-weight: 650;
+    background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 999px; padding: 5px 10px; cursor: pointer;
+  }
+  .vfbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
   .shutter {
-    width: 64px; height: 64px; border-radius: 50%; border: 4px solid var(--ink);
+    width: 60px; height: 60px; border-radius: 50%; border: 4px solid var(--ink);
     background: var(--gold); cursor: pointer; margin-inline: auto; flex: 0 0 auto;
     transition: transform 0.08s ease;
   }
@@ -100,49 +128,47 @@
   .vfside { flex: 1 1 0; display: flex; min-width: 0; }
   .vfside.right { justify-content: flex-end; }
   select, .ghost {
-    font: inherit; font-size: 13px; color: var(--ink); background: var(--surface);
-    border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; max-width: 100%; cursor: pointer;
+    font: inherit; font-size: 12.5px; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; max-width: 100%; cursor: pointer;
   }
-  details { margin-top: 12px; font-size: 13.5px; color: var(--muted); }
-  details summary { cursor: pointer; color: var(--ink); font-weight: 600; font-size: 13.5px; }
-  details li { margin: 6px 0; }
+  details { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  details summary { cursor: pointer; color: var(--ink); font-weight: 600; font-size: 13px; }
+  details li { margin: 5px 0; }
 
-  /* results */
-  .verdict { font-size: 18px; font-weight: 700; line-height: 1.35; }
+  .verdict { font-size: 16.5px; font-weight: 700; line-height: 1.35; }
   .verdict .gold { color: var(--gold); font-variant-numeric: tabular-nums; }
-  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 2px; }
-  .chip { font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; color: var(--muted); }
-  .listhead { font-size: 11.5px; font-weight: 650; margin-top: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
-  ol.fixes, ul.probs { margin: 6px 0 0; padding-left: 0; list-style: none; font-size: 14.5px; }
-  ul.probs li { padding-left: 16px; position: relative; margin: 4px 0; }
-  ul.probs li::before { content: ""; position: absolute; left: 2px; top: 0.62em; width: 5px; height: 5px; border-radius: 50%; background: var(--err); }
-  ol.fixes li { display: flex; gap: 10px; margin: 8px 0; align-items: baseline; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 2px; }
+  .chip { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
+  .listhead { font-size: 11px; font-weight: 650; margin-top: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  ol.fixes, ul.probs { margin: 5px 0 0; padding-left: 0; list-style: none; font-size: 14px; }
+  ul.probs li { padding-left: 15px; position: relative; margin: 3px 0; }
+  ul.probs li::before { content: ""; position: absolute; left: 2px; top: 0.6em; width: 5px; height: 5px; border-radius: 50%; background: var(--err); }
+  ul.probs.ok li::before { background: var(--okc); }
+  ol.fixes li { display: flex; gap: 9px; margin: 7px 0; align-items: baseline; }
   .num {
-    flex: 0 0 auto; width: 21px; height: 21px; border-radius: 50%; background: var(--gold); color: var(--gold-ink);
-    font-size: 12.5px; font-weight: 750; display: inline-flex; align-items: center; justify-content: center;
+    flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; background: var(--gold); color: var(--gold-ink);
+    font-size: 12px; font-weight: 750; display: inline-flex; align-items: center; justify-content: center;
     transform: translateY(3px);
   }
 
-  /* brief the gaffer */
-  .looks { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 0; }
+  .looks { display: flex; gap: 7px; flex-wrap: wrap; }
   .look {
-    font: inherit; font-size: 13.5px; font-weight: 600; padding: 9px 14px; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--line); background: transparent; color: var(--ink); min-height: 40px;
+    font: inherit; font-size: 13px; font-weight: 600; padding: 8px 13px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); background: transparent; color: var(--ink); min-height: 38px;
   }
   .look[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
-  .look .sub { display: block; font-weight: 400; font-size: 11px; color: inherit; opacity: 0.75; }
+  .look .sub { display: block; font-weight: 400; font-size: 10.5px; opacity: 0.75; }
 
-  /* frame viewer: tabs + overlay + compare */
-  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
   .tab {
-    font: inherit; font-size: 13px; font-weight: 650; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 12.5px; font-weight: 650; padding: 6px 13px; border-radius: 999px; cursor: pointer;
     border: 1px solid var(--line); background: transparent; color: var(--muted);
   }
   .tab[aria-selected="true"] { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
   .frame { position: relative; border-radius: 12px; overflow: hidden; }
   .frame img { display: block; width: 100%; }
   .frame svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 7px; }
   .legend .key { display: inline-flex; align-items: center; gap: 6px; }
   .swatch { width: 14px; height: 3px; background: var(--gold); border-radius: 2px; }
 
@@ -152,15 +178,22 @@
   .compare .handle { position: absolute; top: 0; bottom: 0; left: var(--pos, 50%); width: 2px; background: #fff; box-shadow: 0 0 4px rgba(0,0,0,0.6); }
   .compare .handle::after {
     content: "◂ ▸"; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    background: #fff; color: #111; font-size: 11px; padding: 5px 8px; border-radius: 999px; white-space: nowrap;
+    background: #fff; color: #111; font-size: 11px; padding: 4px 8px; border-radius: 999px; white-space: nowrap;
   }
-  .taglabels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .taglabels { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: 5px; }
 
-  .skeleton { height: 14px; border-radius: 6px; background: var(--line); animation: pulse 1.2s ease-in-out infinite; margin: 8px 0; }
+  .logitem { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .logitem:last-child { border-bottom: none; }
+  .logitem img { width: 62px; height: 62px; object-fit: cover; border-radius: 10px; flex: 0 0 auto; }
+  .logmeta { min-width: 0; font-size: 13.5px; }
+  .logmeta small { display: block; color: var(--muted); font-size: 12px; }
+
+  .skeleton { height: 13px; border-radius: 6px; background: var(--line); animation: pulse 1.2s ease-in-out infinite; margin: 7px 0; }
   @keyframes pulse { 50% { opacity: 0.4; } }
   @media (prefers-reduced-motion: reduce) {
     .skeleton { animation: none; }
     .btn, .shutter, .dial .needle { transition: none; }
+    .screen { animation: none; }
   }
 </style>
 </head>
@@ -169,74 +202,115 @@
     <h1 class="wordmark">SCR<b>I</b>M</h1>
     <button class="pill" id="locPill" type="button" title="Tap to refresh location">locating…</button>
   </header>
-  <p class="tagline">Shape the light you already have.</p>
 
-  <div class="banner" id="banner"></div>
+  <main>
+    <!-- ============ NOW ============ -->
+    <section class="screen active" id="screen-now">
+      <div class="banner" id="banner"></div>
+      <div class="card">
+        <h2>Next soft light</h2>
+        <div id="clock" class="clock"><span class="skeleton" style="display:block;width:70%"></span></div>
+        <div class="sunline" id="sunNow"><span class="skeleton" style="display:block;width:50%"></span></div>
+        <div class="weather" id="weatherLine"></div>
+        <div class="herenote" id="hereNote"></div>
+      </div>
+      <div class="card">
+        <h2>The day</h2>
+        <svg class="timeline" id="timeline" viewBox="0 0 360 74" preserveAspectRatio="none"></svg>
+        <div class="times" id="sunTimes"></div>
+      </div>
+      <div class="card">
+        <div class="compassrow">
+          <button class="ghost" id="findSun" type="button">Find the sun</button>
+          <div class="compasstext" id="compassHint" style="color:var(--muted);font-size:12px">Point your phone anywhere — the needle tracks the sun.</div>
+          <svg class="dial" id="dial" viewBox="0 0 56 56" style="display:none" aria-label="Sun direction relative to where you point">
+            <circle cx="28" cy="28" r="26" fill="none" stroke="var(--line)" stroke-width="2"/>
+            <text x="28" y="10" font-size="8" fill="var(--muted)" text-anchor="middle">▲</text>
+            <g class="needle" id="needle">
+              <line x1="28" y1="28" x2="28" y2="8" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="28" cy="8" r="4" fill="var(--gold)"/>
+            </g>
+            <circle cx="28" cy="28" r="3" fill="var(--muted)"/>
+          </svg>
+          <div class="compasstext" id="compassTxt" hidden></div>
+        </div>
+      </div>
+    </section>
 
-  <div class="card" id="sunCard">
-    <h2>Next soft light</h2>
-    <div id="clock" class="clock"><span class="skeleton" style="display:block;width:70%"></span></div>
-    <div class="sunline" id="sunNow"><span class="skeleton" style="display:block;width:50%"></span></div>
-    <div class="times" id="sunTimes"></div>
-    <div class="compassrow" id="compassRow">
-      <button class="ghost" id="findSun" type="button">Find the sun</button>
-      <div class="compasstext" id="compassHint" style="color:var(--muted);font-size:12.5px">Point your phone anywhere — the needle tracks the sun.</div>
-      <svg class="dial" id="dial" viewBox="0 0 56 56" style="display:none" aria-label="Sun direction relative to where you point">
-        <circle cx="28" cy="28" r="26" fill="none" stroke="var(--line)" stroke-width="2"/>
-        <text x="28" y="10" font-size="8" fill="var(--muted)" text-anchor="middle">▲</text>
-        <g class="needle" id="needle">
-          <line x1="28" y1="28" x2="28" y2="8" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
-          <circle cx="28" cy="8" r="4" fill="var(--gold)"/>
-        </g>
-        <circle cx="28" cy="28" r="3" fill="var(--muted)"/>
-      </svg>
-      <div class="compasstext" id="compassTxt" hidden></div>
-    </div>
-  </div>
+    <!-- ============ SHOOT ============ -->
+    <section class="screen" id="screen-shoot">
+      <div class="banner" id="recheckBanner" style="border-color:var(--okc);color:var(--okc)"></div>
+      <div class="actions">
+        <button class="btn primary" id="openCam" type="button">Open camera</button>
+        <label class="btn" for="shot">Upload photo</label>
+      </div>
+      <input id="shot" type="file" accept="image/*" capture="environment" />
+      <p class="hint">Phone camera, or a pro camera over USB. Frames go to the server for analysis only — nothing renders until you ask.</p>
 
-  <div class="actions">
-    <button class="btn primary" id="openCam" type="button">Open camera</button>
-    <label class="btn" for="shot">Upload photo</label>
-  </div>
-  <input id="shot" type="file" accept="image/*" capture="environment" />
-  <p class="hint">Works with the phone camera, or a pro camera plugged in over USB. Frames go to the server for analysis only — nothing is rendered until you ask.</p>
+      <div class="card" id="finder">
+        <div class="vfwrap">
+          <video id="vf" autoplay playsinline muted></video>
+          <canvas class="arstrip" id="arStrip" width="800" height="112" style="display:none"></canvas>
+          <button class="arenable" id="arEnable" type="button">☀ Sun overlay</button>
+        </div>
+        <div class="vfbar">
+          <div class="vfside"><select id="camSel" aria-label="Camera lens" hidden></select></div>
+          <button class="shutter" id="snap" type="button" aria-label="Analyze this frame"></button>
+          <div class="vfside right"><button class="ghost" id="closeCam" type="button">Close</button></div>
+        </div>
+        <details>
+          <summary>Connect a pro camera (Sony a7S III, DJI Osmo Pocket 3…)</summary>
+          <ul>
+            <li><strong>DJI Osmo Pocket 3:</strong> plug in over USB-C, switch to <em>Webcam Mode</em>. It appears in the lens menu.</li>
+            <li><strong>Sony a7S III / a7 IV / FX3:</strong> Setup → USB → <em>USB Streaming</em>, connect over USB.</li>
+            <li><strong>Anything with HDMI out:</strong> an HDMI→USB capture stick makes it a source here.</li>
+          </ul>
+        </details>
+      </div>
 
-  <div class="card" id="finder">
-    <h2>Viewfinder</h2>
-    <div class="vfwrap"><video id="vf" autoplay playsinline muted></video></div>
-    <div class="vfbar">
-      <div class="vfside"><select id="camSel" aria-label="Camera lens" hidden></select></div>
-      <button class="shutter" id="snap" type="button" aria-label="Analyze this frame"></button>
-      <div class="vfside right"><button class="ghost" id="closeCam" type="button">Close</button></div>
-    </div>
-    <details>
-      <summary>Connect a pro camera (Sony a7S III, DJI Osmo Pocket 3…)</summary>
-      <ul>
-        <li><strong>DJI Osmo Pocket 3:</strong> plug into this device over USB-C and switch the camera to <em>Webcam Mode</em>. It appears in the lens menu — no drivers.</li>
-        <li><strong>Sony a7S III / a7 IV / FX3:</strong> Setup&nbsp;→&nbsp;USB&nbsp;→ <em>USB Streaming</em>, then connect over USB. The camera shows up as a video source.</li>
-        <li><strong>Anything with HDMI out:</strong> a small HDMI→USB capture stick makes any cinema camera appear as a source here.</li>
-        <li>The lens menu refreshes automatically when a camera is plugged in.</li>
-      </ul>
-    </details>
-  </div>
+      <p class="status" id="status" role="status"></p>
+      <div id="out"></div>
+    </section>
 
-  <p class="status" id="status" role="status"></p>
-  <div id="out"></div>
+    <!-- ============ LOG ============ -->
+    <section class="screen" id="screen-log">
+      <div class="card">
+        <h2>Scene memory</h2>
+        <div id="logList"><p class="hint">Every read is remembered here with its light and location, so returning to a spot tells you how it behaved last time.</p></div>
+      </div>
+      <div class="actions" style="grid-template-columns:1fr">
+        <button class="btn" id="clearLog" type="button">Clear log</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" role="tablist">
+    <button class="tabbtn" role="tab" aria-selected="true" data-screen="screen-now" type="button"><span class="ico">☀</span>Now</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button"><span class="ico">◉</span>Shoot</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-log" type="button"><span class="ico">▤</span>Log</button>
+  </nav>
 
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
-let loc = null;          // {latitude, longitude, accuracy}
+let loc = null;
 let sun = null;
 let stream = null;
-let state = null;        // {frame, diagnosis} of the last analyzed shot
+let state = null;          // {frame, diagnosis, plan}
+let heading = null;        // device compass heading, deg from north
+let recheckArm = false;
+let weather = null;        // {times:[], clouds:[]}
 
-/* ---------- location + sun ---------- */
+/* ---------- app shell ---------- */
 
-// One acquisition budget. getCurrentPosition and watchPosition run in PARALLEL from
-// the start — whichever delivers first wins. Native timeouts and transient no-fix
-// errors do NOT abort the wait (the watch keeps trying, and first fixes can take
-// 10-20 s on phones); only a hard permission denial ends it early.
+document.querySelectorAll(".tabbtn").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll(".tabbtn").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
+  document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === b.dataset.screen));
+}));
+function gotoScreen(id) { document.querySelector(`.tabbtn[data-screen="${id}"]`).click(); }
+
+/* ---------- location ---------- */
+
 function acquirePosition({ highAccuracy = false, totalMs = 20000 } = {}) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("This browser has no geolocation."));
@@ -257,8 +331,8 @@ function acquirePosition({ highAccuracy = false, totalMs = 20000 } = {}) {
 }
 
 function geoErrorMessage(e) {
-  if (e && e.code === 1) return "Location is blocked for this site in the browser. iPhone Chrome: tap ⋯ → Page Info (or the tune icon by the address bar) → Permissions → allow Location. Then tap the pill up top to retry.";
-  return "No location fix after 20 seconds. iOS location sometimes wedges — toggle Airplane Mode on and off or reopen the tab, then tap the pill to retry. Or set your location manually below.";
+  if (e && e.code === 1) return "Location is blocked for this site in the browser. iPhone Chrome: tap ⋯ → Page Info → Permissions → allow Location. Then tap the pill up top to retry.";
+  return "No location fix after 20 seconds. Toggle Airplane Mode or reopen the tab, then tap the pill to retry. Or set your location manually below.";
 }
 
 async function getLocation(force = false) {
@@ -275,7 +349,7 @@ async function getLocation(force = false) {
         loc = { latitude: saved[0], longitude: saved[1], accuracy: null, manual: true };
         return loc;
       }
-    } catch { /* no saved manual location */ }
+    } catch { /* none saved */ }
     throw new Error(geoErrorMessage(e));
   }
 }
@@ -292,22 +366,28 @@ async function refineLocation() {
       $("locPill").textContent = pillText(loc);
       fetchSun(loc).catch(() => {});
     }
-  } catch { /* keep the coarse fix */ }
+  } catch { /* keep coarse */ }
   finally { refining = false; }
 }
+
+function pillText(l) {
+  if (l.manual) return `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)} · manual`;
+  const acc = l.accuracy != null ? ` · ±${l.accuracy < 1000 ? Math.round(l.accuracy) + " m" : (l.accuracy / 1000).toFixed(1) + " km"}` : "";
+  return `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)}${acc}`;
+}
+
+/* ---------- sun + weather + timeline ---------- */
 
 function fmt(t) {
   if (!t) return "n/a";
   const d = new Date(t);
   return Number.isNaN(d.getTime()) ? "n/a" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-
 function fmtClock(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
   return (h ? h + ":" : "") + String(m).padStart(h ? 2 : 1, "0") + ":" + String(ss).padStart(2, "0");
 }
-
 function fmtDur(mins) {
   if (mins < 1) return "now";
   const h = Math.floor(mins / 60), m = Math.round(mins % 60);
@@ -318,13 +398,83 @@ function renderClock() {
   const g = sun?.nextGoldenHour;
   if (!g) { $("clock").innerHTML = "No golden hour at this latitude right now."; return; }
   const start = new Date(g.start), end = new Date(g.end), now = Date.now();
-  if (now >= start && now < end) {
-    $("clock").innerHTML = `<em>Golden hour</em> — ${fmtClock(end - now)} left`;
-  } else if (now < start) {
-    $("clock").innerHTML = `Golden hour in <em>${fmtClock(start - now)}</em>`;
-  } else {
-    loadSun(); // window just passed; refresh
+  if (now >= start && now < end) $("clock").innerHTML = `<em>Golden hour</em> — ${fmtClock(end - now)} left`;
+  else if (now < start) $("clock").innerHTML = `Golden hour in <em>${fmtClock(start - now)}</em>`;
+  else loadSun();
+}
+
+function cloudAt(t) {
+  if (!weather) return null;
+  const target = new Date(t).getTime();
+  let best = null, bestDiff = Infinity;
+  weather.times.forEach((wt, i) => {
+    const diff = Math.abs(new Date(wt).getTime() - target);
+    if (diff < bestDiff) { bestDiff = diff; best = weather.clouds[i]; }
+  });
+  return bestDiff <= 45 * 60000 ? best : null;
+}
+
+function renderWeather() {
+  const g = sun?.nextGoldenHour;
+  const nowC = cloudAt(Date.now());
+  const ghC = g ? cloudAt(g.start) : null;
+  if (nowC == null && ghC == null) { $("weatherLine").textContent = ""; return; }
+  const bits = [];
+  if (nowC != null) bits.push(`clouds now ${nowC}%`);
+  if (ghC != null && g) bits.push(`at golden hour ${ghC}%`);
+  let read = "";
+  if (ghC != null) {
+    if (ghC >= 75) read = " — expect flat, dim light; your soft window is effectively all afternoon";
+    else if (ghC >= 40) read = " — broken cloud, the light will come and go";
+    else read = " — clear golden hour, plan for it";
   }
+  $("weatherLine").textContent = `☁ ${bits.join(" · ")}${read}`;
+}
+
+async function loadWeather(l) {
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${l.latitude}&longitude=${l.longitude}&hourly=cloud_cover&forecast_days=2&timezone=auto`);
+    if (!r.ok) return;
+    const j = await r.json();
+    weather = { times: j.hourly.time, clouds: j.hourly.cloud_cover };
+    renderWeather();
+  } catch { /* weather is a bonus, never an error */ }
+}
+
+function renderTimeline() {
+  if (!sun?.path) { $("timeline").innerHTML = ""; return; }
+  const W = 360, H = 74, PAD = 10;
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const dayMs = 86400000;
+  const x = (t) => PAD + ((new Date(t) - dayStart) / dayMs) * (W - 2 * PAD);
+  const y = (alt) => {
+    const clamped = Math.max(-25, Math.min(70, alt));
+    return H - 16 - ((clamped + 25) / 95) * (H - 26);
+  };
+  const pts = sun.path.filter((p) => { const d = new Date(p.t) - dayStart; return d >= 0 && d <= dayMs; });
+  if (!pts.length) { $("timeline").innerHTML = ""; return; }
+  let els = "";
+  const band = (a, b, color) => {
+    if (!a || !b) return;
+    const xa = x(a), xb = x(b);
+    if (Number.isNaN(xa) || Number.isNaN(xb) || xb <= xa) return;
+    els += `<rect x="${xa}" y="6" width="${xb - xa}" height="${H - 22}" fill="${color}" rx="3"/>`;
+  };
+  band(sun.morningGoldenHour?.start, sun.morningGoldenHour?.end, "rgba(232,163,61,0.22)");
+  band(sun.eveningGoldenHour?.start, sun.eveningGoldenHour?.end, "rgba(232,163,61,0.22)");
+  band(sun.blueHour?.start, sun.blueHour?.end, "rgba(90,120,200,0.20)");
+  els += `<line x1="${PAD}" y1="${y(0)}" x2="${W - PAD}" y2="${y(0)}" stroke="var(--line)" stroke-width="1"/>`;
+  els += `<path d="${pts.map((p, i) => `${i ? "L" : "M"} ${x(p.t).toFixed(1)} ${y(p.altitudeDeg).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/>`;
+  const nowX = x(Date.now());
+  if (nowX >= PAD && nowX <= W - PAD) {
+    els += `<line x1="${nowX}" y1="4" x2="${nowX}" y2="${H - 14}" stroke="var(--ink)" stroke-width="1.4"/>`;
+    els += `<circle cx="${nowX}" cy="4" r="2.4" fill="var(--ink)"/>`;
+  }
+  [0, 6, 12, 18, 24].forEach((h) => {
+    const hx = PAD + (h / 24) * (W - 2 * PAD);
+    els += `<text x="${hx}" y="${H - 2}" font-size="8.5" fill="var(--muted)" text-anchor="middle" font-family="system-ui">${h === 24 ? "24" : String(h).padStart(2, "0")}</text>`;
+  });
+  $("timeline").innerHTML = els;
 }
 
 function renderSunCard() {
@@ -336,12 +486,9 @@ function renderSunCard() {
     <div><span>Morning golden hour</span><span>${fmt(sun.morningGoldenHour?.start)}&ndash;${fmt(sun.morningGoldenHour?.end)}</span></div>
     <div><span>Evening golden hour</span><span>${fmt(sun.eveningGoldenHour?.start)}&ndash;${fmt(sun.eveningGoldenHour?.end)}</span></div>
     <div><span>Blue hour</span><span>${fmt(sun.blueHour?.start)}&ndash;${fmt(sun.blueHour?.end)}</span></div>`;
-}
-
-function pillText(l) {
-  if (l.manual) return `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)} · manual`;
-  const acc = l.accuracy != null ? ` · ±${l.accuracy < 1000 ? Math.round(l.accuracy) + " m" : (l.accuracy / 1000).toFixed(1) + " km"}` : "";
-  return `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)}${acc}`;
+  renderTimeline();
+  renderWeather();
+  renderHereNote();
 }
 
 async function fetchSun(l) {
@@ -363,12 +510,13 @@ async function loadSun(forceLoc = false) {
     clearInterval(ticker);
     $("locPill").textContent = pillText(l);
     await fetchSun(l);
+    loadWeather(l);
   } catch (e) {
     clearInterval(ticker);
     $("locPill").textContent = "no location — tap to retry";
-    $("clock").innerHTML = `<span class="err" style="font-size:15px;font-weight:400">${e.message || e}</span>`;
+    $("clock").innerHTML = `<span class="err" style="font-size:14px;font-weight:400">${e.message || e}</span>`;
     $("sunNow").innerHTML = `
-      <div class="hint">Or set your location manually — paste "lat, lng" from any maps app (long-press a spot in Google Maps to copy its coordinates):</div>
+      <div class="hint">Or set your location manually — long-press a spot in Google Maps and copy its coordinates:</div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <input id="manualLoc" type="text" inputmode="decimal" placeholder="41.550, -8.420" style="flex:1;margin-top:0">
         <button class="ghost" id="useManual" type="button">Use</button>
@@ -387,11 +535,12 @@ function applyManualLocation() {
   loc = { latitude: lat, longitude: lng, accuracy: null, manual: true };
   $("locPill").textContent = pillText(loc);
   fetchSun(loc).catch(() => {});
+  loadWeather(loc);
 }
 
 $("locPill").addEventListener("click", () => loadSun(true));
-setInterval(() => { if (sun) renderClock(); }, 1000);
-setInterval(() => { if (sun) loadSun(); }, 5 * 60 * 1000); // keep azimuth fresh
+setInterval(() => { if (sun) { renderClock(); renderTimeline(); } }, 1000);
+setInterval(() => { if (sun) loadSun(); }, 5 * 60 * 1000);
 
 async function checkBackend() {
   try {
@@ -399,20 +548,27 @@ async function checkBackend() {
     if (h.gemini === false) {
       const b = $("banner");
       b.style.display = "block";
-      b.textContent = "The server has no GEMINI_API_KEY set. Sun timing works, but the read, diagram, and relight will fail until the key is added on the server.";
+      b.textContent = "The server has no GEMINI_API_KEY set. Sun timing works, but the read, plan, and relight will fail until the key is added.";
     }
   } catch { /* best effort */ }
 }
 
-/* ---------- find the sun (device compass) ---------- */
+/* ---------- compass + AR strip ---------- */
 
 let compassOn = false;
 function handleOrientation(e) {
-  let heading = null;
-  if (typeof e.webkitCompassHeading === "number") heading = e.webkitCompassHeading; // iOS: deg clockwise from north
-  else if (e.absolute && typeof e.alpha === "number") heading = (360 - e.alpha) % 360;
-  if (heading == null || !sun) return;
+  let h = null;
+  if (typeof e.webkitCompassHeading === "number") h = e.webkitCompassHeading;
+  else if (e.absolute && typeof e.alpha === "number") h = (360 - e.alpha) % 360;
+  if (h == null) return;
+  heading = h;
   compassOn = true;
+  renderCompass();
+  drawARStrip();
+}
+
+function renderCompass() {
+  if (!sun || heading == null) return;
   const rel = ((sun.now.azimuthDeg - heading) % 360 + 360) % 360;
   $("dial").style.display = "";
   $("compassTxt").hidden = false;
@@ -427,13 +583,11 @@ function handleOrientation(e) {
   $("compassTxt").innerHTML = `${where}<small>${sun.now.altitudeDeg}&deg; above the horizon</small>`;
 }
 
-$("findSun").addEventListener("click", async () => {
+async function enableCompass() {
   const attach = () => {
     window.addEventListener("deviceorientationabsolute", handleOrientation, true);
     window.addEventListener("deviceorientation", handleOrientation, true);
-    setTimeout(() => {
-      if (!compassOn) $("compassHint").textContent = "No compass on this device — use the times above instead.";
-    }, 2500);
+    setTimeout(() => { if (!compassOn) $("compassHint").textContent = "No compass on this device."; }, 2500);
   };
   try {
     if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
@@ -442,17 +596,91 @@ $("findSun").addEventListener("click", async () => {
     }
     attach();
   } catch { $("compassHint").textContent = "Compass unavailable on this device."; }
-});
+}
+$("findSun").addEventListener("click", enableCompass);
+$("arEnable").addEventListener("click", async () => { await enableCompass(); });
+
+// The sun's arc drawn over the live viewfinder: now-dot, hourly path, golden-hour marker.
+function drawARStrip() {
+  const c = $("arStrip");
+  if (!stream || heading == null || !sun?.path) { c.style.display = "none"; return; }
+  c.style.display = "";
+  $("arEnable").style.display = "none";
+  const ctx = c.getContext("2d");
+  const W = c.width, H = c.height, FOV = 70; // deg of horizontal view mapped across the strip
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(0, 0, W, H);
+  const rel = (az) => { let d = ((az - heading) % 360 + 360) % 360; if (d > 180) d -= 360; return d; };
+  const xFor = (az) => W / 2 + (rel(az) / (FOV / 2)) * (W / 2);
+  ctx.font = "600 20px system-ui";
+  ctx.textAlign = "center";
+  // cardinal ticks
+  [["N",0],["NE",45],["E",90],["SE",135],["S",180],["SW",225],["W",270],["NW",315]].forEach(([lbl, az]) => {
+    const d = rel(az);
+    if (Math.abs(d) > FOV / 2) return;
+    const px = xFor(az);
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fillRect(px - 1, H - 26, 2, 8);
+    ctx.fillText(lbl, px, H - 32);
+  });
+  // sun path dots for the next hours today
+  const now = Date.now();
+  sun.path.forEach((p) => {
+    const t = new Date(p.t).getTime();
+    if (t < now || t > now + 8 * 3600000 || p.altitudeDeg < -5) return;
+    const d = rel(p.azimuthDeg);
+    if (Math.abs(d) > FOV / 2) return;
+    const px = xFor(p.azimuthDeg);
+    const py = 16 + (1 - Math.max(0, Math.min(65, p.altitudeDeg)) / 65) * (H - 52);
+    ctx.fillStyle = "rgba(232,163,61,0.65)";
+    ctx.beginPath(); ctx.arc(px, py, 4, 0, 7); ctx.fill();
+  });
+  // sun NOW
+  const dNow = rel(sun.now.azimuthDeg);
+  if (Math.abs(dNow) <= FOV / 2 && sun.now.altitudeDeg > -6) {
+    const px = xFor(sun.now.azimuthDeg);
+    const py = 16 + (1 - Math.max(0, Math.min(65, sun.now.altitudeDeg)) / 65) * (H - 52);
+    ctx.fillStyle = "#e8a33d";
+    ctx.beginPath(); ctx.arc(px, py, 10, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 3; ctx.stroke();
+  } else if (sun.now.altitudeDeg > -6) {
+    // edge arrow toward the sun
+    ctx.fillStyle = "#e8a33d";
+    const px = dNow > 0 ? W - 18 : 18;
+    ctx.beginPath();
+    ctx.moveTo(px + (dNow > 0 ? 10 : -10), H / 2 - 12);
+    ctx.lineTo(px + (dNow > 0 ? -8 : 8), H / 2 - 22);
+    ctx.lineTo(px + (dNow > 0 ? -8 : 8), H / 2 - 2);
+    ctx.closePath(); ctx.fill();
+  }
+  // golden hour sun position marker
+  const g = sun.nextGoldenHour;
+  if (g) {
+    const gp = sun.path.reduce((best, p) => {
+      const diff = Math.abs(new Date(p.t) - new Date(g.start));
+      return diff < best.diff ? { p, diff } : best;
+    }, { p: null, diff: Infinity }).p;
+    if (gp && Math.abs(rel(gp.azimuthDeg)) <= FOV / 2 && gp.altitudeDeg > -6) {
+      const px = xFor(gp.azimuthDeg);
+      const py = 16 + (1 - Math.max(0, Math.min(65, gp.altitudeDeg)) / 65) * (H - 52);
+      ctx.strokeStyle = "#e8a33d"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.fillText(fmt(g.start), px, py - 16);
+    }
+  }
+}
 
 /* ---------- imaging ---------- */
 
-function downscale(source, sw, sh, maxSide = 1280) {
+function downscale(source, sw, sh, maxSide = 1280, q = 0.85) {
   const scale = Math.min(1, maxSide / Math.max(sw, sh));
   const w = Math.round(sw * scale), h = Math.round(sh * scale);
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   c.getContext("2d").drawImage(source, 0, 0, w, h);
-  return { dataUrl: c.toDataURL("image/jpeg", 0.85), w, h };
+  return { dataUrl: c.toDataURL("image/jpeg", q), w, h };
 }
 
 function fileToFrame(file) {
@@ -465,10 +693,8 @@ function fileToFrame(file) {
   });
 }
 
-/* ---------- viewfinder + lens picker ---------- */
+/* ---------- viewfinder + lenses ---------- */
 
-// Virtual multi-lens devices (iOS "Back Dual/Triple Camera") silently deliver the wide
-// lens no matter what you meant, so only list physical, single-lens sources.
 function isVirtualLens(label) { return /\b(dual|triple)\b/i.test(label); }
 
 async function startStream(deviceId) {
@@ -476,19 +702,18 @@ async function startStream(deviceId) {
   const video = deviceId
     ? { deviceId: { exact: deviceId }, width: { ideal: 1920 } }
     : { facingMode: "environment", width: { ideal: 1920 } };
-  if (old) old.getTracks().forEach((t) => t.stop()); // iOS allows one live camera at a time
+  if (old) old.getTracks().forEach((t) => t.stop());
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
   } catch (e) {
-    if (deviceId) { // failed switch: fall back to the default camera instead of a dead finder
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-    } else { throw e; }
+    if (deviceId) stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    else throw e;
   }
   $("vf").srcObject = stream;
   await syncLensList();
+  drawARStrip();
 }
 
-// Rebuild the lens menu and select whichever lens is ACTUALLY delivering frames.
 async function syncLensList() {
   const cams = (await navigator.mediaDevices.enumerateDevices())
     .filter((d) => d.kind === "videoinput" && !isVirtualLens(d.label));
@@ -496,8 +721,7 @@ async function syncLensList() {
   if (cams.length < 2) { sel.hidden = true; return; }
   const activeId = stream?.getVideoTracks()[0]?.getSettings().deviceId;
   sel.innerHTML = cams.map((c, i) =>
-    `<option value="${c.deviceId}" ${c.deviceId === activeId ? "selected" : ""}>${c.label || "Camera " + (i + 1)}</option>`
-  ).join("");
+    `<option value="${c.deviceId}" ${c.deviceId === activeId ? "selected" : ""}>${c.label || "Camera " + (i + 1)}</option>`).join("");
   sel.hidden = false;
 }
 
@@ -507,16 +731,15 @@ if (navigator.mediaDevices?.addEventListener) {
 
 $("openCam").addEventListener("click", async () => {
   if (!navigator.mediaDevices?.getUserMedia) {
-    $("status").innerHTML = `<span class="err">Live view needs a modern browser over HTTPS — use Upload photo instead.</span>`;
+    $("status").innerHTML = `<span class="err">Live view needs a modern browser over HTTPS — use Upload photo.</span>`;
     return;
   }
   try {
     $("finder").classList.add("open");
     await startStream();
-    $("finder").scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (e) {
     $("finder").classList.remove("open");
-    $("status").innerHTML = `<span class="err">Camera was denied or is unavailable (${e.name || e.message}). Upload a photo instead.</span>`;
+    $("status").innerHTML = `<span class="err">Camera unavailable (${e.name || e.message}). Upload a photo instead.</span>`;
   }
 });
 
@@ -534,16 +757,79 @@ $("closeCam").addEventListener("click", () => {
 $("snap").addEventListener("click", () => {
   const v = $("vf");
   if (!v.videoWidth) return;
-  analyze(downscale(v, v.videoWidth, v.videoHeight));
+  handleFrame(downscale(v, v.videoWidth, v.videoHeight));
 });
 
 $("shot").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   e.target.value = "";
   if (!file) return;
-  try { analyze(await fileToFrame(file)); }
+  try { handleFrame(await fileToFrame(file)); }
   catch (err) { $("status").innerHTML = `<span class="err">${err.message || err}</span>`; }
 });
+
+function handleFrame(frame) {
+  if (recheckArm && state) recheck(frame);
+  else analyze(frame);
+}
+
+/* ---------- scene memory ---------- */
+
+function loadLog() { try { return JSON.parse(localStorage.getItem("scrim-log")) || []; } catch { return []; } }
+
+function saveLogEntry(frame, d) {
+  try {
+    const img = new Image();
+    img.onload = () => {
+      const thumb = downscale(img, img.naturalWidth, img.naturalHeight, 144, 0.6).dataUrl;
+      const log = loadLog();
+      log.unshift({
+        t: new Date().toISOString(),
+        lat: loc?.latitude ?? null, lng: loc?.longitude ?? null,
+        sum: [d.hardness && d.hardness + " light", d.direction && "from " + d.direction].filter(Boolean).join(" "),
+        probs: (d.problems || []).length,
+        thumb,
+      });
+      localStorage.setItem("scrim-log", JSON.stringify(log.slice(0, 12)));
+      renderLog();
+      renderHereNote();
+    };
+    img.src = frame.dataUrl;
+  } catch { /* storage full: skip */ }
+}
+
+function distM(a, b, c, d) {
+  const R = 6371000, rad = Math.PI / 180;
+  const x = (c - a) * rad, y = (d - b) * rad;
+  const s = Math.sin(x / 2) ** 2 + Math.cos(a * rad) * Math.cos(c * rad) * Math.sin(y / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function renderHereNote() {
+  const note = $("hereNote");
+  if (!loc) { note.style.display = "none"; return; }
+  const near = loadLog().find((e) => e.lat != null && distM(loc.latitude, loc.longitude, e.lat, e.lng) < 250);
+  if (!near) { note.style.display = "none"; return; }
+  const when = new Date(near.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  note.style.display = "block";
+  note.textContent = `◎ You've read light here before — ${when}: ${near.sum || "see log"}.`;
+}
+
+function renderLog() {
+  const log = loadLog();
+  $("logList").innerHTML = log.length
+    ? log.map((e) => `
+      <div class="logitem">
+        <img src="${e.thumb}" alt="">
+        <div class="logmeta">
+          <div>${e.sum || "read"}</div>
+          <small>${new Date(e.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}${e.probs ? ` · ${e.probs} problem${e.probs > 1 ? "s" : ""}` : ""}${e.lat != null && loc ? ` · ${Math.round(distM(loc.latitude, loc.longitude, e.lat, e.lng))} m away` : ""}</small>
+        </div>
+      </div>`).join("")
+    : `<p class="hint">No reads yet. Every frame you analyze lands here with its light, time, and place.</p>`;
+}
+
+$("clearLog").addEventListener("click", () => { localStorage.removeItem("scrim-log"); renderLog(); renderHereNote(); });
 
 /* ---------- the read ---------- */
 
@@ -557,18 +843,14 @@ async function analyze(frame) {
     const res = await fetch("/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        image: frame.dataUrl,
-        latitude: l.latitude,
-        longitude: l.longitude,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify({ image: frame.dataUrl, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() }),
     });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `request failed (${res.status})`);
     $("status").textContent = "";
     if (j.sun) { sun = j.sun; renderSunCard(); }
     state = { frame, diagnosis: j.diagnosis || {} };
+    if (!state.diagnosis.error) saveLogEntry(frame, state.diagnosis);
     renderResults();
   } catch (err) {
     $("status").innerHTML = `<span class="err">${err.message || err}</span>`;
@@ -601,7 +883,6 @@ const LOOKS = [
 
 function clamp01(v) { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : null; }
 
-// Draw the gaffer diagram over the frame: sun ray in, subject anchor, numbered marks per fix.
 function diagramSvg(diagram, w, h) {
   if (!diagram) return "";
   const px = (p) => { const x = clamp01(p?.x), y = clamp01(p?.y); return x == null || y == null ? null : { x: x * w, y: y * h }; };
@@ -616,15 +897,11 @@ function diagramSvg(diagram, w, h) {
     const tip = { x: sunFrom.x + dx * 0.42, y: sunFrom.y + dy * 0.42 };
     const ah = 4 * u, ang = Math.atan2(dy, dx);
     els += `<line x1="${sunFrom.x}" y1="${sunFrom.y}" x2="${tip.x}" y2="${tip.y}" stroke="#e8a33d" stroke-width="${1.2 * u}" stroke-dasharray="${3 * u} ${2 * u}" stroke-linecap="round"/>`;
-    els += `<path d="M ${tip.x + Math.cos(ang) * ah} ${tip.y + Math.sin(ang) * ah}
-      L ${tip.x + Math.cos(ang + 2.5) * ah} ${tip.y + Math.sin(ang + 2.5) * ah}
-      L ${tip.x + Math.cos(ang - 2.5) * ah} ${tip.y + Math.sin(ang - 2.5) * ah} Z" fill="#e8a33d"/>`;
+    els += `<path d="M ${tip.x + Math.cos(ang) * ah} ${tip.y + Math.sin(ang) * ah} L ${tip.x + Math.cos(ang + 2.5) * ah} ${tip.y + Math.sin(ang + 2.5) * ah} L ${tip.x + Math.cos(ang - 2.5) * ah} ${tip.y + Math.sin(ang - 2.5) * ah} Z" fill="#e8a33d"/>`;
     const lx = Math.min(Math.max(sunFrom.x, 6 * u), w - 6 * u), ly = Math.min(Math.max(sunFrom.y - 2.5 * u, 5 * u), h - 2 * u);
     els += `<text x="${lx}" y="${ly}" font-size="${4 * u}" font-weight="700" fill="#e8a33d" stroke="rgba(0,0,0,0.75)" stroke-width="${0.8 * u}" paint-order="stroke" text-anchor="middle" font-family="system-ui">SUN</text>`;
   }
-  if (subject) {
-    els += `<circle cx="${subject.x}" cy="${subject.y}" r="${5 * u}" fill="none" stroke="#ffffff" stroke-width="${0.7 * u}" stroke-dasharray="${1.6 * u} ${1.6 * u}" opacity="0.9"/>`;
-  }
+  if (subject) els += `<circle cx="${subject.x}" cy="${subject.y}" r="${5 * u}" fill="none" stroke="#ffffff" stroke-width="${0.7 * u}" stroke-dasharray="${1.6 * u} ${1.6 * u}" opacity="0.9"/>`;
   marks.forEach((m, i) => {
     const { x, y } = m.p;
     const r = 4.4 * u;
@@ -640,7 +917,6 @@ function diagramSvg(diagram, w, h) {
   return `<svg viewBox="0 0 ${w} ${h}" aria-label="Lighting diagram overlay">${els}</svg>`;
 }
 
-// The gaffer's own plan from the read: what runs when the brief is "Gaffer's call".
 function basePlan() {
   const d = state.diagnosis;
   return { name: "Gaffer's call", approach: null, fixes: d.fixes || [], diagram: d.diagram };
@@ -651,9 +927,8 @@ function updatePlanUI() {
   const fixes = (p.fixes || []).map((f, i) => `<li><span class="num">${i + 1}</span><span>${esc(f)}</span></li>`).join("");
   $("planName").textContent = p.name;
   $("planBody").innerHTML = `
-    ${p.approach ? `<div style="font-size:14.5px;font-weight:600">${esc(p.approach)}</div>` : ""}
+    ${p.approach ? `<div style="font-size:14px;font-weight:600">${esc(p.approach)}</div>` : ""}
     ${fixes ? `<div class="listhead">The moves — numbers match the diagram</div><ol class="fixes">${fixes}</ol>` : `<p class="hint">No moves came back for this brief.</p>`}`;
-
   const overlay = diagramSvg(p.diagram, state.frame.w, state.frame.h);
   const marks = Array.isArray(p.diagram?.marks) ? p.diagram.marks : [];
   const legendTools = [...new Set(marks.map((m) => TOOL_NAMES[m.tool]).filter(Boolean))];
@@ -679,14 +954,7 @@ async function fetchPlan(brief, name) {
     const res = await fetch("/plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        image: state.frame.dataUrl,
-        brief,
-        diagnosis: state.diagnosis,
-        latitude: l.latitude,
-        longitude: l.longitude,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify({ image: state.frame.dataUrl, brief, diagnosis: state.diagnosis, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() }),
     });
     const j = await res.json();
     if (!res.ok || j.plan?.error) throw new Error(j.plan?.error || j.error || `plan failed (${res.status})`);
@@ -730,20 +998,22 @@ function renderResults() {
       <div class="looks">
         ${LOOKS.map((l) => `<button class="look" type="button" data-look="${l.id}" aria-pressed="${l.id === "auto"}">${l.name}<span class="sub">${l.sub}</span></button>`).join("")}
       </div>
-      <input id="customBrief" type="text" placeholder="…or type your own and press return — e.g. backlit rim, silhouette" autocomplete="off" enterkeyhint="go" />
-      <p class="hint">Pick a look and the plan below redraws for it. The relight only happens when you press Light it.</p>
+      <input id="customBrief" type="text" placeholder="…or type your own and press return" autocomplete="off" enterkeyhint="go" />
       <p class="status" id="planStatus"></p>
     </div>
 
     <div class="card" id="planCard">
       <h2>The plan — <span id="planName" style="color:var(--gold);text-transform:none;letter-spacing:0">Gaffer's call</span></h2>
       <div id="planBody"></div>
-      <div class="actions" style="margin:14px 0 0;grid-template-columns:1fr">
+      <div class="actions" style="margin:12px 0 0">
         <button class="btn primary" id="lightIt" type="button">Light it</button>
+        <button class="btn" id="checkWork" type="button">Check my work</button>
       </div>
-      <p class="hint">One press, one render — the relight follows this plan and brief.</p>
+      <p class="hint">Light it renders the look (one press, one render). Check my work: rig the moves, re-shoot the same frame, and the gaffer grades the change.</p>
       <p class="status" id="renderStatus"></p>
     </div>
+
+    <div id="recheckOut"></div>
 
     <div class="card">
       <h2>Your frame</h2>
@@ -753,11 +1023,13 @@ function renderResults() {
       </div>
       <div id="pane-diagram" role="tabpanel"></div>
       <div id="pane-compare" role="tabpanel" hidden></div>
+      <div class="actions" style="grid-template-columns:1fr;margin:12px 0 0">
+        <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
+      </div>
     </div>`;
 
   updatePlanUI();
 
-  // look chips: radio behaviour; picking one redraws the plan for that brief
   document.querySelectorAll(".look").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".look").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
     $("customBrief").value = "";
@@ -765,19 +1037,16 @@ function renderResults() {
     if (look.id === "auto") { state.plan = basePlan(); updatePlanUI(); $("planStatus").innerHTML = ""; }
     else fetchPlan(look.brief, look.name);
   }));
-
-  // custom brief: deselects chips as you type, plans on return
   $("customBrief").addEventListener("input", () => {
     if ($("customBrief").value.trim()) document.querySelectorAll(".look").forEach((x) => x.setAttribute("aria-pressed", "false"));
   });
   $("customBrief").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && $("customBrief").value.trim()) {
-      e.preventDefault();
-      fetchPlan($("customBrief").value.trim(), "Your brief");
-    }
+    if (e.key === "Enter" && $("customBrief").value.trim()) { e.preventDefault(); fetchPlan($("customBrief").value.trim(), "Your brief"); }
   });
 
   $("lightIt").addEventListener("click", relight);
+  $("checkWork").addEventListener("click", armRecheck);
+  $("exportSheet").addEventListener("click", exportCallSheet);
 
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
     if (t.disabled) return;
@@ -805,7 +1074,6 @@ async function relight() {
     });
     const j = await res.json();
     if (!res.ok || j.error) throw new Error(j.error || `render failed (${res.status})`);
-
     $("pane-compare").innerHTML = `
       <div class="compare" id="cmp" style="--pos:50%">
         <img src="${state.frame.dataUrl}" alt="original">
@@ -813,11 +1081,9 @@ async function relight() {
         <div class="handle"></div>
       </div>
       <div class="taglabels"><span>Now</span><span>Relit</span></div>
-      <p class="hint">Drag to compare. The relight is directional — it shows what the move would do, it doesn't measure it.</p>`;
+      <p class="hint">Drag to compare. Directional preview — it shows what the move would do.</p>`;
     const tab = $("compareTab");
-    tab.disabled = false;
-    tab.style.opacity = "";
-    tab.click();
+    tab.disabled = false; tab.style.opacity = ""; tab.click();
     const cmp = $("cmp");
     const move = (x) => {
       const r = cmp.getBoundingClientRect();
@@ -834,8 +1100,135 @@ async function relight() {
   }
 }
 
+/* ---------- check my work ---------- */
+
+function armRecheck() {
+  recheckArm = true;
+  const b = $("recheckBanner");
+  b.style.display = "block";
+  b.textContent = "Re-check armed: rig the moves, then shoot the SAME framing again (camera or upload). Tap here to cancel.";
+  b.onclick = () => { recheckArm = false; b.style.display = "none"; };
+  window.scrollTo({ top: 0 });
+  $("openCam").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function recheck(afterFrame) {
+  recheckArm = false;
+  $("recheckBanner").style.display = "none";
+  $("status").textContent = "Grading the change… (5–20 s)";
+  try {
+    const res = await fetch("/recheck", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ before: state.frame.dataUrl, after: afterFrame.dataUrl, diagnosis: state.diagnosis }),
+    });
+    const j = await res.json();
+    if (!res.ok || j.check?.error) throw new Error(j.check?.error || j.error || `recheck failed (${res.status})`);
+    $("status").textContent = "";
+    const c = j.check;
+    const cls = c.verdict === "better" ? "good" : c.verdict === "worse" ? "err" : "";
+    const head = c.verdict === "better" ? "Better." : c.verdict === "worse" ? "Worse — undo that." : "About the same.";
+    const list = (arr, ok) => (arr || []).length ? `<ul class="probs${ok ? " ok" : ""}">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+    $("recheckOut").innerHTML = `
+      <div class="card">
+        <h2>The re-check</h2>
+        <div class="verdict ${cls}">${head}</div>
+        ${c.note ? `<div style="font-size:14px;margin-top:4px">${esc(c.note)}</div>` : ""}
+        ${(c.cleared || []).length ? `<div class="listhead" style="color:var(--okc)">Cleared</div>${list(c.cleared, true)}` : ""}
+        ${(c.remaining || []).length ? `<div class="listhead">Still there</div>${list(c.remaining)}` : ""}
+        ${(c.new || []).length ? `<div class="listhead" style="color:var(--err)">New problems</div>${list(c.new)}` : ""}
+        <div class="taglabels" style="margin-top:10px"><span>Before</span><span>After</span></div>
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <img src="${state.frame.dataUrl}" style="width:50%;border-radius:10px" alt="before">
+          <img src="${afterFrame.dataUrl}" style="width:50%;border-radius:10px" alt="after">
+        </div>
+      </div>`;
+    $("recheckOut").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (err) {
+    $("status").innerHTML = `<span class="err">${err.message || err}</span>`;
+  }
+}
+
+/* ---------- call sheet export ---------- */
+
+function exportCallSheet() {
+  if (!state) return;
+  const p = state.plan, d = state.diagnosis;
+  const img = new Image();
+  img.onload = () => {
+    const W = 1080;
+    const imgH = Math.round(W * (state.frame.h / state.frame.w));
+    const lines = [];
+    if (p.approach) lines.push(["", p.approach]);
+    (p.fixes || []).forEach((f, i) => lines.push([`${i + 1}`, f]));
+    const g = sun?.nextGoldenHour;
+    const H = 210 + imgH + 60 + lines.length * 52 + (g ? 70 : 0) + 90;
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const x = c.getContext("2d");
+    x.fillStyle = "#0c0b09"; x.fillRect(0, 0, W, H);
+    x.fillStyle = "#f4efe6"; x.font = "750 44px system-ui"; x.textAlign = "left";
+    x.fillText("S C R I M", 48, 84);
+    x.fillStyle = "#e8a33d"; x.font = "650 30px system-ui";
+    x.fillText(p.name.toUpperCase(), 48, 132);
+    x.fillStyle = "#9b937f"; x.font = "26px system-ui";
+    x.fillText(new Date().toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + (loc ? `  ·  ${loc.latitude.toFixed(3)}, ${loc.longitude.toFixed(3)}` : ""), 48, 172);
+    x.drawImage(img, 48, 200, W - 96, imgH);
+    // burn the diagram marks onto the exported frame
+    const dg = p.diagram;
+    if (dg) {
+      const fx = (v) => 48 + clamp01(v) * (W - 96);
+      const fy = (v) => 200 + clamp01(v) * imgH;
+      if (dg.sunFrom && dg.subject) {
+        x.strokeStyle = "#e8a33d"; x.lineWidth = 8; x.setLineDash([24, 16]);
+        x.beginPath(); x.moveTo(fx(dg.sunFrom.x), fy(dg.sunFrom.y));
+        x.lineTo(fx(dg.sunFrom.x) + (fx(dg.subject.x) - fx(dg.sunFrom.x)) * 0.42, fy(dg.sunFrom.y) + (fy(dg.subject.y) - fy(dg.sunFrom.y)) * 0.42);
+        x.stroke(); x.setLineDash([]);
+      }
+      (dg.marks || []).forEach((m, i) => {
+        if (clamp01(m.x) == null) return;
+        x.fillStyle = "#e8a33d"; x.beginPath(); x.arc(fx(m.x), fy(m.y), 30, 0, 7); x.fill();
+        x.fillStyle = "#201503"; x.font = "800 34px system-ui"; x.textAlign = "center";
+        x.fillText(String(i + 1), fx(m.x), fy(m.y) + 12);
+      });
+    }
+    let yy = 200 + imgH + 64;
+    x.textAlign = "left";
+    lines.forEach(([n, txt]) => {
+      if (n) {
+        x.fillStyle = "#e8a33d"; x.beginPath(); x.arc(68, yy - 10, 20, 0, 7); x.fill();
+        x.fillStyle = "#201503"; x.font = "800 24px system-ui"; x.textAlign = "center"; x.fillText(n, 68, yy - 2);
+      }
+      x.fillStyle = "#f4efe6"; x.font = (n ? "" : "italic ") + "28px system-ui"; x.textAlign = "left";
+      x.fillText(txt.length > 62 ? txt.slice(0, 60) + "…" : txt, n ? 104 : 48, yy);
+      yy += 52;
+    });
+    if (g) {
+      x.fillStyle = "#e8a33d"; x.font = "650 30px system-ui";
+      x.fillText(`Golden hour: ${fmt(g.start)}–${fmt(g.end)}`, 48, yy + 16);
+      yy += 70;
+    }
+    x.fillStyle = "#9b937f"; x.font = "24px system-ui";
+    x.fillText("scrim — shape the light you already have", 48, H - 36);
+    c.toBlob(async (blob) => {
+      const file = new File([blob], "scrim-call-sheet.png", { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: "Scrim call sheet" }); return; } catch { /* fall through to download */ }
+      }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "scrim-call-sheet.png";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, "image/png");
+  };
+  img.src = state.frame.dataUrl;
+}
+
+/* ---------- boot ---------- */
 checkBackend();
 loadSun();
+renderLog();
 </script>
 </body>
 </html>
