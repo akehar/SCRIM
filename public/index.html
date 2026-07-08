@@ -244,7 +244,7 @@
         <button class="btn primary" id="openCam" type="button">Open camera</button>
         <label class="btn" for="shot">Upload photo</label>
       </div>
-      <input id="shot" type="file" accept="image/*" capture="environment" />
+      <input id="shot" type="file" accept="image/*" />
       <p class="hint">Phone camera, or a pro camera over USB. Frames go to the server for analysis only — nothing renders until you ask.</p>
 
       <div class="card" id="finder">
@@ -1081,7 +1081,11 @@ async function relight() {
         <div class="handle"></div>
       </div>
       <div class="taglabels"><span>Now</span><span>Relit</span></div>
-      <p class="hint">Drag to compare. Directional preview — it shows what the move would do.</p>`;
+      <p class="hint">Drag to compare. Directional preview — it shows what the move would do.</p>
+      <div class="actions" style="grid-template-columns:1fr;margin:10px 0 0">
+        <button class="btn" id="saveRender" type="button">Save render</button>
+      </div>`;
+    $("saveRender").addEventListener("click", () => saveRender(j.render));
     const tab = $("compareTab");
     tab.disabled = false; tab.style.opacity = ""; tab.click();
     const cmp = $("cmp");
@@ -1149,6 +1153,27 @@ async function recheck(afterFrame) {
   }
 }
 
+/* ---------- saving images ---------- */
+
+// Phones get the share sheet (save to Photos, send to the chat); desktop gets a download.
+async function shareOrDownload(blob, filename, title) {
+  const file = new File([blob], filename, { type: blob.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title }); return; } catch { /* cancelled: fall through */ }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+async function saveRender(dataUrl) {
+  const blob = await (await fetch(dataUrl)).blob();
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+  await shareOrDownload(blob, `scrim-render-${stamp}.png`, "Scrim render");
+}
+
 /* ---------- call sheet export ---------- */
 
 function exportCallSheet() {
@@ -1210,17 +1235,7 @@ function exportCallSheet() {
     }
     x.fillStyle = "#9b937f"; x.font = "24px system-ui";
     x.fillText("scrim — shape the light you already have", 48, H - 36);
-    c.toBlob(async (blob) => {
-      const file = new File([blob], "scrim-call-sheet.png", { type: "image/png" });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: "Scrim call sheet" }); return; } catch { /* fall through to download */ }
-      }
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "scrim-call-sheet.png";
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    }, "image/png");
+    c.toBlob((blob) => shareOrDownload(blob, "scrim-call-sheet.png", "Scrim call sheet"), "image/png");
   };
   img.src = state.frame.dataUrl;
 }
