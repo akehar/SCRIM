@@ -182,6 +182,16 @@
   }
   .taglabels { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: 5px; }
 
+  #screen-ask.active { display: flex; }
+  .chatwrap { display: flex; flex-direction: column; height: 100%; width: 100%; }
+  .chatlog { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 0 10px; }
+  .msg { max-width: 86%; padding: 9px 13px; border-radius: 16px; font-size: 14.5px; line-height: 1.45; white-space: pre-wrap; }
+  .msg.user { align-self: flex-end; background: var(--gold); color: var(--gold-ink); border-bottom-right-radius: 5px; }
+  .msg.ai { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+  .msg.thinking { color: var(--muted); font-style: italic; }
+  .chatrow { flex: 0 0 auto; display: flex; gap: 8px; padding: 6px 0 2px; align-items: center; }
+  .chatrow input { flex: 1; }
+
   .logitem { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .logitem:last-child { border-bottom: none; }
   .logitem img { width: 62px; height: 62px; object-fit: cover; border-radius: 10px; flex: 0 0 auto; }
@@ -207,6 +217,14 @@
     <!-- ============ NOW ============ -->
     <section class="screen active" id="screen-now">
       <div class="banner" id="banner"></div>
+      <div class="card" id="codeCard" style="display:none">
+        <h2>Access code</h2>
+        <p class="hint" style="margin:0 0 6px">This deploy is locked. Enter the crew code to use the AI features.</p>
+        <div style="display:flex;gap:8px">
+          <input id="codeInput" type="text" placeholder="access code" autocomplete="off" style="flex:1;margin-top:0">
+          <button class="ghost" id="codeSave" type="button">Unlock</button>
+        </div>
+      </div>
       <div class="card">
         <h2>Next soft light</h2>
         <div id="clock" class="clock"><span class="skeleton" style="display:block;width:70%"></span></div>
@@ -272,6 +290,19 @@
       <div id="out"></div>
     </section>
 
+    <!-- ============ ASK ============ -->
+    <section class="screen" id="screen-ask">
+      <div class="chatwrap">
+        <div class="chatlog" id="chatLog">
+          <div class="msg ai">Ask me anything about the light — what gear to bring, how to shape what you've got, when to shoot. If you've done a read on the Shoot tab, I can see that frame too.</div>
+        </div>
+        <div class="chatrow">
+          <input id="chatInput" type="text" placeholder="e.g. how do I soften this without a silk?" autocomplete="off" enterkeyhint="send" style="margin-top:0">
+          <button class="btn primary" id="chatSend" type="button" style="min-height:44px;padding:10px 16px">Send</button>
+        </div>
+      </div>
+    </section>
+
     <!-- ============ LOG ============ -->
     <section class="screen" id="screen-log">
       <div class="card">
@@ -287,6 +318,7 @@
   <nav class="tabbar" role="tablist">
     <button class="tabbtn" role="tab" aria-selected="true" data-screen="screen-now" type="button"><span class="ico">☀</span>Now</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button"><span class="ico">◉</span>Shoot</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-ask" type="button"><span class="ico">✳</span>Ask</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-log" type="button"><span class="ico">▤</span>Log</button>
   </nav>
 
@@ -308,6 +340,32 @@ document.querySelectorAll(".tabbtn").forEach((b) => b.addEventListener("click", 
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === b.dataset.screen));
 }));
 function gotoScreen(id) { document.querySelector(`.tabbtn[data-screen="${id}"]`).click(); }
+
+/* ---------- access code ---------- */
+
+function showCodeCard() { $("codeCard").style.display = "block"; }
+$("codeSave").addEventListener("click", () => {
+  const v = $("codeInput").value.trim();
+  if (!v) return;
+  localStorage.setItem("scrim-code", v);
+  $("codeCard").style.display = "none";
+});
+$("codeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("codeSave").click(); });
+
+// All paid endpoints go through here: attaches the code, surfaces a lock on 401.
+async function aiFetch(path, body) {
+  const headers = { "Content-Type": "application/json" };
+  const code = localStorage.getItem("scrim-code");
+  if (code) headers["x-scrim-code"] = code;
+  const res = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
+  if (res.status === 401) {
+    localStorage.removeItem("scrim-code");
+    showCodeCard();
+    gotoScreen("screen-now");
+    throw new Error("Access code required — enter it on the Now tab and try again.");
+  }
+  return res;
+}
 
 /* ---------- location ---------- */
 
@@ -545,6 +603,7 @@ setInterval(() => { if (sun) loadSun(); }, 5 * 60 * 1000);
 async function checkBackend() {
   try {
     const h = await (await fetch("/health")).json();
+    if (h.locked && !localStorage.getItem("scrim-code")) showCodeCard();
     if (h.gemini === false) {
       const b = $("banner");
       b.style.display = "block";
@@ -840,11 +899,7 @@ async function analyze(frame) {
   try {
     const l = await getLocation();
     $("status").textContent = "Asking the gaffer… (5–20 s)";
-    const res = await fetch("/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: frame.dataUrl, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() }),
-    });
+    const res = await aiFetch("/analyze", { image: frame.dataUrl, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `request failed (${res.status})`);
     $("status").textContent = "";
@@ -872,6 +927,7 @@ function verdictFor(d) {
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
 const TOOL_NAMES = { silk: "silk / diffusion", bounce: "bounce", flag: "flag / negative fill", shade: "open shade", move: "move here", wait: "wait it out" };
+const SHORT_TOOL = { silk: "SILK", bounce: "BOUNCE", flag: "FLAG", shade: "SHADE", move: "MOVE", wait: "WAIT" };
 
 const LOOKS = [
   { id: "auto", name: "Gaffer's call", sub: "let the AI decide", brief: "auto" },
@@ -907,11 +963,12 @@ function diagramSvg(diagram, w, h) {
     const r = 4.4 * u;
     els += `<circle cx="${x}" cy="${y}" r="${r}" fill="#e8a33d" stroke="rgba(0,0,0,0.4)" stroke-width="${0.5 * u}"/>`;
     els += `<text x="${x}" y="${y + 1.6 * u}" font-size="${4.6 * u}" font-weight="800" fill="#201503" text-anchor="middle" font-family="system-ui">${i + 1}</text>`;
-    if (m.label) {
+    const tag = SHORT_TOOL[m.tool];
+    if (tag) {
       const below = y < h - 12 * u;
       const ty = below ? y + r + 4.6 * u : y - r - 2.4 * u;
       const tx = Math.min(Math.max(x, 14 * u), w - 14 * u);
-      els += `<text x="${tx}" y="${ty}" font-size="${3.6 * u}" font-weight="650" fill="#fff" stroke="rgba(0,0,0,0.8)" stroke-width="${0.9 * u}" paint-order="stroke" text-anchor="middle" font-family="system-ui">${esc(m.label)}</text>`;
+      els += `<text x="${tx}" y="${ty}" font-size="${3.6 * u}" font-weight="650" fill="#fff" stroke="rgba(0,0,0,0.8)" stroke-width="${0.9 * u}" paint-order="stroke" text-anchor="middle" font-family="system-ui">${tag}</text>`;
     }
   });
   return `<svg viewBox="0 0 ${w} ${h}" aria-label="Lighting diagram overlay">${els}</svg>`;
@@ -951,11 +1008,7 @@ async function fetchPlan(brief, name) {
   setPlanning(true);
   try {
     const l = await getLocation();
-    const res = await fetch("/plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: state.frame.dataUrl, brief, diagnosis: state.diagnosis, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() }),
-    });
+    const res = await aiFetch("/plan", { image: state.frame.dataUrl, brief, diagnosis: state.diagnosis, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() });
     const j = await res.json();
     if (!res.ok || j.plan?.error) throw new Error(j.plan?.error || j.error || `plan failed (${res.status})`);
     state.plan = { name, approach: j.plan.approach || null, fixes: j.plan.fixes || [], diagram: j.plan.diagram };
@@ -1067,11 +1120,7 @@ async function relight() {
   btn.textContent = "Lighting… (10–30 s)";
   $("renderStatus").textContent = "";
   try {
-    const res = await fetch("/render", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: state.frame.dataUrl, brief, diagnosis: state.diagnosis }),
-    });
+    const res = await aiFetch("/render", { image: state.frame.dataUrl, brief, diagnosis: state.diagnosis });
     const j = await res.json();
     if (!res.ok || j.error) throw new Error(j.error || `render failed (${res.status})`);
     $("pane-compare").innerHTML = `
@@ -1121,11 +1170,7 @@ async function recheck(afterFrame) {
   $("recheckBanner").style.display = "none";
   $("status").textContent = "Grading the change… (5–20 s)";
   try {
-    const res = await fetch("/recheck", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ before: state.frame.dataUrl, after: afterFrame.dataUrl, diagnosis: state.diagnosis }),
-    });
+    const res = await aiFetch("/recheck", { before: state.frame.dataUrl, after: afterFrame.dataUrl, diagnosis: state.diagnosis });
     const j = await res.json();
     if (!res.ok || j.check?.error) throw new Error(j.check?.error || j.error || `recheck failed (${res.status})`);
     $("status").textContent = "";
@@ -1239,6 +1284,66 @@ function exportCallSheet() {
   };
   img.src = state.frame.dataUrl;
 }
+
+/* ---------- ask the gaffer ---------- */
+
+const chatHistory = [];
+
+// A small copy of the last-read frame rides along with chat, so "this frame" questions work.
+function getChatFrame() {
+  return new Promise((resolve) => {
+    if (!state?.frame) return resolve(null);
+    if (state.chatFrame) return resolve(state.chatFrame);
+    const img = new Image();
+    img.onload = () => { state.chatFrame = downscale(img, img.naturalWidth, img.naturalHeight, 640, 0.7).dataUrl; resolve(state.chatFrame); };
+    img.onerror = () => resolve(null);
+    img.src = state.frame.dataUrl;
+  });
+}
+
+function addMsg(role, text, extraClass = "") {
+  const div = document.createElement("div");
+  div.className = `msg ${role}${extraClass ? " " + extraClass : ""}`;
+  div.textContent = text;
+  $("chatLog").appendChild(div);
+  $("chatLog").scrollTop = $("chatLog").scrollHeight;
+  return div;
+}
+
+async function sendChat() {
+  const input = $("chatInput");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  $("chatSend").disabled = true;
+  chatHistory.push({ role: "user", text });
+  addMsg("user", text);
+  const thinking = addMsg("ai", "thinking…", "thinking");
+  try {
+    const image = await getChatFrame();
+    const res = await aiFetch("/chat", {
+      messages: chatHistory.slice(-12),
+      image,
+      sun: sun?.now || null,
+      diagnosis: state?.diagnosis || null,
+    });
+    const j = await res.json();
+    if (!res.ok || j.error) throw new Error(j.error || `chat failed (${res.status})`);
+    chatHistory.push({ role: "model", text: j.reply });
+    thinking.classList.remove("thinking");
+    thinking.textContent = j.reply;
+  } catch (e) {
+    chatHistory.pop(); // let the user resend the same question
+    thinking.classList.remove("thinking");
+    thinking.classList.add("err");
+    thinking.textContent = String(e.message || e);
+  } finally {
+    $("chatSend").disabled = false;
+    $("chatLog").scrollTop = $("chatLog").scrollHeight;
+  }
+}
+$("chatSend").addEventListener("click", sendChat);
+$("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendChat(); } });
 
 /* ---------- boot ---------- */
 checkBackend();

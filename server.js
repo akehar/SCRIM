@@ -8,6 +8,14 @@ app.use(express.static("public"));
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+// Shared access code protecting the AI endpoints (the ones that spend money).
+// Unset = open, for local dev. Set ACCESS_CODE in Render to lock the deploy.
+const ACCESS_CODE = process.env.ACCESS_CODE || "";
+function requireCode(req, res, next) {
+  if (!ACCESS_CODE || req.get("x-scrim-code") === ACCESS_CODE) return next();
+  res.status(401).json({ error: "Access code required." });
+}
+
 // Nano Banana 2 edits the actual frame (image in, image out).
 const IMAGE_MODEL = process.env.IMAGE_MODEL || "gemini-3.1-flash-image";
 // Reads the frame and returns JSON. Model ids drift, so confirm the
@@ -103,12 +111,12 @@ function sunReport(lat, lng, when) {
 const DIAGRAM_SPEC = `"diagram": {
     "sunFrom": {"x": 0.0-1.0, "y": 0.0-1.0},
     "subject": {"x": 0.0-1.0, "y": 0.0-1.0},
-    "marks": [{"x": 0.0-1.0, "y": 0.0-1.0, "tool": "silk" | "bounce" | "flag" | "shade" | "move" | "wait", "label": "2-4 words"}]
+    "marks": [{"x": 0.0-1.0, "y": 0.0-1.0, "tool": "silk" | "bounce" | "flag" | "shade" | "move" | "wait"}]
   }
 For "diagram", all coordinates are fractions of the frame (x rightward, y downward).
 "sunFrom" is the point on or near the frame edge where the main light enters.
 "subject" is the centre of the main subject.
-"marks" has exactly one entry per entry in "fixes", in the same order: the spot IN THE FRAME where that move happens (where the silk or bounce goes, where the subject should move to, or the subject itself for a timing fix).`;
+"marks" has exactly one entry per entry in "fixes", in the same order: the spot IN THE FRAME where that move happens (where the silk or bounce goes, where the subject should move to, or the subject itself for a timing fix). "tool" must be exactly one of the six enum values.`;
 
 async function diagnose(data, mime, sun) {
   const prompt = `You are an experienced gaffer looking at a single frame lit by natural light.
@@ -219,7 +227,7 @@ function parseImage(image) {
 // ---------- endpoints ----------
 
 // The read: sun + diagnosis + diagram. Cheap vision call, no image generation.
-app.post("/analyze", async (req, res) => {
+app.post("/analyze", requireCode, async (req, res) => {
   try {
     const { image, latitude, longitude, timestamp } = req.body || {};
     if (!image || latitude == null || longitude == null) {
@@ -235,8 +243,44 @@ app.post("/analyze", async (req, res) => {
   }
 });
 
+// ---------- Gemini call: ask the gaffer (chat) ----------
+
+app.post("/chat", requireCode, async (req, res) => {
+  try {
+    const { messages, image, sun: sunNow, diagnosis } = req.body || {};
+    if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: "Need messages." });
+    const ctx = [];
+    if (sunNow) ctx.push(`Right now the sun is ${sunNow.altitudeDeg} degrees up, from the ${sunNow.direction}; the light is ${sunNow.quality}.`);
+    if (diagnosis && !diagnosis.error) ctx.push(`Your latest read of the attached frame: ${diagnosis.hardness || "?"} light from ${diagnosis.direction || "?"}, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none"}.`);
+    const system = `You are Scrim's gaffer: a veteran natural-light gaffer answering questions on location, by chat, on a phone.
+${ctx.join("\n")}
+Answer in plain, practical on-set language. Be specific (gear sizes, angles, times), stay on lighting/photography/filmmaking, and keep answers to a few short sentences unless asked to go deep. If a question needs the frame and none is attached, say so.`;
+
+    const history = messages.slice(-12).map((m, i, arr) => ({
+      role: m.role === "user" ? "user" : "model",
+      parts: [
+        ...(image && i === arr.length - 1 && m.role === "user"
+          ? [{ inlineData: { mimeType: parseImage(image).mime, data: parseImage(image).data } }]
+          : []),
+        { text: String(m.text || "").slice(0, 2000) },
+      ],
+    }));
+
+    const r = await ai.models.generateContent({
+      model: VISION_MODEL,
+      config: { systemInstruction: system },
+      contents: history,
+    });
+    const text = r.text ?? r.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ?? "";
+    res.json({ reply: text || "(no answer came back)" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "chat failed", detail: String(err?.message || err) });
+  }
+});
+
 // The plan: cheap vision call that redraws fixes + diagram for the director's brief.
-app.post("/plan", async (req, res) => {
+app.post("/plan", requireCode, async (req, res) => {
   try {
     const { image, brief, diagnosis, latitude, longitude, timestamp } = req.body || {};
     if (!image || !brief || latitude == null || longitude == null) {
@@ -286,7 +330,7 @@ Compare ONLY the lighting on the subject and scene. Reply with strict JSON, no m
   try { return JSON.parse(text); } catch { return { raw: text }; }
 }
 
-app.post("/recheck", async (req, res) => {
+app.post("/recheck", requireCode, async (req, res) => {
   try {
     const { before, after, diagnosis } = req.body || {};
     if (!before || !after) return res.status(400).json({ error: "Need before and after images (base64)." });
@@ -302,7 +346,7 @@ app.post("/recheck", async (req, res) => {
 
 // The relight: only called when the user asks, so no renders are wasted.
 // brief is free text, or "auto" for the gaffer's call. diagnosis (from /analyze) grounds the render.
-app.post("/render", async (req, res) => {
+app.post("/render", requireCode, async (req, res) => {
   try {
     const { image, brief, diagnosis } = req.body || {};
     if (!image) return res.status(400).json({ error: "Need image (base64)." });
@@ -330,7 +374,7 @@ app.get("/sun", (req, res) => {
 });
 
 // gemini:false tells the test page to explain itself instead of failing silently.
-app.get("/health", (_req, res) => res.json({ ok: true, gemini: Boolean(process.env.GEMINI_API_KEY) }));
+app.get("/health", (_req, res) => res.json({ ok: true, gemini: Boolean(process.env.GEMINI_API_KEY), locked: Boolean(ACCESS_CODE) }));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
