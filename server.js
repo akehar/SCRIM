@@ -354,6 +354,28 @@ app.post("/recheck", requireCode, async (req, res) => {
   }
 });
 
+// Depth map for the Relight Studio: one image-model call per frame, cached client-side.
+// The WebGL relight preview then runs live on-device at zero per-move cost.
+app.post("/depth", requireCode, async (req, res) => {
+  try {
+    const { image } = req.body || {};
+    if (!image) return res.status(400).json({ error: "Need image (base64)." });
+    const { mime, data } = parseImage(image);
+    const prompt = `Generate the DEPTH MAP of this exact photograph. Output an image with identical framing where each pixel's brightness encodes distance from the camera: pure white = nearest to camera, pure black = farthest, smooth grayscale in between. Preserve the exact geometry and silhouettes. No colors, no outlines, no text, no stylization — only the grayscale depth map.`;
+    const r = await ai.models.generateContent({
+      model: IMAGE_MODEL,
+      contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data } }, { text: prompt }] }],
+    });
+    const parts = r.candidates?.[0]?.content?.parts ?? [];
+    const img = parts.find((p) => p.inlineData);
+    if (!img) return res.json({ depth: null, error: "model returned no depth image" });
+    res.json({ depth: `data:${img.inlineData.mimeType};base64,${img.inlineData.data}`, error: null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "depth failed", detail: String(err?.message || err) });
+  }
+});
+
 // The relight: only called when the user asks, so no renders are wasted.
 // brief is free text, or "auto" for the gaffer's call. diagnosis (from /analyze) grounds the render.
 app.post("/render", requireCode, async (req, res) => {

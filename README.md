@@ -14,6 +14,7 @@ It ships as an app-shell web app (dark, set-friendly, installable as a PWA) with
 
 - **Now** — ticking golden-hour countdown, the sun's arc for the day with golden/blue bands and a now-cursor, cloud-cover-aware timing (Open-Meteo, no key), a sun compass, and a "you've read light here before" note when you return to a logged spot.
 - **Shoot** — live viewfinder built on `getUserMedia` (phone lenses, or any camera that presents as a video source: Osmo Pocket 3 Webcam Mode, Sony a7S III/a7 IV/FX3 USB Streaming, HDMI via capture stick) with an AR sun-path overlay on the feed; then the read → brief → plan → relight flow, a **Check my work** re-check loop (`POST /recheck` grades a before/after pair: cleared / remaining / new problems), and a shareable call-sheet PNG (frame + burned-in diagram + moves + windows).
+- **Light** — the Relight Studio: one `POST /depth` call per frame (the image model produces a depth map, cached client-side), then a WebGL shader relights the frame live on-device — up to three draggable lights (key/fill/rim) with intensity, warmth, size, and distance, an ambient master, and hold-to-compare. Zero API cost per move; **Make it real** translates the rig into a gaffer's brief and sends it to the render model.
 - **Log** — scene memory: the last 12 reads with thumbnail, light summary, time, and distance from where you stand.
 
 > The render is a directional preview, not a final grade. It shows the person what softer light would do, it does not measure it.

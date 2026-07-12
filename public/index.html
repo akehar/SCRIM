@@ -215,6 +215,33 @@
   ol.fixes li.hl { background: rgba(232,163,61,0.14); border-radius: 10px; padding: 4px 6px; margin-left: -6px; }
   @media (prefers-reduced-motion: reduce) { .dmark .dinner { animation: none; } }
 
+  /* Relight Studio */
+  .stage { position: relative; border-radius: var(--radius); overflow: hidden; background: #000; touch-action: none; }
+  .stage canvas { display: block; width: 100%; }
+  .holdbtn {
+    position: absolute; right: 10px; bottom: 10px; font: inherit; font-size: 11.5px; font-weight: 650;
+    background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 999px; padding: 6px 11px; cursor: pointer; user-select: none; -webkit-user-select: none;
+  }
+  .lhandle {
+    position: absolute; width: 34px; height: 34px; transform: translate(-50%, -50%);
+    border-radius: 50%; border: 2.5px solid var(--gold); background: rgba(12,11,9,0.35);
+    color: var(--gold); display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; touch-action: none; cursor: grab; z-index: 4;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+  .lhandle.sel { background: var(--gold); color: #201503; }
+  .lhandle.drag { cursor: grabbing; transform: translate(-50%, -50%) scale(1.12); }
+  .lightsrow { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
+  .sliders label { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: 12.5px; color: var(--muted); }
+  .sliders label span { flex: 0 0 92px; }
+  input[type=range] { flex: 1; appearance: none; -webkit-appearance: none; height: 4px; border-radius: 2px; background: var(--line); outline: none; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--gold); border: 2px solid rgba(255,255,255,0.7); cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--gold); border: 2px solid rgba(255,255,255,0.7); cursor: pointer; }
+
   .logitem { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .logitem:last-child { border-bottom: none; }
   .logitem img { width: 62px; height: 62px; object-fit: cover; border-radius: 10px; flex: 0 0 auto; }
@@ -316,6 +343,43 @@
       <div id="out"></div>
     </section>
 
+    <!-- ============ LIGHT: the Relight Studio ============ -->
+    <section class="screen" id="screen-light">
+      <div class="card" id="studioEmpty">
+        <h2>Relight Studio</h2>
+        <p class="hint" style="margin:0 0 10px">Place virtual lights on your frame and move them live — then make the look real. One depth pass per frame, everything after runs on your phone.</p>
+        <div class="actions" style="margin:0">
+          <button class="btn primary" id="studioUseLast" type="button">Use last read</button>
+          <label class="btn" for="studioShot">Upload photo</label>
+        </div>
+        <input id="studioShot" type="file" accept="image/*" />
+        <p class="status" id="studioBootStatus"></p>
+      </div>
+      <div id="studio" style="display:none">
+        <div class="stage" id="stage">
+          <canvas id="glc"></canvas>
+          <button class="holdbtn" id="holdOrig" type="button">◉ hold — original</button>
+        </div>
+        <div class="card" style="margin-top:8px">
+          <div class="lightsrow" id="lightsRow"></div>
+          <div class="sliders" id="sliders">
+            <label><span>Intensity</span><input type="range" id="sInt" min="0" max="2" step="0.01"></label>
+            <label><span>Warmth</span><input type="range" id="sWarm" min="0" max="1" step="0.01"></label>
+            <label><span>Size</span><input type="range" id="sSize" min="0" max="1" step="0.01"></label>
+            <label><span>Distance</span><input type="range" id="sDist" min="0.15" max="1.4" step="0.01"></label>
+            <label style="border-top:1px solid var(--line);padding-top:8px"><span>Existing light</span><input type="range" id="sAmb" min="0" max="1.2" step="0.01"></label>
+          </div>
+          <div class="actions" style="margin:10px 0 0">
+            <button class="btn" id="saveLook" type="button">Save look</button>
+            <button class="btn primary" id="makeReal" type="button">Make it real</button>
+          </div>
+          <p class="hint">Drag a light on the frame. The preview is physics-on-a-phone; Make it real sends this exact setup to the render model.</p>
+          <p class="status" id="studioStatus"></p>
+          <div id="realOut"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- ============ ASK ============ -->
     <section class="screen" id="screen-ask">
       <div class="chatwrap">
@@ -344,6 +408,7 @@
   <nav class="tabbar" role="tablist">
     <button class="tabbtn" role="tab" aria-selected="true" data-screen="screen-now" type="button"><span class="ico">☀</span>Now</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button"><span class="ico">◉</span>Shoot</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Light</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-ask" type="button"><span class="ico">✳</span>Ask</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-log" type="button"><span class="ico">▤</span>Log</button>
   </nav>
@@ -1203,8 +1268,9 @@ function renderResults() {
       </div>
       <div id="pane-diagram" role="tabpanel"></div>
       <div id="pane-compare" role="tabpanel" hidden></div>
-      <div class="actions" style="grid-template-columns:1fr;margin:12px 0 0">
+      <div class="actions" style="margin:12px 0 0">
         <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
+        <button class="btn" id="toStudio" type="button">Relight Studio ◐</button>
       </div>
     </div>`;
 
@@ -1241,6 +1307,7 @@ function renderResults() {
   $("lightIt").addEventListener("click", relight);
   $("checkWork").addEventListener("click", armRecheck);
   $("exportSheet").addEventListener("click", exportCallSheet);
+  $("toStudio").addEventListener("click", () => { gotoScreen("screen-light"); studioLoad(state.frame); });
 
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
     if (t.disabled) return;
@@ -1485,6 +1552,343 @@ async function sendChat() {
 }
 $("chatSend").addEventListener("click", sendChat);
 $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendChat(); } });
+
+/* ---------- Relight Studio ---------- */
+
+const studio = {
+  frame: null, depth: null, gl: null, prog: null, tex: {}, lights: [],
+  ambient: 0.55, sel: 0, dirty: false, holding: false,
+};
+const LIGHT_ROLES = ["Key", "Fill", "Rim"];
+const DEPTH_CACHE = new Map(); // frame dataUrl -> depth dataUrl
+
+function tempColor(w) {
+  // 0 = cool skylight, 0.5 = neutral, 1 = warm tungsten
+  const warm = [1.0, 0.78, 0.52], cool = [0.62, 0.78, 1.0], neutral = [1, 1, 1];
+  const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+  return w < 0.5 ? mix(cool, neutral, w * 2) : mix(neutral, warm, (w - 0.5) * 2);
+}
+
+function defaultLight(i) {
+  return [
+    { x: 0.28, y: 0.3, z: 0.75, intensity: 1.0, warmth: 0.72, size: 0.45 },  // key: warm, high left
+    { x: 0.78, y: 0.55, z: 0.6, intensity: 0.45, warmth: 0.42, size: 0.75 }, // fill: cooler, soft
+    { x: 0.6, y: 0.12, z: 0.5, intensity: 0.8, warmth: 0.55, size: 0.2 },    // rim: high back
+  ][i] || { x: 0.5, y: 0.4, z: 0.7, intensity: 0.8, warmth: 0.6, size: 0.5 };
+}
+
+const VS = `attribute vec2 aPos; varying vec2 vUv;
+void main() { vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+const FS = `precision mediump float;
+varying vec2 vUv;
+uniform sampler2D uPhoto, uDepth;
+uniform vec2 uRes;
+uniform float uAmbient;
+uniform int uCount;
+uniform vec3 uLpos[3];
+uniform vec3 uLcol[3];
+uniform float uLint[3];
+uniform float uLwrap[3];
+void main() {
+  vec3 albedo = texture2D(uPhoto, vUv).rgb;
+  vec3 dpx = texture2D(uDepth, vUv).rgb;
+  float d = dot(dpx, vec3(0.299, 0.587, 0.114)); // luminance: white = near
+  vec2 px = 1.0 / uRes;
+  float dR = dot(texture2D(uDepth, vUv + vec2(px.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
+  float dL = dot(texture2D(uDepth, vUv - vec2(px.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
+  float dU = dot(texture2D(uDepth, vUv + vec2(0.0, px.y)).rgb, vec3(0.299, 0.587, 0.114));
+  float dD = dot(texture2D(uDepth, vUv - vec2(0.0, px.y)).rgb, vec3(0.299, 0.587, 0.114));
+  vec3 N = normalize(vec3((dL - dR) * 3.0, (dD - dU) * 3.0, 1.0));
+  vec3 P = vec3(vUv, d * 0.55);
+  vec3 acc = albedo * uAmbient;
+  for (int i = 0; i < 3; i++) {
+    if (i >= uCount) break;
+    vec3 Lv = uLpos[i] - P;
+    float dist = length(Lv);
+    vec3 L = normalize(Lv);
+    float w = uLwrap[i];
+    float diff = clamp((dot(N, L) + w) / (1.0 + w), 0.0, 1.0);
+    float att = 1.0 / (1.0 + (dist * dist) * 2.2);
+    // depth-respecting falloff: light prefers subjects at similar depth to its z
+    float sep = abs(P.z - uLpos[i].z);
+    att *= 1.0 / (1.0 + sep * 1.4);
+    acc += albedo * uLcol[i] * (uLint[i] * diff * att * 1.6);
+  }
+  acc = acc / (1.0 + acc * 0.12); // soft shoulder so hot spots roll off like film
+  gl_FragColor = vec4(acc, 1.0);
+}`;
+
+function glInit(photoImg, depthImg) {
+  const c = $("glc");
+  c.width = photoImg.naturalWidth;
+  c.height = photoImg.naturalHeight;
+  const gl = c.getContext("webgl", { preserveDrawingBuffer: true });
+  if (!gl) throw new Error("WebGL is unavailable on this device.");
+  const sh = (type, src) => {
+    const h = gl.createShader(type);
+    gl.shaderSource(h, src); gl.compileShader(h);
+    if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h));
+    return h;
+  };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(prog, "aPos");
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  const mkTex = (img, unit) => {
+    const t = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    return t;
+  };
+  mkTex(photoImg, 0);
+  mkTex(depthImg, 1);
+  gl.uniform1i(gl.getUniformLocation(prog, "uPhoto"), 0);
+  gl.uniform1i(gl.getUniformLocation(prog, "uDepth"), 1);
+  gl.uniform2f(gl.getUniformLocation(prog, "uRes"), c.width, c.height);
+  gl.viewport(0, 0, c.width, c.height);
+  studio.gl = gl;
+  studio.prog = prog;
+}
+
+function glDraw() {
+  const gl = studio.gl;
+  if (!gl) return;
+  const u = (n) => gl.getUniformLocation(studio.prog, n);
+  const showLights = !studio.holding;
+  const ls = showLights ? studio.lights : [];
+  const pos = [], col = [], intn = [], wrap = [];
+  for (let i = 0; i < 3; i++) {
+    const l = ls[i] || { x: 0, y: 0, z: 0, intensity: 0, warmth: 0.5, size: 0 };
+    pos.push(l.x, 1 - l.y, l.z);            // GL v runs bottom-up
+    col.push(...tempColor(l.warmth));
+    intn.push(l.intensity);
+    wrap.push(0.1 + l.size * 1.3);
+  }
+  gl.uniform1f(u("uAmbient"), studio.holding ? 1.0 : studio.ambient);
+  gl.uniform1i(u("uCount"), ls.length);
+  gl.uniform3fv(u("uLpos"), pos);
+  gl.uniform3fv(u("uLcol"), col);
+  gl.uniform1fv(u("uLint"), intn);
+  gl.uniform1fv(u("uLwrap"), wrap);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+function requestDraw() {
+  if (studio.dirty) return;
+  studio.dirty = true;
+  requestAnimationFrame(() => { studio.dirty = false; glDraw(); });
+}
+
+/* ---- studio UI ---- */
+
+function studioSyncSliders() {
+  const l = studio.lights[studio.sel];
+  if (!l) return;
+  $("sInt").value = l.intensity;
+  $("sWarm").value = l.warmth;
+  $("sSize").value = l.size;
+  $("sDist").value = l.z;
+  $("sAmb").value = studio.ambient;
+}
+
+function studioRenderLights() {
+  $("lightsRow").innerHTML = studio.lights.map((_, i) =>
+    `<button class="look" type="button" data-li="${i}" aria-pressed="${i === studio.sel}" style="padding:6px 13px;min-height:34px;font-size:12.5px">${LIGHT_ROLES[i] || "Light"}</button>`).join("")
+    + (studio.lights.length < 3 ? `<button class="look" type="button" id="addLight" style="padding:6px 13px;min-height:34px;font-size:12.5px">+ Add</button>` : "")
+    + (studio.lights.length > 1 ? `<button class="look" type="button" id="delLight" style="padding:6px 13px;min-height:34px;font-size:12.5px">− Remove</button>` : "");
+  document.querySelectorAll("[data-li]").forEach((b) => b.addEventListener("click", () => {
+    studio.sel = Number(b.dataset.li);
+    studioRenderLights(); studioSyncSliders(); studioRenderHandles();
+  }));
+  $("addLight")?.addEventListener("click", () => {
+    studio.lights.push(defaultLight(studio.lights.length));
+    studio.sel = studio.lights.length - 1;
+    studioRenderLights(); studioSyncSliders(); studioRenderHandles(); requestDraw();
+  });
+  $("delLight")?.addEventListener("click", () => {
+    studio.lights.splice(studio.sel, 1);
+    studio.sel = Math.max(0, studio.sel - 1);
+    studioRenderLights(); studioSyncSliders(); studioRenderHandles(); requestDraw();
+  });
+}
+
+function studioRenderHandles() {
+  const stage = $("stage");
+  stage.querySelectorAll(".lhandle").forEach((h) => h.remove());
+  studio.lights.forEach((l, i) => {
+    const h = document.createElement("div");
+    h.className = "lhandle" + (i === studio.sel ? " sel" : "");
+    h.style.left = l.x * 100 + "%";
+    h.style.top = l.y * 100 + "%";
+    h.textContent = (LIGHT_ROLES[i] || "L")[0];
+    h.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      studio.sel = i;
+      studioRenderLights(); studioSyncSliders();
+      stage.querySelectorAll(".lhandle").forEach((x) => x.classList.remove("sel"));
+      h.classList.add("sel", "drag");
+      try { h.setPointerCapture(e.pointerId); } catch { /* best effort */ }
+      const move = (ev) => {
+        const r = stage.getBoundingClientRect();
+        l.x = Math.min(0.98, Math.max(0.02, (ev.clientX - r.left) / r.width));
+        l.y = Math.min(0.98, Math.max(0.02, (ev.clientY - r.top) / r.height));
+        h.style.left = l.x * 100 + "%";
+        h.style.top = l.y * 100 + "%";
+        requestDraw();
+      };
+      const up = () => {
+        h.classList.remove("drag");
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+    });
+    stage.appendChild(h);
+  });
+}
+
+function loadImg(src) {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error("image failed to load"));
+    i.src = src;
+  });
+}
+
+async function studioLoad(frame) {
+  if (!frame) return;
+  studio.frame = frame;
+  $("studioEmpty").style.display = "block";
+  $("studio").style.display = "none";
+  $("studioBootStatus").textContent = "Mapping depth… one pass per frame (10–30 s)";
+  try {
+    let depthUrl = DEPTH_CACHE.get(frame.dataUrl);
+    if (!depthUrl) {
+      const res = await aiFetch("/depth", { image: frame.dataUrl });
+      const j = await res.json();
+      if (!res.ok || j.error || !j.depth) throw new Error(j.error || `depth failed (${res.status})`);
+      depthUrl = j.depth;
+      DEPTH_CACHE.set(frame.dataUrl, depthUrl);
+    }
+    const [photoImg, depthImg] = await Promise.all([loadImg(frame.dataUrl), loadImg(depthUrl)]);
+    glInit(photoImg, depthImg);
+    studio.lights = [defaultLight(0)];
+    studio.sel = 0;
+    studio.ambient = 0.55;
+    $("studioBootStatus").textContent = "";
+    $("studioEmpty").style.display = "none";
+    $("studio").style.display = "block";
+    $("realOut").innerHTML = "";
+    studioRenderLights(); studioSyncSliders(); studioRenderHandles();
+    requestDraw();
+  } catch (e) {
+    $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
+  }
+}
+
+// sliders drive the selected light live
+[["sInt", "intensity"], ["sWarm", "warmth"], ["sSize", "size"], ["sDist", "z"]].forEach(([id, key]) => {
+  $(id).addEventListener("input", () => {
+    const l = studio.lights[studio.sel];
+    if (l) { l[key] = Number($(id).value); requestDraw(); }
+  });
+});
+$("sAmb").addEventListener("input", () => { studio.ambient = Number($("sAmb").value); requestDraw(); });
+
+// hold to compare with the untouched frame
+["pointerdown", "touchstart"].forEach((ev) => $("holdOrig").addEventListener(ev, (e) => { e.preventDefault(); studio.holding = true; requestDraw(); }));
+["pointerup", "pointercancel", "pointerleave", "touchend"].forEach((ev) => $("holdOrig").addEventListener(ev, () => { studio.holding = false; requestDraw(); }));
+
+$("studioUseLast").addEventListener("click", () => {
+  if (state?.frame) studioLoad(state.frame);
+  else $("studioBootStatus").innerHTML = `<span class="err">No read yet — shoot or upload a frame first.</span>`;
+});
+$("studioShot").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try { studioLoad(await fileToFrame(file)); }
+  catch (err) { $("studioBootStatus").innerHTML = `<span class="err">${esc(err.message || err)}</span>`; }
+});
+
+$("saveLook").addEventListener("click", () => {
+  glDraw(); // ensure the buffer is fresh
+  $("glc").toBlob((blob) => {
+    if (blob) shareOrDownload(blob, "scrim-look.png", "Scrim look");
+  }, "image/png");
+});
+
+// Translate the virtual rig into a gaffer's brief and hand it to the render model.
+function rigToBrief() {
+  const posWord = (v, lo, hi) => (v < 0.35 ? lo : v > 0.65 ? hi : "centre");
+  const lines = studio.lights.map((l, i) => {
+    const role = (LIGHT_ROLES[i] || "light").toLowerCase();
+    const strength = l.intensity > 1.2 ? "strong" : l.intensity > 0.6 ? "medium" : "dim";
+    const temp = l.warmth > 0.65 ? "warm" : l.warmth < 0.35 ? "cool" : "neutral";
+    const softness = l.size > 0.6 ? "large soft source" : l.size > 0.3 ? "medium softbox" : "small hard source";
+    const dist = l.z > 0.9 ? "close to camera" : l.z > 0.5 ? "at subject distance" : "pushed back deep";
+    return `a ${strength} ${temp} ${role} from frame ${posWord(l.x, "left", "right")}, ${posWord(l.y, "high", "low")}, ${dist}, as a ${softness}`;
+  });
+  const amb = studio.ambient < 0.3 ? "Let the existing ambient light fall almost to black."
+    : studio.ambient < 0.7 ? "Keep the existing ambient light present but clearly secondary."
+    : "Keep the existing ambient light dominant; the added lights are accents.";
+  return `Relight with this exact controlled lighting setup: ${lines.join("; ")}. ${amb}`;
+}
+
+$("makeReal").addEventListener("click", async () => {
+  if (!studio.frame) return;
+  const btn = $("makeReal");
+  btn.disabled = true;
+  btn.textContent = "Rendering… (10–30 s)";
+  $("studioStatus").textContent = "";
+  try {
+    const res = await aiFetch("/render", { image: studio.frame.dataUrl, brief: rigToBrief(), gear: "full", diagnosis: state?.diagnosis || null });
+    const j = await res.json();
+    if (!res.ok || j.error) throw new Error(j.error || `render failed (${res.status})`);
+    $("realOut").innerHTML = `
+      <div class="taglabels" style="margin-top:12px"><span>Your preview</span><span>Made real</span></div>
+      <div class="compare" id="realCmp" style="--pos:50%;margin-top:4px">
+        <img src="${$("glc").toDataURL("image/jpeg", 0.9)}" alt="preview">
+        <div class="after"><img src="${j.render}" alt="photoreal"></div>
+        <div class="handle"></div>
+      </div>
+      <div class="actions" style="grid-template-columns:1fr;margin:8px 0 0">
+        <button class="btn" id="saveReal" type="button">Save render</button>
+      </div>`;
+    $("saveReal").addEventListener("click", () => saveRender(j.render));
+    const cmp = $("realCmp");
+    const move = (x) => {
+      const r = cmp.getBoundingClientRect();
+      cmp.style.setProperty("--pos", `${Math.max(0, Math.min(100, ((x - r.left) / r.width) * 100))}%`);
+    };
+    cmp.addEventListener("pointerdown", (e) => { cmp.setPointerCapture(e.pointerId); move(e.clientX); });
+    cmp.addEventListener("pointermove", (e) => { if (e.buttons) move(e.clientX); });
+  } catch (e) {
+    $("studioStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Make it real";
+  }
+});
 
 /* ---------- boot ---------- */
 checkBackend();
