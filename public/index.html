@@ -362,12 +362,17 @@
         </div>
         <div class="card" style="margin-top:8px">
           <div class="lightsrow" id="lightsRow"></div>
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <select id="fixSel" aria-label="Fixture" style="flex:1.4;min-width:0"></select>
+            <select id="modSel" aria-label="Modifier" style="flex:1;min-width:0"></select>
+          </div>
           <div class="sliders" id="sliders">
             <label><span>Intensity</span><input type="range" id="sInt" min="0" max="2" step="0.01"></label>
-            <label><span>Warmth</span><input type="range" id="sWarm" min="0" max="1" step="0.01"></label>
+            <label><span id="warmLabel">Warmth</span><input type="range" id="sWarm" min="0" max="1" step="0.01"></label>
             <label><span>Size</span><input type="range" id="sSize" min="0" max="1" step="0.01"></label>
             <label><span>Distance</span><input type="range" id="sDist" min="0.15" max="1.4" step="0.01"></label>
             <label style="border-top:1px solid var(--line);padding-top:8px"><span>Existing light</span><input type="range" id="sAmb" min="0" max="1.2" step="0.01"></label>
+            <label><span>Shadows</span><input type="range" id="sShad" min="0" max="1" step="0.01"></label>
           </div>
           <div class="actions" style="margin:10px 0 0">
             <button class="btn" id="saveLook" type="button">Save look</button>
@@ -1557,9 +1562,39 @@ $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.p
 
 const studio = {
   frame: null, depth: null, gl: null, prog: null, tex: {}, lights: [],
-  ambient: 0.55, sel: 0, dirty: false, holding: false,
+  ambient: 0.55, shadow: 0.45, sel: 0, dirty: false, holding: false,
 };
 const LIGHT_ROLES = ["Key", "Fill", "Rim"];
+
+// Real fixtures with real optics: CCT range, source size per modifier, output punch.
+const FIXTURES = [
+  { id: "a300x", name: "Aputure 300X", cct: [2700, 6500], punch: 1.25,
+    mods: [{ id: "refl", name: "Reflector", size: 0.14 }, { id: "dome", name: "Light Dome mini", size: 0.52 }, { id: "lant", name: "Lantern", size: 0.85 }] },
+  { id: "a600d", name: "Aputure 600d Pro", cct: [5600, 5600], punch: 1.6,
+    mods: [{ id: "refl", name: "Reflector", size: 0.1 }, { id: "dome", name: "Light Dome 150", size: 0.6 }, { id: "frag", name: "Spotlight Max", size: 0.05 }] },
+  { id: "sky60", name: "SkyPanel S60-C", cct: [2800, 10000], punch: 1.0,
+    mods: [{ id: "panel", name: "Open face", size: 0.75 }, { id: "grid", name: "+ 60° grid", size: 0.5 }, { id: "chim", name: "+ Chimera", size: 0.9 }] },
+  { id: "m18", name: "HMI M18", cct: [5600, 5600], punch: 1.7,
+    mods: [{ id: "fres", name: "Fresnel", size: 0.08 }, { id: "chim", name: "Through 4x4 silk", size: 0.55 }] },
+  { id: "tube", name: "Astera Titan tube", cct: [2200, 10000], punch: 0.55,
+    mods: [{ id: "bare", name: "Bare tube", size: 0.6 }] },
+  { id: "prac", name: "Practical bulb", cct: [2700, 2700], punch: 0.45,
+    mods: [{ id: "bulb", name: "In-frame lamp", size: 0.4 }] },
+  { id: "free", name: "Free light", cct: [2000, 10000], punch: 1.0,
+    mods: [{ id: "any", name: "Abstract", size: 0.45 }] },
+];
+const fixOf = (l) => FIXTURES.find((f) => f.id === l.fx) || FIXTURES[FIXTURES.length - 1];
+const modOf = (l) => { const f = fixOf(l); return f.mods.find((m) => m.id === l.mod) || f.mods[0]; };
+const kelvinOf = (l) => { const [lo, hi] = fixOf(l).cct; return Math.round(hi - (hi - lo) * l.warmth); };
+
+// Tanner Helland approximation, normalized
+function kelvinRGB(k) {
+  k = Math.min(10000, Math.max(1800, k)) / 100;
+  const r = k <= 66 ? 255 : 329.7 * Math.pow(k - 60, -0.1332);
+  const g = k <= 66 ? 99.47 * Math.log(k) - 161.1 : 288.1 * Math.pow(k - 60, -0.0755);
+  const b = k >= 66 ? 255 : k <= 19 ? 0 : 138.5 * Math.log(k - 10) - 305.0;
+  return [r, g, b].map((v) => Math.min(255, Math.max(0, v)) / 255);
+}
 const DEPTH_CACHE = new Map(); // frame dataUrl -> depth dataUrl
 
 function tempColor(w) {
@@ -1571,10 +1606,10 @@ function tempColor(w) {
 
 function defaultLight(i) {
   return [
-    { x: 0.28, y: 0.3, z: 0.75, intensity: 1.0, warmth: 0.72, size: 0.45 },  // key: warm, high left
-    { x: 0.78, y: 0.55, z: 0.6, intensity: 0.45, warmth: 0.42, size: 0.75 }, // fill: cooler, soft
-    { x: 0.6, y: 0.12, z: 0.5, intensity: 0.8, warmth: 0.55, size: 0.2 },    // rim: high back
-  ][i] || { x: 0.5, y: 0.4, z: 0.7, intensity: 0.8, warmth: 0.6, size: 0.5 };
+    { x: 0.28, y: 0.3, z: 0.75, intensity: 1.0, warmth: 0.72, size: 0.52, fx: "a300x", mod: "dome" },   // key
+    { x: 0.78, y: 0.55, z: 0.6, intensity: 0.45, warmth: 0.35, size: 0.75, fx: "sky60", mod: "panel" }, // fill
+    { x: 0.6, y: 0.12, z: 0.5, intensity: 0.85, warmth: 0.4, size: 0.1, fx: "a600d", mod: "refl" },     // rim
+  ][i] || { x: 0.5, y: 0.4, z: 0.7, intensity: 0.8, warmth: 0.6, size: 0.5, fx: "free", mod: "any" };
 }
 
 const VS = `attribute vec2 aPos; varying vec2 vUv;
@@ -1584,23 +1619,24 @@ const FS = `precision mediump float;
 varying vec2 vUv;
 uniform sampler2D uPhoto, uDepth;
 uniform vec2 uRes;
-uniform float uAmbient;
+uniform float uAmbient, uShadow;
 uniform int uCount;
 uniform vec3 uLpos[3];
 uniform vec3 uLcol[3];
 uniform float uLint[3];
 uniform float uLwrap[3];
+float dlum(vec2 uv) { return dot(texture2D(uDepth, uv).rgb, vec3(0.299, 0.587, 0.114)); }
 void main() {
   vec3 albedo = texture2D(uPhoto, vUv).rgb;
-  vec3 dpx = texture2D(uDepth, vUv).rgb;
-  float d = dot(dpx, vec3(0.299, 0.587, 0.114)); // luminance: white = near
+  float d = dlum(vUv);
   vec2 px = 1.0 / uRes;
-  float dR = dot(texture2D(uDepth, vUv + vec2(px.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
-  float dL = dot(texture2D(uDepth, vUv - vec2(px.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
-  float dU = dot(texture2D(uDepth, vUv + vec2(0.0, px.y)).rgb, vec3(0.299, 0.587, 0.114));
-  float dD = dot(texture2D(uDepth, vUv - vec2(0.0, px.y)).rgb, vec3(0.299, 0.587, 0.114));
+  float dR = dlum(vUv + vec2(px.x, 0.0));
+  float dL = dlum(vUv - vec2(px.x, 0.0));
+  float dU = dlum(vUv + vec2(0.0, px.y));
+  float dD = dlum(vUv - vec2(0.0, px.y));
   vec3 N = normalize(vec3((dL - dR) * 3.0, (dD - dU) * 3.0, 1.0));
   vec3 P = vec3(vUv, d * 0.55);
+  vec3 V = vec3(0.0, 0.0, 1.0);
   vec3 acc = albedo * uAmbient;
   for (int i = 0; i < 3; i++) {
     if (i >= uCount) break;
@@ -1610,19 +1646,33 @@ void main() {
     float w = uLwrap[i];
     float diff = clamp((dot(N, L) + w) / (1.0 + w), 0.0, 1.0);
     float att = 1.0 / (1.0 + (dist * dist) * 2.2);
-    // depth-respecting falloff: light prefers subjects at similar depth to its z
     float sep = abs(P.z - uLpos[i].z);
     att *= 1.0 / (1.0 + sep * 1.4);
-    acc += albedo * uLcol[i] * (uLint[i] * diff * att * 1.6);
+    // screen-space shadow: march toward the light through the depth field
+    float lit = 1.0;
+    if (uShadow > 0.01) {
+      for (int st = 1; st <= 10; st++) {
+        vec3 sp = P + L * (float(st) * 0.045);
+        if (sp.x < 0.0 || sp.x > 1.0 || sp.y < 0.0 || sp.y > 1.0 || sp.z > 0.9) break;
+        float sd = dlum(sp.xy) * 0.55;
+        if (sd > sp.z + 0.035) lit -= 0.11;
+      }
+      lit = mix(1.0, clamp(lit, 0.2, 1.0), uShadow);
+    }
+    // small sources throw a tighter, stronger specular; big soft ones barely any
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), mix(52.0, 8.0, w)) * (1.0 - w) * 0.3;
+    acc += (albedo * diff + vec3(spec)) * uLcol[i] * (uLint[i] * att * 1.6 * lit);
   }
-  acc = acc / (1.0 + acc * 0.12); // soft shoulder so hot spots roll off like film
+  acc = acc / (1.0 + acc * 0.12);
   gl_FragColor = vec4(acc, 1.0);
 }`;
 
 function glInit(photoImg, depthImg) {
   const c = $("glc");
-  c.width = photoImg.naturalWidth;
-  c.height = photoImg.naturalHeight;
+  const rscale = Math.min(1, 960 / photoImg.naturalWidth);
+  c.width = Math.round(photoImg.naturalWidth * rscale);
+  c.height = Math.round(photoImg.naturalHeight * rscale);
   const gl = c.getContext("webgl", { preserveDrawingBuffer: true });
   if (!gl) throw new Error("WebGL is unavailable on this device.");
   const sh = (type, src) => {
@@ -1673,13 +1723,14 @@ function glDraw() {
   const ls = showLights ? studio.lights : [];
   const pos = [], col = [], intn = [], wrap = [];
   for (let i = 0; i < 3; i++) {
-    const l = ls[i] || { x: 0, y: 0, z: 0, intensity: 0, warmth: 0.5, size: 0 };
+    const l = ls[i] || { x: 0, y: 0, z: 0, intensity: 0, warmth: 0.5, size: 0, fx: "free", mod: "any" };
     pos.push(l.x, 1 - l.y, l.z);            // GL v runs bottom-up
-    col.push(...tempColor(l.warmth));
-    intn.push(l.intensity);
+    col.push(...kelvinRGB(kelvinOf(l)));
+    intn.push(l.intensity * fixOf(l).punch);
     wrap.push(0.1 + l.size * 1.3);
   }
   gl.uniform1f(u("uAmbient"), studio.holding ? 1.0 : studio.ambient);
+  gl.uniform1f(u("uShadow"), studio.holding ? 0.0 : studio.shadow);
   gl.uniform1i(u("uCount"), ls.length);
   gl.uniform3fv(u("uLpos"), pos);
   gl.uniform3fv(u("uLcol"), col);
@@ -1704,6 +1755,14 @@ function studioSyncSliders() {
   $("sSize").value = l.size;
   $("sDist").value = l.z;
   $("sAmb").value = studio.ambient;
+  $("sShad").value = studio.shadow;
+  const fix = fixOf(l);
+  $("fixSel").innerHTML = FIXTURES.map((f) => `<option value="${f.id}" ${f.id === fix.id ? "selected" : ""}>${f.name}</option>`).join("");
+  $("modSel").innerHTML = fix.mods.map((m) => `<option value="${m.id}" ${m.id === modOf(l).id ? "selected" : ""}>${m.name}</option>`).join("");
+  const fixedCCT = fix.cct[0] === fix.cct[1];
+  $("sWarm").disabled = fixedCCT;
+  $("sWarm").style.opacity = fixedCCT ? "0.4" : "";
+  $("warmLabel").textContent = `Warmth · ${kelvinOf(l)}K`;
 }
 
 function studioRenderLights() {
@@ -1809,10 +1868,35 @@ async function studioLoad(frame) {
 [["sInt", "intensity"], ["sWarm", "warmth"], ["sSize", "size"], ["sDist", "z"]].forEach(([id, key]) => {
   $(id).addEventListener("input", () => {
     const l = studio.lights[studio.sel];
-    if (l) { l[key] = Number($(id).value); requestDraw(); }
+    if (l) {
+      l[key] = Number($(id).value);
+      if (key === "warmth") $("warmLabel").textContent = `Warmth · ${kelvinOf(l)}K`;
+      requestDraw();
+    }
   });
 });
 $("sAmb").addEventListener("input", () => { studio.ambient = Number($("sAmb").value); requestDraw(); });
+$("sShad").addEventListener("input", () => { studio.shadow = Number($("sShad").value); requestDraw(); });
+
+$("fixSel").addEventListener("change", () => {
+  const l = studio.lights[studio.sel];
+  if (!l) return;
+  l.fx = $("fixSel").value;
+  const fix = fixOf(l);
+  l.mod = fix.mods[0].id;
+  l.size = fix.mods[0].size;
+  if (fix.cct[0] === fix.cct[1]) l.warmth = 0.5;
+  studioSyncSliders();
+  requestDraw();
+});
+$("modSel").addEventListener("change", () => {
+  const l = studio.lights[studio.sel];
+  if (!l) return;
+  l.mod = $("modSel").value;
+  l.size = modOf(l).size;
+  studioSyncSliders();
+  requestDraw();
+});
 
 // hold to compare with the untouched frame
 ["pointerdown", "touchstart"].forEach((ev) => $("holdOrig").addEventListener(ev, (e) => { e.preventDefault(); studio.holding = true; requestDraw(); }));
@@ -1842,16 +1926,16 @@ function rigToBrief() {
   const posWord = (v, lo, hi) => (v < 0.35 ? lo : v > 0.65 ? hi : "centre");
   const lines = studio.lights.map((l, i) => {
     const role = (LIGHT_ROLES[i] || "light").toLowerCase();
-    const strength = l.intensity > 1.2 ? "strong" : l.intensity > 0.6 ? "medium" : "dim";
-    const temp = l.warmth > 0.65 ? "warm" : l.warmth < 0.35 ? "cool" : "neutral";
-    const softness = l.size > 0.6 ? "large soft source" : l.size > 0.3 ? "medium softbox" : "small hard source";
+    const fix = fixOf(l), mod = modOf(l);
+    const strength = l.intensity > 1.2 ? "at high output" : l.intensity > 0.6 ? "at medium output" : "dimmed low";
     const dist = l.z > 0.9 ? "close to camera" : l.z > 0.5 ? "at subject distance" : "pushed back deep";
-    return `a ${strength} ${temp} ${role} from frame ${posWord(l.x, "left", "right")}, ${posWord(l.y, "high", "low")}, ${dist}, as a ${softness}`;
+    return `${role}: an ${fix.name} with ${mod.name.toLowerCase()} at ${kelvinOf(l)}K, ${strength}, from frame ${posWord(l.x, "left", "right")}, ${posWord(l.y, "high", "low")}, ${dist}`;
   });
   const amb = studio.ambient < 0.3 ? "Let the existing ambient light fall almost to black."
     : studio.ambient < 0.7 ? "Keep the existing ambient light present but clearly secondary."
     : "Keep the existing ambient light dominant; the added lights are accents.";
-  return `Relight with this exact controlled lighting setup: ${lines.join("; ")}. ${amb}`;
+  const gear = [...new Set(studio.lights.map((l) => `${fixOf(l).name} + ${modOf(l).name}`))].join("; ");
+  return `Relight with this exact controlled lighting setup, mimicking how these real fixtures render light: ${lines.join(". ")}. ${amb} Reproduce each fixture's characteristic quality: source size sets shadow-edge softness, the stated Kelvin sets its colour. (Gear list: ${gear}.)`;
 }
 
 $("makeReal").addEventListener("click", async () => {
