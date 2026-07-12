@@ -150,9 +150,17 @@ Judge ONLY the lighting on the subject and scene. "fixes" is YOUR call as the ga
 
 // ---------- Gemini call 1b: plan for a brief ----------
 
+// What the crew can rig changes what the gaffer plans. "none" is grip-only natural
+// light; "full" unlocks controlled lighting indoors or out.
+function gearLine(gear) {
+  if (gear === "small") return "The crew has a small battery LED kit (one or two small lights with a softbox) plus grip: silks, bounces, flags.";
+  if (gear === "full") return "The crew has a full lighting package (big LEDs/HMIs, stands, full grip) — controlled lighting indoors or outdoors is on the table.";
+  return "The crew has NO lighting kit: only grip (silk, bounce, flag), repositioning the subject, and timing.";
+}
+
 // Same cheap vision model as diagnose: redraws the moves and the diagram for the
 // director's brief, so the plan matches what the user actually wants.
-async function plan(data, mime, sun, brief, diagnosis) {
+async function plan(data, mime, sun, brief, diagnosis, gear) {
   const read = diagnosis && !diagnosis.error
     ? `Your earlier read of this frame: key from ${diagnosis.direction || "unknown"}, ${diagnosis.hardness || "?"} light, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none listed"}.`
     : "";
@@ -160,7 +168,8 @@ async function plan(data, mime, sun, brief, diagnosis) {
 Right now the sun is ${sun.now.altitudeDeg} degrees above the horizon, coming from the ${sun.now.direction}, and the light is ${sun.now.quality}.
 ${read}
 The director's brief for this frame: "${brief}".
-Plan at most 3 practical moves — grip gear (silk, bounce, flag), repositioning, or timing — that get THIS frame to THAT brief. Do not default to softening; serve the brief (a dramatic brief may mean shaping hard light, a dappled brief may mean placing broken shade). Reply with strict JSON, no markdown, exactly this shape:
+${gearLine(gear)}
+Plan at most 3 practical moves within that gear that get THIS frame to THAT brief. Do not default to softening; serve the brief (a dramatic brief may mean shaping hard light, a dappled brief may mean placing broken shade). Reply with strict JSON, no markdown, exactly this shape:
 {
   "approach": "one short sentence: the treatment you're going for",
   "fixes": ["at most 3 specific practical moves, in shooting order"],
@@ -185,7 +194,7 @@ Plan at most 3 practical moves — grip gear (silk, bounce, flag), repositioning
 
 // ---------- Gemini call 2: relight to a brief ----------
 
-async function renderLook(data, mime, brief, diagnosis) {
+async function renderLook(data, mime, brief, diagnosis, gear) {
   const read = diagnosis && !diagnosis.error
     ? `A gaffer read this frame as: key from ${diagnosis.direction || "unknown"}, ${diagnosis.hardness || "?"} light, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none listed"}.`
     : "";
@@ -196,6 +205,7 @@ async function renderLook(data, mime, brief, diagnosis) {
   const prompt = `Relight this exact photograph. This is a LIGHTING change, not a color grade: the geometry of the light must change, not just the tones.
 ${read}
 ${wants}
+${gearLine(gear)} Every effect must be achievable with that gear.
 What must change: the direction, apparent size, and quality of the light on the subject. Reshape shadow EDGES (a bigger apparent source means a softer penumbra), open or deepen shadow AREAS, tame or add speculars and catchlights, and keep every effect motivated by a plausible physical source — sun angle, bounce, silk, flag, or foliage.
 What must NOT change: subject identity and pose, framing, composition, lens perspective, background content, and scene geometry. Photorealistic, like the scene was reshot under the new lighting — not stylised, not a filter.`;
 
@@ -282,13 +292,13 @@ Answer in plain, practical on-set language. Be specific (gear sizes, angles, tim
 // The plan: cheap vision call that redraws fixes + diagram for the director's brief.
 app.post("/plan", requireCode, async (req, res) => {
   try {
-    const { image, brief, diagnosis, latitude, longitude, timestamp } = req.body || {};
+    const { image, brief, diagnosis, latitude, longitude, timestamp, gear } = req.body || {};
     if (!image || !brief || latitude == null || longitude == null) {
       return res.status(400).json({ error: "Need image (base64), brief, latitude, longitude." });
     }
     const { mime, data } = parseImage(image);
     const sun = sunReport(Number(latitude), Number(longitude), timestamp);
-    const p = await plan(data, mime, sun, String(brief).slice(0, 500), diagnosis)
+    const p = await plan(data, mime, sun, String(brief).slice(0, 500), diagnosis, gear)
       .catch((e) => ({ error: String(e?.message || e) }));
     res.json({ plan: p });
   } catch (err) {
@@ -348,10 +358,10 @@ app.post("/recheck", requireCode, async (req, res) => {
 // brief is free text, or "auto" for the gaffer's call. diagnosis (from /analyze) grounds the render.
 app.post("/render", requireCode, async (req, res) => {
   try {
-    const { image, brief, diagnosis } = req.body || {};
+    const { image, brief, diagnosis, gear } = req.body || {};
     if (!image) return res.status(400).json({ error: "Need image (base64)." });
     const { mime, data } = parseImage(image);
-    const render = await renderLook(data, mime, typeof brief === "string" ? brief.slice(0, 500) : "auto", diagnosis)
+    const render = await renderLook(data, mime, typeof brief === "string" ? brief.slice(0, 500) : "auto", diagnosis, gear)
       .catch((e) => ({ error: String(e?.message || e) }));
     res.json({
       render: render && !render.error ? `data:${render.mimeType};base64,${render.data}` : null,

@@ -68,14 +68,14 @@
 
   .banner { border: 1px solid var(--gold); color: var(--gold); border-radius: 12px; padding: 8px 12px; font-size: 12.5px; margin: 6px 0; display: none; }
 
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 15px; margin: 8px 0; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin: 7px 0; }
   .card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 7px; font-weight: 650; }
 
   .clock { font-size: clamp(23px, 7vw, 30px); font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; line-height: 1.12; }
   .clock em { font-style: normal; color: var(--gold); }
   .sunline { font-size: 13.5px; margin-top: 4px; }
   .weather { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
-  .timeline { width: 100%; height: 74px; display: block; margin-top: 2px; }
+  .timeline { width: 100%; height: 62px; display: block; margin-top: 0; }
   .times { font-size: 12.5px; color: var(--muted); }
   .times div { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
   .times span:last-child { font-variant-numeric: tabular-nums; color: var(--ink); }
@@ -192,6 +192,29 @@
   .chatrow { flex: 0 0 auto; display: flex; gap: 8px; padding: 6px 0 2px; align-items: center; }
   .chatrow input { flex: 1; }
 
+  /* floating diagram chips: DOM text, fixed size, draggable */
+  .dmark { position: absolute; transform: translate(-50%, -50%); touch-action: none; cursor: grab; z-index: 3; }
+  .dmark .dinner { display: flex; align-items: center; gap: 0; animation: dfloat 3.2s ease-in-out infinite; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.45)); }
+  .dmark.drag .dinner, .dmark.drag { cursor: grabbing; }
+  .dmark.drag .dinner { animation-play-state: paused; }
+  .dnum {
+    width: 26px; height: 26px; border-radius: 50%; background: var(--gold); color: #201503;
+    font-size: 14px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
+    border: 2px solid rgba(255,255,255,0.85); flex: 0 0 auto;
+  }
+  .dlabel {
+    background: rgba(12,11,9,0.82); color: #f4efe6; font-size: 11px; font-weight: 750; letter-spacing: 0.08em;
+    padding: 4px 9px; border-radius: 999px; margin-left: -6px; padding-left: 12px; white-space: nowrap;
+  }
+  .dsun { position: absolute; transform: translate(-50%, -50%); z-index: 2; pointer-events: none; }
+  .dsun span {
+    background: rgba(232,163,61,0.92); color: #201503; font-size: 11px; font-weight: 800; letter-spacing: 0.1em;
+    padding: 4px 10px; border-radius: 999px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.45));
+  }
+  @keyframes dfloat { 50% { transform: translateY(-3px); } }
+  ol.fixes li.hl { background: rgba(232,163,61,0.14); border-radius: 10px; padding: 4px 6px; margin-left: -6px; }
+  @media (prefers-reduced-motion: reduce) { .dmark .dinner { animation: none; } }
+
   .logitem { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .logitem:last-child { border-bottom: none; }
   .logitem img { width: 62px; height: 62px; object-fit: cover; border-radius: 10px; flex: 0 0 auto; }
@@ -236,9 +259,7 @@
         <h2>The day</h2>
         <svg class="timeline" id="timeline" viewBox="0 0 360 74" preserveAspectRatio="none"></svg>
         <div class="times" id="sunTimes"></div>
-      </div>
-      <div class="card">
-        <div class="compassrow">
+        <div class="compassrow" style="border-top:1px solid var(--line);margin-top:8px;padding-top:9px">
           <button class="ghost" id="findSun" type="button">Find the sun</button>
           <div class="compasstext" id="compassHint" style="color:var(--muted);font-size:12px">Point your phone anywhere — the needle tracks the sun.</div>
           <svg class="dial" id="dial" viewBox="0 0 56 56" style="display:none" aria-label="Sun direction relative to where you point">
@@ -252,6 +273,11 @@
           </svg>
           <div class="compasstext" id="compassTxt" hidden></div>
         </div>
+      </div>
+      <div class="card">
+        <h2>When to shoot</h2>
+        <div class="looks" id="whenLooks" style="gap:6px"></div>
+        <div id="whenWindows" class="times" style="margin-top:8px"></div>
       </div>
     </section>
 
@@ -496,6 +522,7 @@ async function loadWeather(l) {
     const j = await r.json();
     weather = { times: j.hourly.time, clouds: j.hourly.cloud_cover };
     renderWeather();
+    renderWhen();
   } catch { /* weather is a bonus, never an error */ }
 }
 
@@ -547,6 +574,7 @@ function renderSunCard() {
   renderTimeline();
   renderWeather();
   renderHereNote();
+  renderWhen();
 }
 
 async function fetchSun(l) {
@@ -610,6 +638,56 @@ async function checkBackend() {
       b.textContent = "The server has no GEMINI_API_KEY set. Sun timing works, but the read, plan, and relight will fail until the key is added.";
     }
   } catch { /* best effort */ }
+}
+
+/* ---------- when to shoot: natural windows per look ---------- */
+
+const LOOK_RULES = {
+  golden: { name: "Soft & golden", test: (p, c) => p.altitudeDeg > 0 && p.altitudeDeg <= 8, none: "No golden window in the next 36 h at this latitude." },
+  drama:  { name: "Dramatic", test: (p, c) => p.altitudeDeg >= 10 && p.altitudeDeg <= 45 && (c == null || c < 55), none: "Needs direct sun — the forecast looks too overcast." },
+  dapple: { name: "Dappled canopy", test: (p, c) => p.altitudeDeg >= 15 && (c == null || c < 60), none: "Needs fairly high direct sun — none coming up." },
+  clean:  { name: "Clean commercial", test: (p, c) => p.altitudeDeg > 5 && c != null && c >= 70, none: "No overcast coming — use open shade or a big silk in any daylight." },
+};
+
+function windowsFor(lookId) {
+  const rule = LOOK_RULES[lookId];
+  if (!rule || !sun?.path) return [];
+  const now = Date.now();
+  const pts = sun.path.filter((p) => new Date(p.t) >= now - 15 * 60000);
+  const wins = [];
+  let open = null;
+  pts.forEach((p) => {
+    const ok = rule.test(p, cloudAt(p.t));
+    if (ok && !open) open = { start: new Date(p.t), end: new Date(p.t) };
+    else if (ok && open) open.end = new Date(p.t);
+    else if (!ok && open) { wins.push(open); open = null; }
+  });
+  if (open) wins.push(open);
+  return wins.filter((w) => w.end - w.start >= 30 * 60000).slice(0, 3);
+}
+
+function dayTag(d) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const that = new Date(d); that.setHours(0, 0, 0, 0);
+  const diff = Math.round((that - today) / 86400000);
+  return diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : that.toLocaleDateString([], { weekday: "short" });
+}
+
+function fmtWindow(w) {
+  const cl = cloudAt(new Date((w.start.getTime() + w.end.getTime()) / 2));
+  return `<div><span>${dayTag(w.start)}</span><span>${fmt(w.start)}–${fmt(w.end)}${cl != null && cl >= 70 ? " ☁" : ""}</span></div>`;
+}
+
+let whenLook = "golden";
+function renderWhen() {
+  if (!sun) return;
+  $("whenLooks").innerHTML = Object.entries(LOOK_RULES).map(([id, r]) =>
+    `<button class="look" type="button" data-when="${id}" aria-pressed="${id === whenLook}" style="padding:6px 11px;min-height:32px;font-size:12.5px">${r.name}</button>`).join("");
+  document.querySelectorAll("[data-when]").forEach((b) => b.addEventListener("click", () => { whenLook = b.dataset.when; renderWhen(); }));
+  const wins = windowsFor(whenLook);
+  $("whenWindows").innerHTML = wins.length
+    ? wins.map(fmtWindow).join("")
+    : `<div style="color:var(--muted)">${LOOK_RULES[whenLook].none}</div>`;
 }
 
 /* ---------- compass + AR strip ---------- */
@@ -954,29 +1032,14 @@ function diagramSvg(diagram, w, h) {
     const ah = 4 * u, ang = Math.atan2(dy, dx);
     els += `<line x1="${sunFrom.x}" y1="${sunFrom.y}" x2="${tip.x}" y2="${tip.y}" stroke="#e8a33d" stroke-width="${1.2 * u}" stroke-dasharray="${3 * u} ${2 * u}" stroke-linecap="round"/>`;
     els += `<path d="M ${tip.x + Math.cos(ang) * ah} ${tip.y + Math.sin(ang) * ah} L ${tip.x + Math.cos(ang + 2.5) * ah} ${tip.y + Math.sin(ang + 2.5) * ah} L ${tip.x + Math.cos(ang - 2.5) * ah} ${tip.y + Math.sin(ang - 2.5) * ah} Z" fill="#e8a33d"/>`;
-    const lx = Math.min(Math.max(sunFrom.x, 6 * u), w - 6 * u), ly = Math.min(Math.max(sunFrom.y - 2.5 * u, 5 * u), h - 2 * u);
-    els += `<text x="${lx}" y="${ly}" font-size="${4 * u}" font-weight="700" fill="#e8a33d" stroke="rgba(0,0,0,0.75)" stroke-width="${0.8 * u}" paint-order="stroke" text-anchor="middle" font-family="system-ui">SUN</text>`;
   }
   if (subject) els += `<circle cx="${subject.x}" cy="${subject.y}" r="${5 * u}" fill="none" stroke="#ffffff" stroke-width="${0.7 * u}" stroke-dasharray="${1.6 * u} ${1.6 * u}" opacity="0.9"/>`;
-  marks.forEach((m, i) => {
-    const { x, y } = m.p;
-    const r = 4.4 * u;
-    els += `<circle cx="${x}" cy="${y}" r="${r}" fill="#e8a33d" stroke="rgba(0,0,0,0.4)" stroke-width="${0.5 * u}"/>`;
-    els += `<text x="${x}" y="${y + 1.6 * u}" font-size="${4.6 * u}" font-weight="800" fill="#201503" text-anchor="middle" font-family="system-ui">${i + 1}</text>`;
-    const tag = SHORT_TOOL[m.tool];
-    if (tag) {
-      const below = y < h - 12 * u;
-      const ty = below ? y + r + 4.6 * u : y - r - 2.4 * u;
-      const tx = Math.min(Math.max(x, 14 * u), w - 14 * u);
-      els += `<text x="${tx}" y="${ty}" font-size="${3.6 * u}" font-weight="650" fill="#fff" stroke="rgba(0,0,0,0.8)" stroke-width="${0.9 * u}" paint-order="stroke" text-anchor="middle" font-family="system-ui">${tag}</text>`;
-    }
-  });
   return `<svg viewBox="0 0 ${w} ${h}" aria-label="Lighting diagram overlay">${els}</svg>`;
 }
 
 function basePlan() {
   const d = state.diagnosis;
-  return { name: "Gaffer's call", approach: null, fixes: d.fixes || [], diagram: d.diagram };
+  return { name: "Gaffer's call", lookId: null, approach: null, fixes: d.fixes || [], diagram: d.diagram };
 }
 
 function updatePlanUI() {
@@ -986,15 +1049,71 @@ function updatePlanUI() {
   $("planBody").innerHTML = `
     ${p.approach ? `<div style="font-size:14px;font-weight:600">${esc(p.approach)}</div>` : ""}
     ${fixes ? `<div class="listhead">The moves — numbers match the diagram</div><ol class="fixes">${fixes}</ol>` : `<p class="hint">No moves came back for this brief.</p>`}`;
+  // natural window line: when does this look happen without gear?
+  const winLine = (() => {
+    if (!p.lookId || !LOOK_RULES[p.lookId]) return "";
+    const wins = windowsFor(p.lookId);
+    if (!wins.length) return "";
+    const w0 = wins[0];
+    return `<div class="hint" style="margin-top:8px;color:var(--gold)">☀ This look happens naturally ${dayTag(w0.start).toLowerCase()} ${fmt(w0.start)}–${fmt(w0.end)}${wins[1] ? ` and ${dayTag(wins[1].start).toLowerCase()} ${fmt(wins[1].start)}–${fmt(wins[1].end)}` : ""}.</div>`;
+  })();
+  if (winLine) $("planBody").insertAdjacentHTML("beforeend", winLine);
+
   const overlay = diagramSvg(p.diagram, state.frame.w, state.frame.h);
   const marks = Array.isArray(p.diagram?.marks) ? p.diagram.marks : [];
-  const legendTools = [...new Set(marks.map((m) => TOOL_NAMES[m.tool]).filter(Boolean))];
+  const sf = p.diagram?.sunFrom;
+  const chips = marks.map((m, i) => {
+    const x = clamp01(m.x), y = clamp01(m.y);
+    if (x == null || y == null) return "";
+    return `<div class="dmark" data-i="${i}" style="left:${x * 100}%;top:${y * 100}%">
+      <span class="dinner" style="animation-delay:${i * 0.5}s"><span class="dnum">${i + 1}</span><span class="dlabel">${SHORT_TOOL[m.tool] || "MOVE"}</span></span>
+    </div>`;
+  }).join("");
+  const sunChip = sf && clamp01(sf.x) != null
+    ? `<div class="dsun" style="left:${Math.min(92, Math.max(8, clamp01(sf.x) * 100))}%;top:${Math.min(94, Math.max(6, clamp01(sf.y) * 100))}%"><span>SUN</span></div>` : "";
   $("pane-diagram").innerHTML = `
-    <div class="frame">${`<img src="${state.frame.dataUrl}" alt="your frame">`}${overlay}</div>
-    ${overlay ? `<div class="legend">
-        <span class="key"><span class="swatch"></span>sun direction</span>
-        ${legendTools.map((t) => `<span class="key"><span class="num" style="transform:none;width:16px;height:16px;font-size:10px">#</span>${esc(t)}</span>`).join("")}
-      </div>` : `<p class="hint">No diagram came back for this brief.</p>`}`;
+    <div class="frame" id="diagFrame">${`<img src="${state.frame.dataUrl}" alt="your frame">`}${overlay}${sunChip}${chips}</div>
+    ${(overlay || chips) ? `<p class="hint">Drag a numbered chip if the gaffer placed it wrong — tap one to see its move. Corrections carry into the call sheet.</p>` : `<p class="hint">No diagram came back for this brief.</p>`}`;
+  wireMarks();
+}
+
+// Chips are draggable (correct the gaffer's placement) and tappable (highlight the move).
+function wireMarks() {
+  const frame = $("diagFrame");
+  if (!frame) return;
+  frame.querySelectorAll(".dmark").forEach((chip) => {
+    chip.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      try { chip.setPointerCapture(e.pointerId); } catch { /* capture is best-effort */ }
+      chip.classList.add("drag");
+      chip._moved = false;
+      const move = (ev) => {
+        const r = frame.getBoundingClientRect();
+        const x = Math.min(0.97, Math.max(0.03, (ev.clientX - r.left) / r.width));
+        const y = Math.min(0.95, Math.max(0.05, (ev.clientY - r.top) / r.height));
+        chip.style.left = x * 100 + "%";
+        chip.style.top = y * 100 + "%";
+        chip._pos = { x, y };
+        chip._moved = true;
+      };
+      const up = () => {
+        chip.classList.remove("drag");
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+        const m = state?.plan?.diagram?.marks?.[Number(chip.dataset.i)];
+        if (chip._pos && m) { m.x = chip._pos.x; m.y = chip._pos.y; }
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+    });
+    chip.addEventListener("click", () => {
+      if (chip._moved) { chip._moved = false; return; }
+      const i = Number(chip.dataset.i);
+      document.querySelectorAll("ol.fixes li").forEach((li, idx) => li.classList.toggle("hl", idx === i && !li.classList.contains("hl")));
+    });
+  });
 }
 
 function setPlanning(on) {
@@ -1004,14 +1123,14 @@ function setPlanning(on) {
   $("pane-diagram").style.opacity = on ? "0.6" : "";
 }
 
-async function fetchPlan(brief, name) {
+async function fetchPlan(brief, name, lookId = null) {
   setPlanning(true);
   try {
     const l = await getLocation();
-    const res = await aiFetch("/plan", { image: state.frame.dataUrl, brief, diagnosis: state.diagnosis, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() });
+    const res = await aiFetch("/plan", { image: state.frame.dataUrl, brief, gear: currentGear(), diagnosis: state.diagnosis, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() });
     const j = await res.json();
     if (!res.ok || j.plan?.error) throw new Error(j.plan?.error || j.error || `plan failed (${res.status})`);
-    state.plan = { name, approach: j.plan.approach || null, fixes: j.plan.fixes || [], diagram: j.plan.diagram };
+    state.plan = { name, lookId, approach: j.plan.approach || null, fixes: j.plan.fixes || [], diagram: j.plan.diagram };
     updatePlanUI();
     $("planStatus").innerHTML = "";
   } catch (e) {
@@ -1021,10 +1140,12 @@ async function fetchPlan(brief, name) {
   }
 }
 
+function currentGear() { return localStorage.getItem("scrim-gear") || "none"; }
+
 function currentBrief() {
   const custom = $("customBrief").value.trim();
   if (custom) return custom;
-  const picked = document.querySelector('.look[aria-pressed="true"]')?.dataset.look;
+  const picked = document.querySelector('.look[data-look][aria-pressed="true"]')?.dataset.look;
   return LOOKS.find((l) => l.id === picked)?.brief || "auto";
 }
 
@@ -1052,6 +1173,12 @@ function renderResults() {
         ${LOOKS.map((l) => `<button class="look" type="button" data-look="${l.id}" aria-pressed="${l.id === "auto"}">${l.name}<span class="sub">${l.sub}</span></button>`).join("")}
       </div>
       <input id="customBrief" type="text" placeholder="…or type your own and press return" autocomplete="off" enterkeyhint="go" />
+      <div class="listhead" style="margin-top:12px">What the crew has</div>
+      <div class="looks" id="gearRow" style="margin-top:6px">
+        <button class="look" type="button" data-gear="none" style="padding:6px 12px;min-height:32px;font-size:12.5px">No kit</button>
+        <button class="look" type="button" data-gear="small" style="padding:6px 12px;min-height:32px;font-size:12.5px">Small kit</button>
+        <button class="look" type="button" data-gear="full" style="padding:6px 12px;min-height:32px;font-size:12.5px">Full kit</button>
+      </div>
       <p class="status" id="planStatus"></p>
     </div>
 
@@ -1083,18 +1210,32 @@ function renderResults() {
 
   updatePlanUI();
 
-  document.querySelectorAll(".look").forEach((b) => b.addEventListener("click", () => {
-    document.querySelectorAll(".look").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+  document.querySelectorAll(".look[data-look]").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll(".look[data-look]").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
     $("customBrief").value = "";
     const look = LOOKS.find((l) => l.id === b.dataset.look);
     if (look.id === "auto") { state.plan = basePlan(); updatePlanUI(); $("planStatus").innerHTML = ""; }
-    else fetchPlan(look.brief, look.name);
+    else fetchPlan(look.brief, look.name, look.id);
   }));
   $("customBrief").addEventListener("input", () => {
-    if ($("customBrief").value.trim()) document.querySelectorAll(".look").forEach((x) => x.setAttribute("aria-pressed", "false"));
+    if ($("customBrief").value.trim()) document.querySelectorAll(".look[data-look]").forEach((x) => x.setAttribute("aria-pressed", "false"));
   });
   $("customBrief").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && $("customBrief").value.trim()) { e.preventDefault(); fetchPlan($("customBrief").value.trim(), "Your brief"); }
+  });
+
+  const gearSel = localStorage.getItem("scrim-gear") || "none";
+  document.querySelectorAll("[data-gear]").forEach((b) => {
+    b.setAttribute("aria-pressed", b.dataset.gear === gearSel ? "true" : "false");
+    b.addEventListener("click", () => {
+      localStorage.setItem("scrim-gear", b.dataset.gear);
+      document.querySelectorAll("[data-gear]").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+      // gear changes what the gaffer would plan: refresh a non-default plan
+      const picked = document.querySelector('.look[aria-pressed="true"][data-look]')?.dataset.look;
+      const custom = $("customBrief").value.trim();
+      if (custom) fetchPlan(custom, "Your brief");
+      else if (picked && picked !== "auto") { const lk = LOOKS.find((l) => l.id === picked); fetchPlan(lk.brief, lk.name, lk.id); }
+    });
   });
 
   $("lightIt").addEventListener("click", relight);
@@ -1120,7 +1261,7 @@ async function relight() {
   btn.textContent = "Lighting… (10–30 s)";
   $("renderStatus").textContent = "";
   try {
-    const res = await aiFetch("/render", { image: state.frame.dataUrl, brief, diagnosis: state.diagnosis });
+    const res = await aiFetch("/render", { image: state.frame.dataUrl, brief, gear: currentGear(), diagnosis: state.diagnosis });
     const j = await res.json();
     if (!res.ok || j.error) throw new Error(j.error || `render failed (${res.status})`);
     $("pane-compare").innerHTML = `
