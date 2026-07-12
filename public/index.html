@@ -359,6 +359,7 @@
         <div class="stage" id="stage">
           <canvas id="glc"></canvas>
           <button class="holdbtn" id="holdOrig" type="button">◉ hold — original</button>
+          <button class="holdbtn" id="fcBtn" type="button" style="right:auto;left:10px">▦ false color</button>
         </div>
         <div class="card" style="margin-top:8px">
           <div class="lightsrow" id="lightsRow"></div>
@@ -1563,7 +1564,7 @@ $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.p
 
 const studio = {
   frame: null, depth: null, gl: null, prog: null, tex: {}, lights: [],
-  ambient: 0.55, shadow: 0.45, sel: 0, dirty: false, holding: false,
+  ambient: 0.55, shadow: 0.45, sel: 0, dirty: false, holding: false, fc: false,
 };
 const LIGHT_ROLES = ["Key", "Fill", "Rim"];
 
@@ -1620,57 +1621,100 @@ const FS = `precision mediump float;
 varying vec2 vUv;
 uniform sampler2D uPhoto, uDepth, uMask;
 uniform vec2 uRes;
-uniform float uAmbient, uShadow;
+uniform float uAmbient, uShadow, uFC;
 uniform int uCount;
 uniform vec3 uLpos[3];
 uniform vec3 uLcol[3];
 uniform float uLint[3];
 uniform float uLwrap[3];
 uniform float uAim[3];
+
 float dlum(vec2 uv) { return dot(texture2D(uDepth, uv).rgb, vec3(0.299, 0.587, 0.114)); }
+vec3 toLin(vec3 c) { return pow(c, vec3(2.2)); }
+vec3 toSRGB(vec3 c) { return pow(max(c, 0.0), vec3(1.0 / 2.2)); }
+vec3 aces(vec3 x) { return clamp(x * (2.51 * x + 0.03) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+
 void main() {
-  vec3 albedo = texture2D(uPhoto, vUv).rgb;
+  vec3 albedo = toLin(texture2D(uPhoto, vUv).rgb);
   float d = dlum(vUv);
   vec2 px = 1.0 / uRes;
-  float dR = dlum(vUv + vec2(px.x, 0.0));
-  float dL = dlum(vUv - vec2(px.x, 0.0));
-  float dU = dlum(vUv + vec2(0.0, px.y));
-  float dD = dlum(vUv - vec2(0.0, px.y));
-  vec3 N = normalize(vec3((dL - dR) * 3.0, (dD - dU) * 3.0, 1.0));
+
+  // Sobel normals: far less noise than central differences on model depth maps
+  float tl = dlum(vUv + vec2(-px.x,  px.y)), tc = dlum(vUv + vec2(0.0,  px.y)), tr = dlum(vUv + vec2(px.x,  px.y));
+  float ml = dlum(vUv + vec2(-px.x,  0.0)),                                     mr = dlum(vUv + vec2(px.x,  0.0));
+  float bl = dlum(vUv + vec2(-px.x, -px.y)), bc = dlum(vUv + vec2(0.0, -px.y)), br = dlum(vUv + vec2(px.x, -px.y));
+  float gx = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl);
+  float gy = (tl + 2.0 * tc + tr) - (bl + 2.0 * bc + br);
+  vec3 N = normalize(vec3(-gx * 2.2, -gy * 2.2, 1.0));
   vec3 P = vec3(vUv, d * 0.55);
   vec3 V = vec3(0.0, 0.0, 1.0);
-  vec3 acc = albedo * uAmbient;
+
+  // depth AO: nearer neighbours occlude ambient, so crevices darken first
+  float occN = 0.0;
+  float aoR = 7.0;
+  if (dlum(vUv + vec2( px.x,  0.0)  * aoR) > d + 0.02) occN += 1.0;
+  if (dlum(vUv + vec2(-px.x,  0.0)  * aoR) > d + 0.02) occN += 1.0;
+  if (dlum(vUv + vec2( 0.0,  px.y)  * aoR) > d + 0.02) occN += 1.0;
+  if (dlum(vUv + vec2( 0.0, -px.y)  * aoR) > d + 0.02) occN += 1.0;
+  if (dlum(vUv + vec2( px.x,  px.y) * aoR * 0.7) > d + 0.02) occN += 1.0;
+  if (dlum(vUv + vec2(-px.x, -px.y) * aoR * 0.7) > d + 0.02) occN += 1.0;
+  float ao = 1.0 - (occN / 6.0) * 0.45;
+
+  vec3 acc = albedo * uAmbient * ao;
+
   for (int i = 0; i < 3; i++) {
     if (i >= uCount) break;
     vec3 Lv = uLpos[i] - P;
     float dist = length(Lv);
     vec3 L = normalize(Lv);
     float w = uLwrap[i];
+    float srcSize = clamp((w - 0.1) / 1.3, 0.0, 1.0);
     float diff = clamp((dot(N, L) + w) / (1.0 + w), 0.0, 1.0);
-    float att = 1.0 / (1.0 + (dist * dist) * 2.2);
+    // bigger apparent sources fall off more gently near the source
+    float r = 0.55 + srcSize * 0.45;
+    float att = 1.0 / (1.0 + (dist * dist) / (r * r));
     float sep = abs(P.z - uLpos[i].z);
     att *= 1.0 / (1.0 + sep * 1.4);
-    // screen-space shadow: march toward the light through the depth field
+
+    // screen-space shadow: jittered march; big soft sources cast faint, soft shadows
     float lit = 1.0;
     if (uShadow > 0.01) {
-      for (int st = 1; st <= 10; st++) {
-        vec3 sp = P + L * (float(st) * 0.045);
+      float j = hash(vUv * uRes) * 0.05;
+      float occ = 0.0;
+      for (int st = 1; st <= 8; st++) {
+        vec3 sp = P + L * (float(st) * 0.05 + j);
         if (sp.x < 0.0 || sp.x > 1.0 || sp.y < 0.0 || sp.y > 1.0 || sp.z > 0.9) break;
-        float sd = dlum(sp.xy) * 0.55;
-        if (sd > sp.z + 0.035) lit -= 0.11;
+        if (dlum(sp.xy) * 0.55 > sp.z + 0.035) occ += 1.0;
       }
-      lit = mix(1.0, clamp(lit, 0.2, 1.0), uShadow);
+      float sh = smoothstep(0.0, 1.0, 1.0 - occ / 8.0);
+      float strength = uShadow * (1.0 - srcSize * 0.65);
+      lit = mix(1.0, max(sh, 0.15), strength);
     }
-    // small sources throw a tighter, stronger specular; big soft ones barely any
+
     vec3 H = normalize(L + V);
-    float spec = pow(max(dot(N, H), 0.0), mix(52.0, 8.0, w)) * (1.0 - w) * 0.3;
-    // aim: 0 = everything, 1 = subject only, 2 = background only (digital flagging)
+    float spec = pow(max(dot(N, H), 0.0), mix(56.0, 8.0, w)) * (1.0 - srcSize) * 0.12;
     float m = texture2D(uMask, vUv).r;
     float aim = uAim[i] < 0.5 ? 1.0 : (uAim[i] < 1.5 ? smoothstep(0.3, 0.7, m) : 1.0 - smoothstep(0.3, 0.7, m));
-    acc += (albedo * diff + vec3(spec)) * uLcol[i] * (uLint[i] * att * 1.6 * lit * aim);
+    acc += (albedo * diff + vec3(spec)) * toLin(uLcol[i]) * (uLint[i] * att * 2.4 * lit * aim);
   }
-  acc = acc / (1.0 + acc * 0.12);
-  gl_FragColor = vec4(acc, 1.0);
+
+  vec3 color = toSRGB(aces(acc));
+  color += (hash(vUv * uRes + 0.5) - 0.5) / 255.0; // dither: no banding in dark falloff
+
+  if (uFC > 0.5) {
+    // ARRI-style false color: exposure bands on the RELIT image
+    float y = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    vec3 fc = vec3(y);
+    if (y < 0.025) fc = vec3(0.55, 0.10, 0.85);       // crushed: purple
+    else if (y < 0.06) fc = vec3(0.15, 0.35, 0.95);   // deep shadow: blue
+    else if (y > 0.97) fc = vec3(0.95, 0.10, 0.10);   // clipped: red
+    else if (y > 0.90) fc = vec3(0.98, 0.80, 0.15);   // near clip: yellow
+    else if (y > 0.50 && y < 0.58) fc = vec3(0.95, 0.55, 0.75); // skin key: pink
+    else if (y > 0.36 && y < 0.44) fc = vec3(0.25, 0.80, 0.30); // 18% grey: green
+    color = fc;
+  }
+  gl_FragColor = vec4(color, 1.0);
 }`;
 
 function glInit(photoImg, depthImg, maskImg) {
@@ -1749,6 +1793,7 @@ function glDraw() {
   }
   gl.uniform1f(u("uAmbient"), studio.holding ? 1.0 : studio.ambient);
   gl.uniform1f(u("uShadow"), studio.holding ? 0.0 : studio.shadow);
+  gl.uniform1f(u("uFC"), studio.fc && !studio.holding ? 1.0 : 0.0);
   gl.uniform1fv(u("uAim"), ls.length ? studio.lights.map((l) => l.aim || 0).concat([0, 0, 0]).slice(0, 3) : [0, 0, 0]);
   gl.uniform1i(u("uCount"), ls.length);
   gl.uniform3fv(u("uLpos"), pos);
@@ -2038,6 +2083,12 @@ $("modSel").addEventListener("change", () => {
 });
 
 // hold to compare with the untouched frame
+$("fcBtn").addEventListener("click", () => {
+  studio.fc = !studio.fc;
+  $("fcBtn").style.background = studio.fc ? "var(--gold)" : "rgba(0,0,0,0.55)";
+  $("fcBtn").style.color = studio.fc ? "#201503" : "#fff";
+  requestDraw();
+});
 ["pointerdown", "touchstart"].forEach((ev) => $("holdOrig").addEventListener(ev, (e) => { e.preventDefault(); studio.holding = true; requestDraw(); }));
 ["pointerup", "pointercancel", "pointerleave", "touchend"].forEach((ev) => $("holdOrig").addEventListener(ev, () => { studio.holding = false; requestDraw(); }));
 
