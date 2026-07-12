@@ -366,6 +366,7 @@
             <select id="fixSel" aria-label="Fixture" style="flex:1.4;min-width:0"></select>
             <select id="modSel" aria-label="Modifier" style="flex:1;min-width:0"></select>
           </div>
+          <div class="looks" id="aimRow" style="display:none;margin-bottom:8px"></div>
           <div class="sliders" id="sliders">
             <label><span>Intensity</span><input type="range" id="sInt" min="0" max="2" step="0.01"></label>
             <label><span id="warmLabel">Warmth</span><input type="range" id="sWarm" min="0" max="1" step="0.01"></label>
@@ -1606,10 +1607,10 @@ function tempColor(w) {
 
 function defaultLight(i) {
   return [
-    { x: 0.28, y: 0.3, z: 0.75, intensity: 1.0, warmth: 0.72, size: 0.52, fx: "a300x", mod: "dome" },   // key
-    { x: 0.78, y: 0.55, z: 0.6, intensity: 0.45, warmth: 0.35, size: 0.75, fx: "sky60", mod: "panel" }, // fill
-    { x: 0.6, y: 0.12, z: 0.5, intensity: 0.85, warmth: 0.4, size: 0.1, fx: "a600d", mod: "refl" },     // rim
-  ][i] || { x: 0.5, y: 0.4, z: 0.7, intensity: 0.8, warmth: 0.6, size: 0.5, fx: "free", mod: "any" };
+    { x: 0.28, y: 0.3, z: 0.75, intensity: 1.0, warmth: 0.72, size: 0.52, fx: "a300x", mod: "dome", aim: 0 },   // key
+    { x: 0.78, y: 0.55, z: 0.6, intensity: 0.45, warmth: 0.35, size: 0.75, fx: "sky60", mod: "panel", aim: 0 }, // fill
+    { x: 0.6, y: 0.12, z: 0.5, intensity: 0.85, warmth: 0.4, size: 0.1, fx: "a600d", mod: "refl", aim: 1 },     // rim aims at the subject
+  ][i] || { x: 0.5, y: 0.4, z: 0.7, intensity: 0.8, warmth: 0.6, size: 0.5, fx: "free", mod: "any", aim: 0 };
 }
 
 const VS = `attribute vec2 aPos; varying vec2 vUv;
@@ -1617,7 +1618,7 @@ void main() { vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`;
 
 const FS = `precision mediump float;
 varying vec2 vUv;
-uniform sampler2D uPhoto, uDepth;
+uniform sampler2D uPhoto, uDepth, uMask;
 uniform vec2 uRes;
 uniform float uAmbient, uShadow;
 uniform int uCount;
@@ -1625,6 +1626,7 @@ uniform vec3 uLpos[3];
 uniform vec3 uLcol[3];
 uniform float uLint[3];
 uniform float uLwrap[3];
+uniform float uAim[3];
 float dlum(vec2 uv) { return dot(texture2D(uDepth, uv).rgb, vec3(0.299, 0.587, 0.114)); }
 void main() {
   vec3 albedo = texture2D(uPhoto, vUv).rgb;
@@ -1662,13 +1664,16 @@ void main() {
     // small sources throw a tighter, stronger specular; big soft ones barely any
     vec3 H = normalize(L + V);
     float spec = pow(max(dot(N, H), 0.0), mix(52.0, 8.0, w)) * (1.0 - w) * 0.3;
-    acc += (albedo * diff + vec3(spec)) * uLcol[i] * (uLint[i] * att * 1.6 * lit);
+    // aim: 0 = everything, 1 = subject only, 2 = background only (digital flagging)
+    float m = texture2D(uMask, vUv).r;
+    float aim = uAim[i] < 0.5 ? 1.0 : (uAim[i] < 1.5 ? smoothstep(0.3, 0.7, m) : 1.0 - smoothstep(0.3, 0.7, m));
+    acc += (albedo * diff + vec3(spec)) * uLcol[i] * (uLint[i] * att * 1.6 * lit * aim);
   }
   acc = acc / (1.0 + acc * 0.12);
   gl_FragColor = vec4(acc, 1.0);
 }`;
 
-function glInit(photoImg, depthImg) {
+function glInit(photoImg, depthImg, maskImg) {
   const c = $("glc");
   const rscale = Math.min(1, 960 / photoImg.naturalWidth);
   c.width = Math.round(photoImg.naturalWidth * rscale);
@@ -1707,8 +1712,21 @@ function glInit(photoImg, depthImg) {
   };
   mkTex(photoImg, 0);
   mkTex(depthImg, 1);
+  if (maskImg) mkTex(maskImg, 2);
+  else {
+    // no mask: a single white texel means "aim" has no effect — identical to no segmentation
+    const t = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
   gl.uniform1i(gl.getUniformLocation(prog, "uPhoto"), 0);
   gl.uniform1i(gl.getUniformLocation(prog, "uDepth"), 1);
+  gl.uniform1i(gl.getUniformLocation(prog, "uMask"), 2);
   gl.uniform2f(gl.getUniformLocation(prog, "uRes"), c.width, c.height);
   gl.viewport(0, 0, c.width, c.height);
   studio.gl = gl;
@@ -1731,6 +1749,7 @@ function glDraw() {
   }
   gl.uniform1f(u("uAmbient"), studio.holding ? 1.0 : studio.ambient);
   gl.uniform1f(u("uShadow"), studio.holding ? 0.0 : studio.shadow);
+  gl.uniform1fv(u("uAim"), ls.length ? studio.lights.map((l) => l.aim || 0).concat([0, 0, 0]).slice(0, 3) : [0, 0, 0]);
   gl.uniform1i(u("uCount"), ls.length);
   gl.uniform3fv(u("uLpos"), pos);
   gl.uniform3fv(u("uLcol"), col);
@@ -1763,6 +1782,19 @@ function studioSyncSliders() {
   $("sWarm").disabled = fixedCCT;
   $("sWarm").style.opacity = fixedCCT ? "0.4" : "";
   $("warmLabel").textContent = `Warmth · ${kelvinOf(l)}K`;
+  const aimRow = $("aimRow");
+  if (studio.hasMask) {
+    aimRow.style.display = "flex";
+    aimRow.innerHTML = [["Everything", 0], ["Subject", 1], ["Background", 2]].map(([n, v]) =>
+      `<button class="look" type="button" data-aim="${v}" aria-pressed="${(l.aim || 0) === v}" style="padding:5px 11px;min-height:30px;font-size:12px">${n}</button>`).join("");
+    aimRow.querySelectorAll("[data-aim]").forEach((b) => b.addEventListener("click", () => {
+      l.aim = Number(b.dataset.aim);
+      aimRow.querySelectorAll("[data-aim]").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+      requestDraw();
+    }));
+  } else {
+    aimRow.style.display = "none";
+  }
 }
 
 function studioRenderLights() {
@@ -1824,6 +1856,95 @@ function studioRenderHandles() {
   });
 }
 
+/* ---- on-device vision: Depth Anything V2 + MediaPipe subject mask ----
+   Both are lazy, cached, and optional: any failure falls back to the cloud
+   depth call and a maskless studio — never worse than before. */
+
+let depthPipePromise = null;
+async function localDepth(frame, onStatus) {
+  if (sessionStorage.getItem("scrim-local-depth-broken")) throw new Error("local depth disabled this session");
+  if (!depthPipePromise) {
+    depthPipePromise = (async () => {
+      const { pipeline } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.1");
+      const device = navigator.gpu ? "webgpu" : "wasm";
+      return pipeline("depth-estimation", "onnx-community/depth-anything-v2-small", {
+        device,
+        dtype: device === "webgpu" ? "fp16" : "q8",
+        progress_callback: (p) => {
+          if (p.status === "progress" && p.file?.endsWith(".onnx")) {
+            onStatus(`Downloading depth model… ${Math.round(p.progress || 0)}% (first time only)`);
+          }
+        },
+      });
+    })().catch((e) => { depthPipePromise = null; throw e; });
+  }
+  const pipe = await depthPipePromise;
+  onStatus("Mapping depth on-device…");
+  const out = await pipe(frame.dataUrl);
+  const ri = out.depth; // RawImage, brighter = nearer
+  const ch = ri.channels || 1;
+  const c = document.createElement("canvas");
+  c.width = ri.width; c.height = ri.height;
+  const ctx = c.getContext("2d");
+  const im = ctx.createImageData(ri.width, ri.height);
+  for (let i = 0; i < ri.width * ri.height; i++) {
+    const v = ri.data[i * ch];
+    im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v;
+    im.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(im, 0, 0);
+  return c.toDataURL("image/png");
+}
+
+let segmenterPromise = null;
+const MASK_CACHE = new Map();
+async function subjectMask(frame) {
+  if (MASK_CACHE.has(frame.dataUrl)) return MASK_CACHE.get(frame.dataUrl);
+  if (!segmenterPromise) {
+    segmenterPromise = (async () => {
+      const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
+      const files = await vision.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+      return vision.ImageSegmenter.createFromOptions(files, {
+        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite" },
+        outputConfidenceMasks: true,
+        runningMode: "IMAGE",
+      });
+    })().catch((e) => { segmenterPromise = null; throw e; });
+  }
+  const seg = await segmenterPromise;
+  const img = await loadImg(frame.dataUrl);
+  const res = seg.segment(img);
+  const masks = res.confidenceMasks || [];
+  // selfie models emit 1 or 2 confidence masks; the person mask is the one
+  // covering a plausible minority of the frame
+  let best = null, bestCov = 0;
+  for (const cm of masks) {
+    const data = cm.getAsFloat32Array();
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) sum += data[i];
+    const cov = sum / data.length;
+    if (cov > 0.03 && cov < 0.75 && (!best || Math.abs(cov - 0.3) < Math.abs(bestCov - 0.3))) { best = { cm, data }; bestCov = cov; }
+  }
+  let result = null;
+  if (best) {
+    const { cm, data } = best;
+    const c = document.createElement("canvas");
+    c.width = cm.width; c.height = cm.height;
+    const ctx = c.getContext("2d");
+    const im = ctx.createImageData(cm.width, cm.height);
+    for (let i = 0; i < data.length; i++) {
+      const v = Math.round(data[i] * 255);
+      im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v;
+      im.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(im, 0, 0);
+    result = c.toDataURL("image/png");
+  }
+  res.close?.();
+  MASK_CACHE.set(frame.dataUrl, result);
+  return result;
+}
+
 function loadImg(src) {
   return new Promise((res, rej) => {
     const i = new Image();
@@ -1838,18 +1959,36 @@ async function studioLoad(frame) {
   studio.frame = frame;
   $("studioEmpty").style.display = "block";
   $("studio").style.display = "none";
-  $("studioBootStatus").textContent = "Mapping depth… one pass per frame (10–30 s)";
+  $("studioBootStatus").textContent = "Building the set…";
   try {
-    let depthUrl = DEPTH_CACHE.get(frame.dataUrl);
-    if (!depthUrl) {
-      const res = await aiFetch("/depth", { image: frame.dataUrl });
-      const j = await res.json();
-      if (!res.ok || j.error || !j.depth) throw new Error(j.error || `depth failed (${res.status})`);
-      depthUrl = j.depth;
+    const setStatus = (t) => { $("studioBootStatus").textContent = t; };
+    const depthPromise = (async () => {
+      let depthUrl = DEPTH_CACHE.get(frame.dataUrl);
+      if (depthUrl) return depthUrl;
+      try {
+        // on-device: fast, free, sharper geometry — but never let a stalled
+        // model download strand the user; 90 s covers a first download on 4G
+        depthUrl = await Promise.race([
+          localDepth(frame, setStatus),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("on-device depth timed out")), 90000)),
+        ]);
+      } catch (e) {
+        console.warn("on-device depth unavailable, using cloud:", e?.message || e);
+        sessionStorage.setItem("scrim-local-depth-broken", "1");
+        setStatus("Mapping depth in the cloud… (10–30 s)");
+        const res = await aiFetch("/depth", { image: frame.dataUrl });
+        const j = await res.json();
+        if (!res.ok || j.error || !j.depth) throw new Error(j.error || `depth failed (${res.status})`);
+        depthUrl = j.depth;
+      }
       DEPTH_CACHE.set(frame.dataUrl, depthUrl);
-    }
-    const [photoImg, depthImg] = await Promise.all([loadImg(frame.dataUrl), loadImg(depthUrl)]);
-    glInit(photoImg, depthImg);
+      return depthUrl;
+    })();
+    const maskPromise = subjectMask(frame).catch((e) => { console.warn("segmentation unavailable:", e?.message || e); return null; });
+    const [depthUrl, maskUrl] = await Promise.all([depthPromise, maskPromise]);
+    const [photoImg, depthImg, maskImg] = await Promise.all([loadImg(frame.dataUrl), loadImg(depthUrl), maskUrl ? loadImg(maskUrl) : null]);
+    studio.hasMask = Boolean(maskImg);
+    glInit(photoImg, depthImg, maskImg);
     studio.lights = [defaultLight(0)];
     studio.sel = 0;
     studio.ambient = 0.55;
@@ -1929,7 +2068,8 @@ function rigToBrief() {
     const fix = fixOf(l), mod = modOf(l);
     const strength = l.intensity > 1.2 ? "at high output" : l.intensity > 0.6 ? "at medium output" : "dimmed low";
     const dist = l.z > 0.9 ? "close to camera" : l.z > 0.5 ? "at subject distance" : "pushed back deep";
-    return `${role}: an ${fix.name} with ${mod.name.toLowerCase()} at ${kelvinOf(l)}K, ${strength}, from frame ${posWord(l.x, "left", "right")}, ${posWord(l.y, "high", "low")}, ${dist}`;
+    const aim = l.aim === 1 ? ", aimed at the subject only and flagged off the background" : l.aim === 2 ? ", washing the background only, flagged off the subject" : "";
+    return `${role}: an ${fix.name} with ${mod.name.toLowerCase()} at ${kelvinOf(l)}K, ${strength}, from frame ${posWord(l.x, "left", "right")}, ${posWord(l.y, "high", "low")}, ${dist}${aim}`;
   });
   const amb = studio.ambient < 0.3 ? "Let the existing ambient light fall almost to black."
     : studio.ambient < 0.7 ? "Keep the existing ambient light present but clearly secondary."
