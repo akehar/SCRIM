@@ -1357,10 +1357,13 @@ function updatePlanUI() {
   const marks = Array.isArray(p.diagram?.marks) ? p.diagram.marks : [];
   const sf = p.diagram?.sunFrom;
   const chips = marks.map((m, i) => {
+    // wait and move aren't places — they read as nonsense pinned to the frame,
+    // so they live only in the numbered moves list
+    if (m.tool === "wait" || m.tool === "move") return "";
     const x = clamp01(m.x), y = clamp01(m.y);
     if (x == null || y == null) return "";
     return `<div class="dmark" data-i="${i}" style="left:${x * 100}%;top:${y * 100}%">
-      <span class="dinner" style="animation-delay:${i * 0.5}s"><span class="dnum">${i + 1}</span><span class="dlabel">${SHORT_TOOL[m.tool] || "MOVE"}</span></span>
+      <span class="dinner" style="animation-delay:${i * 0.5}s"><span class="dnum">${i + 1}</span><span class="dlabel">${SHORT_TOOL[m.tool] || "RIG"}</span></span>
     </div>`;
   }).join("");
   const sunChip = sf && clamp01(sf.x) != null
@@ -1693,6 +1696,7 @@ function exportCallSheet() {
         x.stroke(); x.setLineDash([]);
       }
       (dg.marks || []).forEach((m, i) => {
+        if (m.tool === "wait" || m.tool === "move") return;
         if (clamp01(m.x) == null) return;
         x.fillStyle = "#e8a33d"; x.beginPath(); x.arc(fx(m.x), fy(m.y), 30, 0, 7); x.fill();
         x.fillStyle = "#201503"; x.font = "800 34px system-ui"; x.textAlign = "center";
