@@ -68,6 +68,10 @@
     display: none; animation: fadein 0.18s ease;
   }
   .screen.active { display: block; }
+  #screen-ask.active { display: flex; flex-direction: column; }
+  #screen-ask .chatwrap { flex: 1; min-height: 0; }
+  #screen-ask .chatlog { padding: 6px 0 10px; }
+  #screen-ask .chatrow { padding: 8px 0 4px; border-top: 1.5px solid var(--ink); }
   @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
   nav.tabbar {
@@ -286,32 +290,7 @@
   }
   input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--ochre); border: 2.5px solid var(--paper); box-shadow: 0 0 0 1.5px var(--ink); cursor: pointer; }
 
-  /* chat: full-bleed paper sheet */
-  #chatSheet {
-    position: fixed; inset: 0; z-index: 60; background: var(--paper); display: none; flex-direction: column;
-  }
-  #chatSheet.open { display: flex; }
-  .chathead {
-    display: flex; align-items: baseline; gap: 10px;
-    padding: calc(14px + env(safe-area-inset-top)) 22px 10px; border-bottom: 1.5px solid var(--ink);
-  }
-  .chathead .t { font-family: var(--serif); font-size: 22px; font-weight: 500; }
-  .chathead .s { font-family: var(--serif); font-style: italic; font-size: 13.5px; color: var(--muted); flex: 1; }
-  .chatclose { font-family: var(--mono); background: none; border: none; font-size: 20px; color: var(--ink); cursor: pointer; padding: 4px 8px; }
-  .chatwrap { display: flex; flex-direction: column; height: 100%; width: 100%; }
-  .chatlog { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 0; padding: 6px 22px 10px; }
-  .msg { max-width: 100%; padding: 10px 0; font-size: 16px; line-height: 1.5; white-space: pre-wrap; border-bottom: 1px solid var(--hair); }
-  .msg.user { text-align: right; font-family: var(--mono); font-size: 13px; color: var(--muted); }
-  .msg.ai { font-family: var(--serif); }
-  .msg.thinking { color: var(--muted); font-style: italic; }
-  .chatrow { flex: 0 0 auto; display: flex; gap: 8px; padding: 8px 22px calc(12px + env(safe-area-inset-bottom)); align-items: center; border-top: 1.5px solid var(--ink); }
-  .chatrow input { flex: 1; margin-top: 0; }
-  #chatFab {
-    position: fixed; right: 18px; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 50;
-    width: 54px; height: 54px; border-radius: 50%; background: var(--ochre); color: var(--paper);
-    border: none; font-size: 22px; cursor: pointer; box-shadow: 0 3px 10px rgba(25,25,19,0.25);
-  }
-  #chatFab:active { transform: scale(0.94); }
+  /* chat lives in the Ask tab */
 
   #map { background: #E9E6D9; }
   .leaflet-container { font-family: var(--mono); }
@@ -515,35 +494,46 @@
         </div>
         <p class="status" id="pinStatus"></p>
       </div>
-      <div class="card" id="shotCard">
-        <h2>Shot list</h2>
-        <div id="shotList"><p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p></div>
-        <div class="actions" style="margin:10px 0 0">
-          <button class="btn" id="exportPlan" type="button">Share day plan</button>
-          <button class="btn" id="clearShots" type="button">Clear shots</button>
+      <div class="card" id="shotCard" style="border-top:1.5px solid var(--ink)">
+        <div class="tabs" role="tablist" style="margin-bottom:8px">
+          <button class="tab" role="tab" aria-selected="true" data-ppane="ppane-shots" type="button">Shot list</button>
+          <button class="tab" role="tab" aria-selected="false" data-ppane="ppane-reads" type="button">Reads</button>
+        </div>
+        <div id="ppane-shots" role="tabpanel">
+          <div id="shotList"><p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p></div>
+          <div class="actions" style="margin:10px 0 0">
+            <button class="btn" id="exportPlan" type="button">Share day plan</button>
+            <button class="btn" id="clearShots" type="button">Clear shots</button>
+          </div>
+        </div>
+        <div id="ppane-reads" role="tabpanel" hidden>
+          <p class="hint" style="font-style:italic;margin:0 0 4px">Every read, remembered — tap one to see it on the map.</p>
+          <div id="logList"><p class="hint">No reads in this project yet.</p></div>
+          <div class="actions" style="margin:10px 0 0">
+            <button class="btn" id="exportCsv" type="button">Light sheet (CSV)</button>
+            <button class="btn" id="clearLog" type="button">Clear reads</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- ============ LOG: every read, remembered ============ -->
-    <section class="screen" id="screen-log">
-      <div class="card" style="border-bottom:none">
-        <div style="font-family:var(--serif);font-size:26px;font-weight:500;line-height:1.15;margin:6px 0 2px">Every read, remembered.</div>
-        <p class="hint" style="font-style:italic">Each frame you analyze lands here with its light, its place, and its problems — filed to the project.</p>
+
+    <!-- ============ ASK ============ -->
+    <section class="screen" id="screen-ask">
+      <div style="padding:10px 0 8px;border-bottom:1.5px solid var(--ink);display:flex;align-items:baseline;gap:10px">
+        <span style="font-family:var(--serif);font-size:22px;font-weight:500">The gaffer</span>
+        <span style="font-family:var(--serif);font-style:italic;font-size:13.5px;color:var(--muted)">A gaffer you can talk to.</span>
       </div>
-      <div class="card" style="border-bottom:none;padding-top:6px">
-        <h2>Project</h2>
-        <div class="looks projrow"></div>
-      </div>
-      <div class="card" style="border-top:1.5px solid var(--ink)">
-        <div id="logList"><p class="hint">No reads yet.</p></div>
-        <div class="actions" style="margin:12px 0 0">
-          <button class="btn" id="exportCsv" type="button">Export light sheet (CSV)</button>
-          <button class="btn" id="clearLog" type="button">Clear log</button>
+      <div class="chatwrap">
+        <div class="chatlog" id="chatLog">
+          <div class="msg ai">Ask me anything about the light — what gear to bring, how to shape what you've got, when to shoot. If you've done a read on the Shoot tab, I can see that frame too.</div>
+        </div>
+        <div class="chatrow">
+          <input id="chatInput" type="text" placeholder="Ask the light anything." autocomplete="off" enterkeyhint="send">
+          <button class="btn primary" id="chatSend" type="button" style="min-height:46px;padding:10px 16px">Send</button>
         </div>
       </div>
     </section>
-
   </main>
 
   <nav class="tabbar" role="tablist">
@@ -551,27 +541,8 @@
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button"><span class="ico">□</span>Shoot</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Pro</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-plan" type="button"><span class="ico">▵</span>Plan</button>
-    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-log" type="button"><span class="ico">≡</span>Log</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-ask" type="button"><span class="ico">✳</span>Ask</button>
   </nav>
-
-  <button id="chatFab" type="button" aria-label="Ask the gaffer">✳</button>
-
-  <div id="chatSheet">
-    <div class="chathead">
-      <span class="t">The gaffer</span>
-      <span class="s">A gaffer you can talk to.</span>
-      <button class="chatclose" id="chatClose" type="button" aria-label="Close chat">✕</button>
-    </div>
-    <div class="chatwrap">
-      <div class="chatlog" id="chatLog">
-        <div class="msg ai">Ask me anything about the light — what gear to bring, how to shape what you've got, when to shoot. If you've done a read on the Shoot tab, I can see that frame too.</div>
-      </div>
-      <div class="chatrow">
-        <input id="chatInput" type="text" placeholder="Ask the light anything." autocomplete="off" enterkeyhint="send">
-        <button class="btn primary" id="chatSend" type="button" style="min-height:46px;padding:10px 16px">Send</button>
-      </div>
-    </div>
-  </div>
 
 
 <script>
@@ -1242,15 +1213,22 @@ function renderHereNote() {
 function renderLog() {
   const log = logForProject();
   $("logList").innerHTML = log.length
-    ? log.map((e) => `
-      <div class="logitem">
+    ? log.map((e, i) => `
+      <div class="logitem" data-read="${i}" style="cursor:pointer">
         <img src="${e.thumb}" alt="">
         <div class="logmeta">
           <div>${e.sum || "read"}</div>
           <small>${new Date(e.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}${e.probs ? ` · ${e.probs} problem${e.probs > 1 ? "s" : ""}` : ""}${e.lat != null && loc ? ` · ${Math.round(distM(loc.latitude, loc.longitude, e.lat, e.lng))} m away` : ""}</small>
         </div>
       </div>`).join("")
-    : `<p class="hint">No reads yet. Every frame you analyze lands here with its light, time, and place.</p>`;
+    : `<p class="hint">No reads in this project yet. Every frame you analyze lands here with its light, time, and place.</p>`;
+  document.querySelectorAll("[data-read]").forEach((row) => row.addEventListener("click", () => {
+    const e = logForProject()[Number(row.dataset.read)];
+    if (!e || e.lat == null) return;
+    if (map) map.setView([e.lat, e.lng], 15);
+    selectPin({ lat: e.lat, lng: e.lng, label: e.sum || "Scene", scout: false });
+    $("map").scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
 }
 
 $("clearLog").addEventListener("click", () => {
@@ -1786,15 +1764,6 @@ async function sendChat() {
     $("chatLog").scrollTop = $("chatLog").scrollHeight;
   }
 }
-$("chatFab").addEventListener("click", () => {
-  $("chatSheet").classList.add("open");
-  $("chatFab").style.display = "none";
-  setTimeout(() => $("chatInput").focus(), 120);
-});
-$("chatClose").addEventListener("click", () => {
-  $("chatSheet").classList.remove("open");
-  $("chatFab").style.display = "";
-});
 $("chatSend").addEventListener("click", sendChat);
 $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendChat(); } });
 
@@ -2682,8 +2651,14 @@ function planGuidance() {
     ? "Tap the map to scout a spot — ochre pins are this project's reads."
     : "No reads in this project yet — shoot a frame on the Shoot tab, or tap anywhere on the map to scout the light there.";
 }
+document.querySelectorAll("[data-ppane]").forEach((t) => t.addEventListener("click", () => {
+  document.querySelectorAll("[data-ppane]").forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
+  ["ppane-shots", "ppane-reads"].forEach((id) => { $(id).hidden = id !== t.dataset.ppane; });
+}));
+
 function initPlan() {
   renderShots();
+  renderLog();
   renderProjectRows();
   if (typeof L === "undefined") {
     $("mapHint").innerHTML = `<span class="err">Map library didn't load — scene memory and the shot list below still work.</span>`;
