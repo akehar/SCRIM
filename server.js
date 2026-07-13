@@ -118,9 +118,14 @@ For "diagram", all coordinates are fractions of the frame (x rightward, y downwa
 "subject" is the centre of the main subject.
 "marks" has exactly one entry per entry in "fixes", in the same order: the spot IN THE FRAME where that move happens (where the silk or bounce goes, where the subject should move to, or the subject itself for a timing fix). "tool" must be exactly one of the six enum values.`;
 
-async function diagnose(data, mime, sun) {
+async function diagnose(data, mime, sun, cloudCover) {
+  const sky = Number.isFinite(cloudCover)
+    ? cloudCover >= 75 ? " The sky is heavily overcast, so the ambient is soft and diffuse."
+      : cloudCover >= 40 ? ` The sky is about ${Math.round(cloudCover)}% cloudy — broken light.`
+      : " The sky is mostly clear."
+    : "";
   const prompt = `You are an experienced gaffer looking at a single frame lit by natural light.
-Right now the sun is ${sun.now.altitudeDeg} degrees above the horizon, coming from the ${sun.now.direction}, and the light is ${sun.now.quality}.
+Right now the sun is ${sun.now.altitudeDeg} degrees above the horizon, coming from the ${sun.now.direction}, and the light is ${sun.now.quality}.${sky}
 Judge ONLY the lighting on the subject and scene. "fixes" is YOUR call as the gaffer: the treatment you would run if the director gave no direction. Reply with strict JSON, no markdown, exactly this shape:
 {
   "direction": "where the main light comes from, in plain words",
@@ -239,13 +244,13 @@ function parseImage(image) {
 // The read: sun + diagnosis + diagram. Cheap vision call, no image generation.
 app.post("/analyze", requireCode, async (req, res) => {
   try {
-    const { image, latitude, longitude, timestamp } = req.body || {};
+    const { image, latitude, longitude, timestamp, cloudCover } = req.body || {};
     if (!image || latitude == null || longitude == null) {
       return res.status(400).json({ error: "Need image (base64), latitude, longitude." });
     }
     const { mime, data } = parseImage(image);
     const sun = sunReport(Number(latitude), Number(longitude), timestamp);
-    const diagnosis = await diagnose(data, mime, sun).catch((e) => ({ error: String(e?.message || e) }));
+    const diagnosis = await diagnose(data, mime, sun, Number(cloudCover)).catch((e) => ({ error: String(e?.message || e) }));
     res.json({ sun, diagnosis });
   } catch (err) {
     console.error(err);

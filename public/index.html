@@ -240,6 +240,19 @@
   }
   .ghandle.neg { border-color: #666; background: rgba(0,0,0,0.65); color: #bbb; }
   .ghandle.sel { border-style: solid; border-color: var(--gold); color: var(--gold); }
+  .shandle {
+    position: absolute; transform: translate(-50%, -50%); z-index: 3; touch-action: none; cursor: grab;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .shandle .sdisc {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #fff3d6, var(--gold) 65%);
+    box-shadow: 0 0 14px rgba(232,163,61,0.75); border: 2px solid rgba(255,255,255,0.8);
+  }
+  .shandle .slabel {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: #fff;
+    background: rgba(0,0,0,0.55); border-radius: 999px; padding: 2px 7px; white-space: nowrap;
+  }
   .lhandle.drag { cursor: grabbing; transform: translate(-50%, -50%) scale(1.12); }
   .lightsrow { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
   .sliders label { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: 12.5px; color: var(--muted); }
@@ -371,7 +384,9 @@
           <button class="holdbtn" id="fcBtn" type="button" style="right:auto;left:10px">▦ false color</button>
           <button class="holdbtn" id="clayBtn" type="button" style="right:auto;left:10px;bottom:48px">◇ clay</button>
         </div>
+        <p class="hint" id="sunFeed" style="margin:8px 2px 0"></p>
         <div class="card" style="margin-top:8px">
+          <div class="hint" id="kmeter" style="margin:0 0 8px;color:var(--gold)"></div>
           <div class="lightsrow" id="lightsRow"></div>
           <div class="lightsrow" id="gripRow"></div>
           <div id="lightControls">
@@ -985,7 +1000,9 @@ $("closeCam").addEventListener("click", () => {
 $("snap").addEventListener("click", () => {
   const v = $("vf");
   if (!v.videoWidth) return;
-  handleFrame(downscale(v, v.videoWidth, v.videoHeight));
+  const f = downscale(v, v.videoWidth, v.videoHeight);
+  if (heading != null) f.heading = heading; // remember which way the camera faced
+  handleFrame(f);
 });
 
 $("shot").addEventListener("change", async (e) => {
@@ -1068,7 +1085,7 @@ async function analyze(frame) {
   try {
     const l = await getLocation();
     $("status").textContent = "Asking the gaffer… (5–20 s)";
-    const res = await aiFetch("/analyze", { image: frame.dataUrl, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() });
+    const res = await aiFetch("/analyze", { image: frame.dataUrl, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString(), cloudCover: cloudAt(Date.now()) });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `request failed (${res.status})`);
     $("status").textContent = "";
@@ -1584,7 +1601,7 @@ $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.p
 const studio = {
   frame: null, depth: null, gl: null, prog: null, tex: {}, lights: [],
   ambient: 0.55, shadow: 0.45, sel: 0, selType: "light", gsel: 0, panels: [],
-  dirty: false, holding: false, fc: false, clayPin: false, clayAuto: false,
+  dirty: false, holding: false, fc: false, clayPin: false, clayAuto: false, sunEl: null, sceneK: null,
 };
 const LIGHT_ROLES = ["Key", "Fill", "Rim"];
 const GRIP_TYPES = {
@@ -1646,7 +1663,8 @@ const FS = `precision mediump float;
 varying vec2 vUv;
 uniform sampler2D uPhoto, uDepth, uMask;
 uniform vec2 uRes;
-uniform float uAmbient, uShadow, uFC, uClay;
+uniform float uAmbient, uShadow, uFC, uClay, uSunOn, uSunWrap;
+uniform vec3 uSunDir, uSunCol;
 uniform int uCount;
 uniform vec3 uLpos[3];
 uniform vec3 uLcol[3];
@@ -1706,7 +1724,14 @@ void main() {
   }
   float softG = clamp(silkG * 0.7 + musG, 0.0, 1.0);
 
-  vec3 acc = albedo * uAmbient * ao;
+  vec3 acc;
+  if (uSunOn > 0.5) {
+    // the existing light is the actual sun: directional, weather-softened, kelvin-true
+    float sd = clamp((dot(N, uSunDir) + uSunWrap) / (1.0 + uSunWrap), 0.0, 1.0);
+    acc = albedo * uAmbient * ao * (vec3(0.4) + toLin(uSunCol) * sd * 1.15);
+  } else {
+    acc = albedo * uAmbient * ao;
+  }
 
   for (int i = 0; i < 3; i++) {
     if (i >= uCount) break;
@@ -1843,6 +1868,15 @@ function glDraw() {
   gl.uniform1f(u("uShadow"), studio.holding ? 0.0 : studio.shadow);
   gl.uniform1f(u("uFC"), studio.fc && !studio.holding ? 1.0 : 0.0);
   gl.uniform1f(u("uClay"), (studio.clayPin || studio.clayAuto) && !studio.holding ? 1.0 : 0.0);
+  const se = studio.sunEl;
+  gl.uniform1f(u("uSunOn"), se && !studio.holding ? 1.0 : 0.0);
+  if (se) {
+    const dv = [se.x - 0.5, (1 - se.y) - 0.5, 0.62];
+    const dl = Math.hypot(...dv) || 1;
+    gl.uniform3fv(u("uSunDir"), dv.map((v) => v / dl));
+    gl.uniform3fv(u("uSunCol"), kelvinRGB(se.kelvin));
+    gl.uniform1f(u("uSunWrap"), se.wrap);
+  }
   gl.uniform1fv(u("uAim"), ls.length ? studio.lights.map((l) => l.aim || 0).concat([0, 0, 0]).slice(0, 3) : [0, 0, 0]);
   const gp = [], gt = [], gs = [];
   for (let i = 0; i < 2; i++) {
@@ -1928,7 +1962,7 @@ function studioRenderLights() {
 
   document.querySelectorAll("[data-li]").forEach((b) => b.addEventListener("click", () => {
     studio.selType = "light"; studio.sel = Number(b.dataset.li);
-    studioRenderLights(); studioSyncSliders(); studioRenderHandles();
+    studioRenderLights(); studioSyncSliders(); studioRenderHandles(); updateSunFeed();
   }));
   document.querySelectorAll("[data-gi]").forEach((b) => b.addEventListener("click", () => {
     studio.selType = "grip"; studio.gsel = Number(b.dataset.gi);
@@ -1958,6 +1992,67 @@ function studioRenderLights() {
   });
 }
 
+function deriveSun(frame) {
+  const alt = sun?.now?.altitudeDeg;
+  if (alt == null || alt <= -6) return null;
+  const cloud = cloudAt(Date.now());
+  let pos = null, src = null;
+  const sf = state?.frame === frame ? state?.diagnosis?.diagram?.sunFrom : null;
+  if (sf && clamp01(sf.x) != null) {
+    pos = { x: clamp01(sf.x), y: clamp01(sf.y) };
+    src = "read";
+  } else if (frame.heading != null && sun?.now) {
+    const rel = ((sun.now.azimuthDeg - frame.heading + 540) % 360) - 180;
+    if (Math.abs(rel) <= 100) {
+      pos = { x: Math.min(1.3, Math.max(-0.3, 0.5 + rel / 120)), y: Math.max(0.04, 0.5 - (alt / 90) * 0.55) };
+      src = "compass";
+    }
+  }
+  if (!pos) return null;
+  return { ...pos, kelvin: sunKelvin(alt, cloud), wrap: sunSoftnessWrap(cloud), cloud, src, alt };
+}
+
+function updateSunFeed() {
+  const el = $("sunFeed");
+  if (!el) return;
+  const se = studio.sunEl;
+  if (!se) {
+    el.textContent = sun?.now && sun.now.altitudeDeg > -6
+      ? "No sun direction for this frame — shoot from the viewfinder with the compass on, or run a read first."
+      : "";
+    return;
+  }
+  let txt = `☀ Sun ${se.kelvin.toLocaleString()}K`
+    + (se.cloud != null ? ` · ${Math.round(se.cloud)}% cloud` : "")
+    + (se.src === "compass" ? " · placed by compass" : " · placed from the read");
+  const l = studio.selType === "light" && studio.lights[studio.sel];
+  if (l) {
+    const dx = l.x - se.x;
+    const sep = Math.hypot(dx, l.y - se.y);
+    const role = LIGHT_ROLES[studio.sel] || "light";
+    const dk = kelvinOf(l) - se.kelvin;
+    const rel = sep < 0.22 ? `${role} rides the sun axis, boosting the existing key`
+      : sep > 0.62 ? `${role} opposes the sun — cross light / rim territory`
+      : `${role} works ${dx < 0 ? "camera-left" : "camera-right"} of the sun as modeling light`;
+    const tone = Math.abs(dk) < 400 ? "matched to the sun"
+      : dk > 0 ? `${Math.abs(dk).toLocaleString()}K warmer than the sun (reads golden)`
+      : `${Math.abs(dk).toLocaleString()}K cooler than the sun (reads clinical)`;
+    txt += `. ${rel}, ${tone}.`;
+  }
+  el.innerHTML = txt;
+}
+
+function updateKMeter() {
+  const parts = [];
+  if (studio.sunEl) parts.push(`sun math ${studio.sunEl.kelvin.toLocaleString()}K`);
+  if (studio.sceneK) parts.push(`scene reads ${studio.sceneK.toLocaleString()}K`);
+  if (studio.sunEl && studio.sceneK) {
+    const d = studio.sceneK - studio.sunEl.kelvin;
+    if (Math.abs(d) >= 500) parts.push(d > 0 ? "scene cooler — likely shade or overcast mix" : "scene warmer — bounce or practicals in play");
+  }
+  $("kmeter").textContent = parts.length ? `Kelvin meter · ${parts.join(" · ")}` : "";
+}
+
 function studioRenderHandles() {
   const stage = $("stage");
   stage.querySelectorAll(".lhandle, .ghandle").forEach((h) => h.remove());
@@ -1974,6 +2069,7 @@ function studioRenderHandles() {
         h.style.left = obj.x * 100 + "%";
         h.style.top = obj.y * 100 + "%";
         studio.clayAuto = true; // clay view while moving: falloff and shadows read pure
+        updateSunFeed();
         requestDraw();
       };
       const up = () => {
@@ -2003,6 +2099,16 @@ function studioRenderHandles() {
     });
     stage.appendChild(h);
   });
+  if (studio.sunEl) {
+    const se = studio.sunEl;
+    const h = document.createElement("div");
+    h.className = "shandle";
+    h.style.left = Math.min(96, Math.max(4, se.x * 100)) + "%";
+    h.style.top = Math.min(94, Math.max(6, se.y * 100)) + "%";
+    h.innerHTML = `<span class="sdisc"></span><span class="slabel">SUN ${se.kelvin.toLocaleString()}K</span>`;
+    wireDrag(h, se, () => {});
+    stage.appendChild(h);
+  }
   studio.panels.forEach((p, i) => {
     const h = document.createElement("div");
     h.className = "ghandle" + (p.type === "neg" ? " neg" : "") + (studio.selType === "grip" && i === studio.gsel ? " sel" : "");
@@ -2016,6 +2122,55 @@ function studioRenderHandles() {
       h.classList.add("sel");
     });
     stage.appendChild(h);
+  });
+}
+
+/* ---- sun physics + kelvin metering ---- */
+
+function sunKelvin(alt, cloud) {
+  let k;
+  if (alt == null) return null;
+  if (alt <= 0) k = 8500;                                    // twilight skylight
+  else if (alt <= 6) k = 2900 + (alt / 6) * 700;             // golden hour
+  else if (alt <= 15) k = 3600 + ((alt - 6) / 9) * 900;
+  else if (alt <= 35) k = 4500 + ((alt - 15) / 20) * 1000;
+  else k = 5600;                                             // full daylight
+  if (cloud != null && alt > 0) k += (cloud / 100) * 1200;   // overcast reads cooler
+  return Math.round(Math.min(9500, k));
+}
+function sunSoftnessWrap(cloud) { return cloud == null ? 0.25 : 0.2 + (cloud / 100) * 1.2; }
+
+// Gray-world estimate -> CIE xy -> CCT via McCamy's approximation.
+// An estimate, not a spot meter: it assumes the scene averages neutral.
+function sceneKelvin(dataUrl) {
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"); c.width = 64; c.height = 64;
+      const x = c.getContext("2d");
+      x.drawImage(img, 0, 0, 64, 64);
+      const d = x.getImageData(0, 0, 64, 64).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const mx = Math.max(d[i], d[i + 1], d[i + 2]);
+        if (mx > 242 || mx < 14) continue; // clipped or blocked pixels lie about colour
+        r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
+      }
+      if (n < 200) return res(null);
+      const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      const R = lin(r / n), G = lin(g / n), B = lin(b / n);
+      const X = 0.4124 * R + 0.3576 * G + 0.1805 * B;
+      const Y = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+      const Z = 0.0193 * R + 0.1192 * G + 0.9505 * B;
+      const sum = X + Y + Z;
+      if (!sum) return res(null);
+      const cx = X / sum, cy = Y / sum;
+      const nn = (cx - 0.3320) / (0.1858 - cy);
+      const cct = 449 * nn ** 3 + 3525 * nn ** 2 + 6823.3 * nn + 5520.33;
+      res(cct > 1800 && cct < 20000 ? Math.round(cct) : null);
+    };
+    img.onerror = () => res(null);
+    img.src = dataUrl;
   });
 }
 
@@ -2160,7 +2315,11 @@ async function studioLoad(frame) {
     $("studioEmpty").style.display = "none";
     $("studio").style.display = "block";
     $("realOut").innerHTML = "";
+    studio.sunEl = deriveSun(frame);
+    studio.sceneK = null;
+    sceneKelvin(frame.dataUrl).then((k) => { studio.sceneK = k; updateKMeter(); });
     studioRenderLights(); studioSyncSliders(); studioRenderHandles();
+    updateSunFeed(); updateKMeter();
     requestDraw();
   } catch (e) {
     $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
@@ -2173,7 +2332,7 @@ async function studioLoad(frame) {
     const l = studio.selType === "light" && studio.lights[studio.sel];
     if (l) {
       l[key] = Number($(id).value);
-      if (key === "warmth") $("warmLabel").textContent = `Warmth · ${kelvinOf(l)}K`;
+      if (key === "warmth") { $("warmLabel").textContent = `Warmth · ${kelvinOf(l)}K`; updateSunFeed(); }
       requestDraw();
     }
   });
