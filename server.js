@@ -16,6 +16,18 @@ function requireCode(req, res, next) {
   res.status(401).json({ error: "Access code required." });
 }
 
+// ---------- beta analytics: in-memory since boot, durable via Render's log stream ----------
+// Search "[scrim-analytics]" / "[scrim-feedback]" in Render Logs for history across restarts.
+const EVENTS = [];
+const FEEDBACK = [];
+const BOOTED = new Date();
+function logEvent(e, meta) {
+  const ev = { t: new Date().toISOString(), e, ...(meta ? { m: meta } : {}) };
+  EVENTS.push(ev);
+  if (EVENTS.length > 2000) EVENTS.shift();
+  console.log("[scrim-analytics]", JSON.stringify(ev));
+}
+
 // Nano Banana 2 edits the actual frame (image in, image out).
 const IMAGE_MODEL = process.env.IMAGE_MODEL || "gemini-3.1-flash-image";
 // Reads the frame and returns JSON. Model ids drift, so confirm the
@@ -251,6 +263,7 @@ app.post("/analyze", requireCode, async (req, res) => {
     const { mime, data } = parseImage(image);
     const sun = sunReport(Number(latitude), Number(longitude), timestamp);
     const diagnosis = await diagnose(data, mime, sun, Number(cloudCover)).catch((e) => ({ error: String(e?.message || e) }));
+    logEvent("analyze", diagnosis?.error ? "error" : "ok");
     res.json({ sun, diagnosis });
   } catch (err) {
     console.error(err);
@@ -287,6 +300,7 @@ Answer in plain, practical on-set language. Be specific (gear sizes, angles, tim
       contents: history,
     });
     const text = r.text ?? r.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ?? "";
+    logEvent("chat", "ok");
     res.json({ reply: text || "(no answer came back)" });
   } catch (err) {
     console.error(err);
@@ -305,6 +319,7 @@ app.post("/plan", requireCode, async (req, res) => {
     const sun = sunReport(Number(latitude), Number(longitude), timestamp);
     const p = await plan(data, mime, sun, String(brief).slice(0, 500), diagnosis, gear)
       .catch((e) => ({ error: String(e?.message || e) }));
+    logEvent("plan", p?.error ? "error" : "ok");
     res.json({ plan: p });
   } catch (err) {
     console.error(err);
@@ -352,6 +367,7 @@ app.post("/recheck", requireCode, async (req, res) => {
     const b = parseImage(before), a = parseImage(after);
     const check = await recheckRead(b.data, b.mime, a.data, a.mime, diagnosis)
       .catch((e) => ({ error: String(e?.message || e) }));
+    logEvent("recheck", check?.error ? "error" : "ok");
     res.json({ check });
   } catch (err) {
     console.error(err);
@@ -373,6 +389,7 @@ app.post("/depth", requireCode, async (req, res) => {
     });
     const parts = r.candidates?.[0]?.content?.parts ?? [];
     const img = parts.find((p) => p.inlineData);
+    logEvent("depth", img ? "ok" : "error");
     if (!img) return res.json({ depth: null, error: "model returned no depth image" });
     res.json({ depth: `data:${img.inlineData.mimeType};base64,${img.inlineData.data}`, error: null });
   } catch (err) {
@@ -390,6 +407,7 @@ app.post("/render", requireCode, async (req, res) => {
     const { mime, data } = parseImage(image);
     const render = await renderLook(data, mime, typeof brief === "string" ? brief.slice(0, 500) : "auto", diagnosis, gear)
       .catch((e) => ({ error: String(e?.message || e) }));
+    logEvent("render", render && !render.error ? "ok" : "error");
     res.json({
       render: render && !render.error ? `data:${render.mimeType};base64,${render.data}` : null,
       error: render?.error || (render ? null : "model returned no image"),
@@ -398,6 +416,47 @@ app.post("/render", requireCode, async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "render failed", detail: String(err?.message || err) });
   }
+});
+
+// Client-side UI events: fire-and-forget beacons (tab views, exports, studio opens).
+app.post("/track", (req, res) => {
+  const { e, m } = req.body || {};
+  if (typeof e !== "string" || !e || e.length > 40) return res.status(400).json({ error: "bad event" });
+  logEvent(e, typeof m === "string" ? m.slice(0, 120) : undefined);
+  res.json({ ok: true });
+});
+
+// In-app beta feedback: kept in memory AND printed whole to the log stream.
+app.post("/feedback", (req, res) => {
+  const { text, name } = req.body || {};
+  if (!text || typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Say something first." });
+  const fb = { t: new Date().toISOString(), name: String(name || "").slice(0, 60), text: String(text).slice(0, 2000) };
+  FEEDBACK.push(fb);
+  if (FEEDBACK.length > 500) FEEDBACK.shift();
+  console.log("[scrim-feedback]", JSON.stringify(fb));
+  logEvent("feedback");
+  res.json({ ok: true });
+});
+
+// The owner's dashboard: /stats?code=YOUR_ACCESS_CODE
+app.get("/stats", (req, res) => {
+  if (ACCESS_CODE && req.query.code !== ACCESS_CODE) return res.status(401).send("Add ?code=YOUR_ACCESS_CODE");
+  const counts = {};
+  EVENTS.forEach((ev) => { counts[ev.e] = (counts[ev.e] || 0) + 1; });
+  const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const rows = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join("");
+  const recent = EVENTS.slice(-80).reverse().map((ev) => `<tr><td>${ev.t.slice(5, 19).replace("T", " ")}</td><td>${esc(ev.e)}</td><td>${esc(ev.m || "")}</td></tr>`).join("");
+  const fb = FEEDBACK.slice().reverse().map((f) => `<div class="fb"><b>${esc(f.name || "anonymous")}</b> <span>${f.t.slice(0, 16).replace("T", " ")}</span><p>${esc(f.text)}</p></div>`).join("") || "<p>No feedback yet.</p>";
+  res.send(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scrim stats</title>
+<style>body{font-family:ui-monospace,Menlo,monospace;background:#F3F1E8;color:#191913;padding:24px;max-width:720px;margin:auto}
+h1{font-size:20px}h2{font-size:13px;letter-spacing:.14em;color:#A6452D;margin-top:28px}table{border-collapse:collapse;width:100%;font-size:13px}
+td{border-bottom:1px solid #DAD7C8;padding:5px 8px 5px 0}.fb{border-bottom:1px solid #DAD7C8;padding:10px 0;font-size:14px}
+.fb span{color:#5C5B50;font-size:11px}.fb p{margin:6px 0 0;font-family:Georgia,serif}.note{color:#5C5B50;font-size:12px}</style>
+<h1>Scrim — beta stats</h1>
+<p class="note">In-memory since boot (${BOOTED.toISOString().slice(0, 16).replace("T", " ")} UTC) · resets on deploy/idle · full history: Render Logs, search [scrim-analytics] or [scrim-feedback]</p>
+<h2>TOTALS SINCE BOOT</h2><table>${rows(counts) || "<tr><td>nothing yet</td></tr>"}</table>
+<h2>FEEDBACK (${FEEDBACK.length})</h2>${fb}
+<h2>LAST 80 EVENTS</h2><table>${recent || "<tr><td>none</td></tr>"}</table>`);
 });
 
 // Sun-only report: no image, no AI, no key needed. Cheap enough to poll.

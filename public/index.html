@@ -335,7 +335,22 @@
     </svg>
     <h1 class="wordmark">Scrim</h1>
     <button class="pill" id="locPill" type="button" title="Tap to refresh location">locating…</button>
+    <button class="pill" id="fbBtn" type="button" title="Send feedback" style="max-width:none;font-size:15px">✎</button>
   </header>
+
+  <div id="fbSheet" style="position:fixed;inset:0;z-index:70;background:var(--paper);display:none;flex-direction:column;padding:calc(14px + env(safe-area-inset-top)) 22px calc(14px + env(safe-area-inset-bottom))">
+    <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1.5px solid var(--ink);padding-bottom:10px">
+      <span style="font-family:var(--serif);font-size:22px;font-weight:500">Tell me everything</span>
+      <span style="font-family:var(--serif);font-style:italic;font-size:13px;color:var(--muted);flex:1">Bugs, wishes, confusion — all of it.</span>
+      <button class="chatclose" id="fbClose" type="button" style="font-family:var(--mono);background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
+    </div>
+    <input id="fbName" type="text" placeholder="Your name (optional)" autocomplete="off" style="margin-top:14px">
+    <textarea id="fbText" placeholder="What happened? What did you expect? What's missing?" style="flex:0 0 auto;height:160px;margin-top:10px;font-family:var(--serif);font-size:15px;padding:11px 12px;border-radius:6px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);resize:vertical"></textarea>
+    <div class="actions" style="grid-template-columns:1fr;margin-top:12px">
+      <button class="btn primary" id="fbSend" type="button">Send feedback</button>
+    </div>
+    <p class="status" id="fbStatus"></p>
+  </div>
 
   <main>
     <!-- ============ NOW ============ -->
@@ -1520,7 +1535,7 @@ function renderResults() {
 
   $("lightIt").addEventListener("click", relight);
   $("checkWork").addEventListener("click", armRecheck);
-  $("exportSheet").addEventListener("click", exportCallSheet);
+  $("exportSheet").addEventListener("click", () => { track("call_sheet"); exportCallSheet(); });
   $("toStudio").addEventListener("click", () => { gotoScreen("screen-light"); studioLoad(state.frame); });
 
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
@@ -1556,7 +1571,7 @@ async function relight() {
       <div class="actions" style="grid-template-columns:1fr;margin:10px 0 0">
         <button class="btn" id="saveRender" type="button">Save render</button>
       </div>`;
-    $("saveRender").addEventListener("click", () => saveRender(j.render));
+    $("saveRender").addEventListener("click", () => { track("save_render"); saveRender(j.render); });
     const tab = $("compareTab");
     tab.disabled = false; tab.style.opacity = ""; tab.click();
     const cmp = $("cmp");
@@ -2445,6 +2460,7 @@ function loadImg(src) {
 
 async function studioLoad(frame) {
   if (!frame) return;
+  track("studio_open");
   studio.frame = frame;
   $("studioEmpty").style.display = "block";
   $("studio").style.display = "none";
@@ -2763,6 +2779,7 @@ $("addShot").addEventListener("click", () => {
   shots.push({ pid: activeProject().id, lat: pinSel.lat, lng: pinSel.lng, label: pinSel.label, lookId: pinSel.lookId, lookName: LOOK_RULES[pinSel.lookId].name, start: w.start, end: w.end });
   saveShots(shots);
   renderShots();
+  track("shot_added");
   $("pinStatus").innerHTML = `<span class="good">Added to the shot list.</span>`;
 });
 
@@ -2818,6 +2835,7 @@ $("exportPlan").addEventListener("click", () => {
   });
   x.fillStyle = "#9b937f"; x.font = "24px system-ui";
   x.fillText("scrim — shape the light you already have", 48, H - 36);
+  track("day_plan");
   c.toBlob((blob) => shareOrDownload(blob, "scrim-day-plan.png", "Scrim day plan"), "image/png");
 });
 
@@ -2844,7 +2862,44 @@ function animateEmblem() {
 }
 window.addEventListener("load", animateEmblem);
 
+/* ---------- beta telemetry + feedback ---------- */
+
+// Fire-and-forget: never blocks, never errors into the UI.
+function track(e, m) {
+  try {
+    const body = JSON.stringify({ e, m });
+    if (!(navigator.sendBeacon && navigator.sendBeacon("/track", new Blob([body], { type: "application/json" })))) {
+      fetch("/track", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+    }
+  } catch { /* telemetry must never hurt */ }
+}
+document.querySelectorAll(".tabbtn").forEach((b) => b.addEventListener("click", () => track("tab", b.dataset.screen.replace("screen-", ""))));
+
+$("fbBtn").addEventListener("click", () => { $("fbSheet").style.display = "flex"; track("feedback_open"); });
+$("fbClose").addEventListener("click", () => { $("fbSheet").style.display = "none"; });
+$("fbSend").addEventListener("click", async () => {
+  const text = $("fbText").value.trim();
+  if (!text) { $("fbStatus").innerHTML = `<span class="err">Say something first.</span>`; return; }
+  $("fbSend").disabled = true;
+  try {
+    const r = await fetch("/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, name: $("fbName").value.trim() }),
+    });
+    if (!r.ok) throw new Error("send failed");
+    $("fbText").value = "";
+    $("fbStatus").innerHTML = `<span class="good">Got it — thank you. Every note makes this better.</span>`;
+    setTimeout(() => { $("fbSheet").style.display = "none"; $("fbStatus").textContent = ""; }, 1400);
+  } catch {
+    $("fbStatus").innerHTML = `<span class="err">Couldn't send — try again in a moment.</span>`;
+  } finally {
+    $("fbSend").disabled = false;
+  }
+});
+
 /* ---------- boot ---------- */
+track("app_open");
 checkBackend();
 loadSun();
 renderProjectRows();
