@@ -589,6 +589,12 @@
   </nav>
 
 
+<div id="termPop" style="display:none;position:fixed;left:16px;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:80;background:var(--paper);border:1.5px solid var(--ink);border-radius:8px;padding:14px 16px;box-shadow:0 6px 20px rgba(25,25,19,0.18)">
+  <div id="termTitle" style="font-family:var(--mono);font-size:11px;letter-spacing:0.14em;color:var(--ochre);font-weight:600"></div>
+  <p id="termDef" style="margin:6px 0 8px;font-size:15px;line-height:1.45"></p>
+  <a id="termImg" target="_blank" rel="noopener" style="font-family:var(--mono);font-size:11.5px;color:var(--ochre);text-decoration:none;letter-spacing:0.06em">SEE PHOTOS ↗</a>
+</div>
+
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1457,7 +1463,7 @@ function basePlan() {
 
 function updatePlanUI() {
   const p = state.plan;
-  const fixes = (p.fixes || []).map((f, i) => `<li><span class="num">${i + 1}</span><span>${esc(f)}</span></li>`).join("");
+  const fixes = (p.fixes || []).map((f, i) => `<li><span class="num">${i + 1}</span><span>${glossarize(esc(f))}</span></li>`).join("");
   $("planName").textContent = p.name;
   $("planBody").innerHTML = `
     ${p.approach ? `<div style="font-size:14px;font-weight:600">${esc(p.approach)}</div>` : ""}
@@ -1474,7 +1480,7 @@ function updatePlanUI() {
   if (Array.isArray(p.gear) && p.gear.length) {
     $("planBody").insertAdjacentHTML("beforeend", `
       <div class="listhead">Gear to bring</div>
-      <ul class="probs ok" style="font-size:14px">${p.gear.slice(0, 8).map((g) => `<li>${esc(g)}</li>`).join("")}</ul>`);
+      <ul class="probs ok" style="font-size:14px">${p.gear.slice(0, 8).map((g) => `<li>${glossarize(esc(g))}</li>`).join("")}</ul>`);
   }
   const ovTab = $("overheadTab");
   if (ovTab) {
@@ -1862,6 +1868,114 @@ function exportCallSheet() {
   img.src = state.frame.dataUrl;
 }
 
+/* ---------- set-language glossary: tap a term, learn the gear ---------- */
+
+const GLOSSARY = {
+  "c-stand": "The all-purpose grip stand: three stacking legs, a riser, and a grip head that holds an arm. Rigs flags, silks, and small lights.",
+  "combo stand": "A heavier stand with a junior (28mm) receiver for bigger lights. A mombo combo is the extra-tall, extra-beefy version.",
+  "mombo combo": "The tallest, heaviest combo stand — junior receiver, huge payload, goes to ~4m. For big lights and heavy rags outdoors.",
+  "hi-hi roller": "A tall rolling stand (a high roller on steroids) with a junior receiver, used to fly big frames and lights high and move them fast.",
+  "high roller": "A tall stand on wheels with a junior receiver — flies big lights or frame corners and rolls around set.",
+  "hi roller": "A tall stand on wheels with a junior receiver — flies big lights or frame corners and rolls around set.",
+  "baby pin": "The standard 16mm stud smaller lights mount on. 'Baby' = 16mm, 'junior' = 28mm.",
+  "junior": "The 28mm stud/receiver standard for heavier lights and stands.",
+  "menace arm": "A boom rigged off a stand to hang a light out over the set (over talent, over water) where no stand can go.",
+  "gobo arm": "The steel arm held by a C-stand's grip head — what your flag or small light actually hangs on.",
+  "cardellini": "A screw-clamp that bites onto pipes, doors, and edges to mount lights or grip gear without a stand.",
+  "mafer": "A do-everything clamp with a baby pin — grabs speedrail, dolly track, furniture; a light goes on top.",
+  "apple box": "The wooden box of set life: raises furniture, actors, and lights. Full, half, quarter, and pancake sizes.",
+  "stinger": "An extension cord, in set language.",
+  "speedrail": "Aluminium pipe used to build rigging — goalposts, wall spreaders, car mounts.",
+  "goalpost": "Two stands and a speedrail crossbar, used to fly a light or rag over the action from outside the frame.",
+  "sandbag": "Weight for stand legs. The rule: every stand gets a bag; outdoors, more.",
+  "silk": "Diffusion fabric on a frame that softens light passing through. China silk is light (~half stop); artificial silks come in stops.",
+  "china silk": "The classic lightweight diffusion fabric — softens the source about half a stop, keeps direction.",
+  "ultrabounce": "Heavy white bounce fabric — throws soft fill back at the subject; the black side doubles as negative fill.",
+  "muslin": "Cotton bounce fabric; bleached is neutral, unbleached bounces warm. Heavier, warmer feel than ultrabounce.",
+  "floppy": "A 4x4 flag with a hinged extra flap that folds out — solid black, blocks or negs light; the fast way to kill spill.",
+  "flag": "A black fabric panel that blocks light — shapes edges, keeps flares off the lens, darkens a side.",
+  "cutter": "A long thin flag for slicing light off a specific area — walls, backgrounds, an actor's hot shoulder.",
+  "solid": "Any full-black rag — a big flag. A 12x12 solid kills a lot of sun.",
+  "rag": "Set word for any large fabric — silk, solid, ultrabounce — that goes on a frame.",
+  "frame": "The metal square (4x4 up to 20x20) that fabric stretches onto; corners fly on stands.",
+  "grid cloth": "Strong diffusion fabric (full/half/quarter strength). 'Silent' grid is the no-flap version for windy exteriors and sound takes.",
+  "silent grid": "Grid cloth without eyelet holes that flap in wind — the choice for exteriors and quiet sets.",
+  "magic cloth": "A dense diffusion that eats ~2 stops and gives a very soft, even glow — the moody-daylight favourite.",
+  "blackwrap": "Matte black aluminium foil — wraps around fixtures and practicals to shape or kill light where no flag fits.",
+  "duvetyne": "Black light-absorbing fabric — skirts lights, blacks out windows, kills reflections.",
+  "216": "Full white diffusion gel (Lee 216) — roughly a stop and a half of softening, clipped over frames or windows.",
+  "250": "Half white diffusion gel — softer than nothing, lighter touch than 216.",
+  "251": "Quarter white diffusion — barely-there softening that keeps most of the punch.",
+  "opal": "The lightest standard diffusion — takes the edge off without changing the source's character.",
+  "cto": "Colour Temperature Orange gel — warms a daylight source toward tungsten (full, 1/2, 1/4 strengths).",
+  "ctb": "Colour Temperature Blue gel — cools a tungsten source toward daylight.",
+  "hmi": "A daylight-balanced arc lamp (M18, M40, ARRIMAX) — the most punch per watt; the artificial sun.",
+  "fresnel": "A lensed fixture with a focusable spot/flood beam and a clean hard shadow edge.",
+  "book light": "The softest setup there is: bounce a light into white, then diffuse the bounce — light 'opens like a book'.",
+  "china ball": "A paper lantern with a bulb — cheap, omnidirectional soft light, lovely for faces in tight spaces.",
+  "lantern": "A soft omnidirectional modifier (fabric china ball) — wraps a room in soft light from above.",
+  "negative fill": "Taking light AWAY: black fabric on the shadow side deepens contrast without adding a single watt.",
+  "neg fill": "Taking light AWAY: black fabric on the shadow side deepens contrast without adding a single watt.",
+  "practical": "A light that appears in frame — a lamp, a sign, a candle — motivating where the movie light comes from.",
+  "cookie": "A cutout panel (cucoloris) that throws a broken pattern — fake window frames, leaves, blinds.",
+  "polarizer": "A rotating filter that kills reflections on glass, water, and floors, and deepens skies.",
+  "scrim": "On set, also a metal mesh that dims a light without changing its quality — singles and doubles. (Yes, we named the app after the fabric kind.)",
+  "bounce": "Any white/silver surface that redirects light softly back at the subject — boards, beadboard, ultrabounce.",
+};
+const GLOSSARY_RE = new RegExp("\\b(" + Object.keys(GLOSSARY).sort((a, b) => b.length - a.length).map((k) => k.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")).join("|") + ")\\b", "gi");
+
+// Wrap known set terms in tappable spans. Runs on HTML we built from escaped text.
+function glossarize(html) {
+  const seen = new Set();
+  return html.replace(/(>[^<]+<|^[^<]+$|^[^<]+<|>[^<]+$)/g, (chunk) =>
+    chunk.replace(GLOSSARY_RE, (m) => {
+      const key = m.toLowerCase();
+      if (seen.has(key)) return m;
+      seen.add(key);
+      return `<span class="term" data-term="${key}">${m}</span>`;
+    }));
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest?.(".term");
+  const pop = $("termPop");
+  if (!t) { if (pop && !e.target.closest("#termPop")) pop.style.display = "none"; return; }
+  const key = t.dataset.term;
+  $("termTitle").textContent = key.toUpperCase();
+  $("termDef").textContent = GLOSSARY[key] || "";
+  $("termImg").href = "https://www.google.com/search?tbm=isch&q=" + encodeURIComponent(key + " film grip lighting");
+  pop.style.display = "block";
+  track("glossary", key);
+});
+
+// Chat-grade markdown: bold, bullets, small headers, code blocks. Nothing exotic.
+function mdToHtml(t) {
+  const lines = esc(t).replace(/```[\s\S]*?```/g, (m) => m.replace(/\n/g, "\u0001")).split("\n");
+  const out = [];
+  let inList = false;
+  for (let raw of lines) {
+    raw = raw.replace(/\u0001/g, "\n");
+    let line = raw;
+    const code = /^```/.test(line.trim());
+    if (code) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push(`<pre class="code">${line.replace(/```\w*\n?/, "").replace(/```\s*$/, "")}</pre>`);
+      continue;
+    }
+    line = line.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|\s)\*([^*\s][^*]*)\*(?=\s|$)/g, "$1<i>$2</i>");
+    const h = line.match(/^\s*#{1,4}\s*(.+)$/);
+    const li = line.match(/^\s*[-*•]\s+(.+)$/);
+    if (h) { if (inList) { out.push("</ul>"); inList = false; } out.push(`<div class="mh">${h[1].replace(/#/g, "")}</div>`); }
+    else if (li) { if (!inList) { out.push('<ul class="mlist">'); inList = true; } out.push(`<li>${li[1]}</li>`); }
+    else {
+      if (inList) { out.push("</ul>"); inList = false; }
+      if (line.trim()) out.push(`<p class="mp">${line}</p>`);
+    }
+  }
+  if (inList) out.push("</ul>");
+  return out.join("");
+}
+
 /* ---------- ask the gaffer ---------- */
 
 const chatHistory = [];
@@ -1909,7 +2023,7 @@ async function sendChat() {
     if (!res.ok || j.error) throw new Error(j.error || `chat failed (${res.status})`);
     chatHistory.push({ role: "model", text: j.reply });
     thinking.classList.remove("thinking");
-    thinking.textContent = j.reply;
+    thinking.innerHTML = glossarize(mdToHtml(j.reply));
   } catch (e) {
     chatHistory.pop(); // let the user resend the same question
     thinking.classList.remove("thinking");

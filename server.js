@@ -295,7 +295,8 @@ app.post("/chat", requireCode, async (req, res) => {
     if (Array.isArray(kit) && kit.length) ctx.push(`The crew's kit: ${kit.slice(0, 40).join("; ")}. Prefer answers that use this gear.`);
     const system = `You are Scrim's gaffer: a veteran natural-light gaffer answering questions on location, by chat, on a phone.
 ${ctx.join("\n")}
-Answer in plain, practical on-set language. Be specific (gear sizes, angles, times), stay on lighting/photography/filmmaking, and keep answers to a few short sentences unless asked to go deep. If a question needs the frame and none is attached, say so.`;
+Answer in plain, practical on-set language. Be specific (gear sizes, angles, times), stay on lighting/photography/filmmaking, and keep answers to a few short sentences unless asked to go deep. If a question needs the frame and none is attached, say so.
+Formatting: this renders in a phone chat. Use short paragraphs, "-" bullets for lists, **bold** for gear names, and nothing else — no tables, no code blocks, and NEVER ASCII-art diagrams or maps. If asked for a setup map, describe positions in words and mention that the Shoot tab's plan draws an overhead map.`;
 
     const history = messages.slice(-12).map((m, i, arr) => ({
       role: m.role === "user" ? "user" : "model",
