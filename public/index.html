@@ -112,8 +112,10 @@
   .times span:last-child { font-family: var(--mono); font-size: 12.5px; color: var(--ink); }
 
   .compassrow { display: flex; align-items: center; gap: 12px; }
-  .dial { flex: 0 0 auto; width: 48px; height: 48px; }
-  .dial .needle { transform-origin: 50% 50%; transition: transform 0.25s ease-out; }
+  .dial { flex: 0 0 auto; width: 104px; height: 104px; cursor: pointer; transition: width 0.22s ease, height 0.22s ease; }
+  .dial.expanded { width: min(74vw, 300px); height: min(74vw, 300px); }
+  .dial .needle { transform-origin: 50% 50%; transition: transform 0.25s ease-out, opacity 0.3s ease; }
+  #compassCard.expanded > div { flex-direction: column; align-items: center; text-align: center; }
   .compasstext { font-size: 14px; }
   .compasstext small { display: block; color: var(--muted); font-family: var(--mono); font-size: 11px; }
 
@@ -388,19 +390,33 @@
         <h2>The day</h2>
         <svg class="timeline" id="timeline" viewBox="0 0 360 74" preserveAspectRatio="none"></svg>
         <div class="times" id="sunTimes"></div>
-        <div class="compassrow" style="border-top:1px solid var(--line);margin-top:8px;padding-top:9px">
-          <button class="ghost" id="findSun" type="button">Find the sun</button>
-          <div class="compasstext" id="compassHint" style="color:var(--muted);font-size:12px">Point your phone anywhere — the needle tracks the sun.</div>
-          <svg class="dial" id="dial" viewBox="0 0 56 56" style="display:none" aria-label="Sun direction relative to where you point">
-            <circle cx="28" cy="28" r="26" fill="none" stroke="var(--line)" stroke-width="2"/>
-            <text x="28" y="10" font-size="8" fill="var(--muted)" text-anchor="middle">▲</text>
-            <g class="needle" id="needle">
-              <line x1="28" y1="28" x2="28" y2="8" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
-              <circle cx="28" cy="8" r="4" fill="var(--gold)"/>
+      </div>
+      <div class="card" id="compassCard">
+        <h2 style="color:var(--ochre)">Sun compass</h2>
+        <div style="display:flex;align-items:center;gap:16px">
+          <svg class="dial" id="dial" viewBox="0 0 120 120" aria-label="Sun direction relative to where you point">
+            <circle cx="60" cy="60" r="54" fill="none" stroke="var(--ink)" stroke-width="2"/>
+            <g stroke="var(--hair)" stroke-width="1.6">
+              <line x1="60" y1="6" x2="60" y2="14"/><line x1="60" y1="106" x2="60" y2="114"/>
+              <line x1="6" y1="60" x2="14" y2="60"/><line x1="106" y1="60" x2="114" y2="60"/>
+              <line x1="21.8" y1="21.8" x2="27.5" y2="27.5"/><line x1="92.5" y1="92.5" x2="98.2" y2="98.2"/>
+              <line x1="98.2" y1="21.8" x2="92.5" y2="27.5"/><line x1="27.5" y1="92.5" x2="21.8" y2="98.2"/>
             </g>
-            <circle cx="28" cy="28" r="3" fill="var(--muted)"/>
+            <text x="60" y="26" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Mono,monospace">▲</text>
+            <g class="needle" id="needle" opacity="0.22">
+              <line x1="60" y1="60" x2="60" y2="22" stroke="var(--ochre)" stroke-width="4" stroke-linecap="round"/>
+              <circle cx="60" cy="19" r="7.5" fill="var(--ochre)"/>
+              <g stroke="var(--ochre)" stroke-width="2" stroke-linecap="round">
+                <line x1="60" y1="7" x2="60" y2="10.5"/><line x1="51" y1="12" x2="53.5" y2="14.5"/><line x1="69" y1="12" x2="66.5" y2="14.5"/>
+              </g>
+            </g>
+            <circle cx="60" cy="60" r="4" fill="var(--ink)"/>
+            <text id="dialTap" x="60" y="80" font-size="11" font-weight="600" fill="var(--ochre)" text-anchor="middle" font-family="IBM Plex Mono,monospace" letter-spacing="2" style="display:none">TAP</text>
           </svg>
-          <div class="compasstext" id="compassTxt" hidden></div>
+          <div style="flex:1;min-width:0">
+            <div class="compasstext" id="compassTxt" style="font-size:15.5px">Waking the compass…</div>
+            <p class="hint" id="compassHint" style="margin-top:5px">Point your phone anywhere — the needle tracks the sun.</p>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -928,13 +944,20 @@ function renderWhen() {
 /* ---------- compass + AR strip ---------- */
 
 let compassOn = false;
+let compassNeedsTap = false;
+
 function handleOrientation(e) {
   let h = null;
   if (typeof e.webkitCompassHeading === "number") h = e.webkitCompassHeading;
   else if (e.absolute && typeof e.alpha === "number") h = (360 - e.alpha) % 360;
   if (h == null) return;
   heading = h;
-  compassOn = true;
+  if (!compassOn) {
+    compassOn = true;
+    compassNeedsTap = false;
+    $("needle").setAttribute("opacity", "1");
+    $("dialTap").style.display = "none";
+  }
   renderCompass();
   drawARStrip();
 }
@@ -942,34 +965,51 @@ function handleOrientation(e) {
 function renderCompass() {
   if (!sun || heading == null) return;
   const rel = ((sun.now.azimuthDeg - heading) % 360 + 360) % 360;
-  $("dial").style.display = "";
-  $("compassTxt").hidden = false;
-  $("compassHint").hidden = true;
-  $("findSun").hidden = true;
   $("needle").style.transform = `rotate(${rel}deg)`;
   const signed = rel > 180 ? rel - 360 : rel;
   let where;
-  if (Math.abs(signed) <= 12) where = "You're facing the sun";
-  else if (Math.abs(signed) >= 168) where = "Sun is behind you";
-  else where = `Sun is ${Math.abs(Math.round(signed))}&deg; to your ${signed > 0 ? "right" : "left"}`;
-  $("compassTxt").innerHTML = `${where}<small>${sun.now.altitudeDeg}&deg; above the horizon</small>`;
+  if (sun.now.altitudeDeg <= -6) where = "The sun is down — needle shows where it sits below the horizon";
+  else if (Math.abs(signed) <= 12) where = "You're facing the sun";
+  else if (Math.abs(signed) >= 168) where = "The sun is behind you";
+  else where = `Sun is ${Math.abs(Math.round(signed))}° to your ${signed > 0 ? "right" : "left"}`;
+  $("compassTxt").innerHTML = `${where}<small style="display:block;color:var(--muted);font-family:var(--mono);font-size:11px;margin-top:2px">${sun.now.altitudeDeg}° above the horizon · ${sun.now.direction}</small>`;
+}
+
+function attachOrientation() {
+  window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+  window.addEventListener("deviceorientation", handleOrientation, true);
 }
 
 async function enableCompass() {
-  const attach = () => {
-    window.addEventListener("deviceorientationabsolute", handleOrientation, true);
-    window.addEventListener("deviceorientation", handleOrientation, true);
-    setTimeout(() => { if (!compassOn) $("compassHint").textContent = "No compass on this device."; }, 2500);
-  };
   try {
     if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
-      const s = await DeviceOrientationEvent.requestPermission();
-      if (s !== "granted") { $("compassHint").textContent = "Compass permission was denied."; return; }
+      const st = await DeviceOrientationEvent.requestPermission();
+      if (st !== "granted") { $("compassTxt").textContent = "Compass permission was denied."; return; }
     }
-    attach();
-  } catch { $("compassHint").textContent = "Compass unavailable on this device."; }
+    attachOrientation();
+  } catch { $("compassTxt").textContent = "Compass unavailable on this device."; }
 }
-$("findSun").addEventListener("click", enableCompass);
+
+// Try silently first: Android/desktop deliver events with no permission dance.
+// iOS stays quiet until a tap, so after a beat the dial itself asks for one.
+attachOrientation();
+setTimeout(() => {
+  if (compassOn) return;
+  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+    compassNeedsTap = true;
+    $("dialTap").style.display = "";
+    $("compassTxt").textContent = "Tap the dial once to wake the compass.";
+  } else {
+    $("compassTxt").textContent = "No compass on this device — the map on Plan shows sun direction instead.";
+  }
+}, 2500);
+
+$("dial").addEventListener("click", async () => {
+  if (compassNeedsTap && !compassOn) { await enableCompass(); return; }
+  const expanded = $("dial").classList.toggle("expanded");
+  $("compassCard").classList.toggle("expanded", expanded);
+  track("compass_expand", expanded ? "open" : "close");
+});
 $("arEnable").addEventListener("click", async () => { await enableCompass(); });
 
 // The sun's arc drawn over the live viewfinder: now-dot, hourly path, golden-hour marker.
