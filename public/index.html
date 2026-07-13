@@ -352,6 +352,19 @@
     <p class="status" id="fbStatus"></p>
   </div>
 
+  <div id="kitSheet" style="position:fixed;inset:0;z-index:70;background:var(--paper);display:none;flex-direction:column;padding:calc(14px + env(safe-area-inset-top)) 22px calc(14px + env(safe-area-inset-bottom))">
+    <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1.5px solid var(--ink);padding-bottom:10px">
+      <span style="font-family:var(--serif);font-size:22px;font-weight:500">My kit</span>
+      <span style="font-family:var(--serif);font-style:italic;font-size:13px;color:var(--muted);flex:1">Plans pull from what you actually own.</span>
+      <button type="button" id="kitClose" style="font-family:var(--mono);background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
+    </div>
+    <div id="kitGroups" style="flex:1;overflow-y:auto;padding:6px 0"></div>
+    <textarea id="kitCustom" placeholder="Anything else, one per line — e.g. '2x Astera Helios', 'book light rig'" style="height:64px;margin-top:8px;font-family:var(--mono);font-size:12.5px;padding:10px 12px;border-radius:6px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);resize:vertical"></textarea>
+    <div class="actions" style="grid-template-columns:1fr;margin-top:10px">
+      <button class="btn primary" id="kitSave" type="button">Save kit</button>
+    </div>
+  </div>
+
   <main>
     <!-- ============ NOW ============ -->
     <section class="screen active" id="screen-now">
@@ -1301,6 +1314,26 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const TOOL_NAMES = { silk: "silk / diffusion", bounce: "bounce", flag: "flag / negative fill", shade: "open shade", move: "move here", wait: "wait it out" };
 const SHORT_TOOL = { silk: "SILK", bounce: "BOUNCE", flag: "FLAG", shade: "SHADE", move: "MOVE", wait: "WAIT" };
 
+// Major manufacturers + working grip. IDs are stable; names are what the model sees.
+const KIT_CATALOG = [
+  { group: "ARRI", items: [["arri-sky60", "ARRI SkyPanel S60-C"], ["arri-sky30", "ARRI SkyPanel S30-C"], ["arri-m18", "ARRI M18 HMI"], ["arri-m40", "ARRI M40 HMI"], ["arri-650", "ARRI 650W tungsten fresnel"], ["arri-orbiter", "ARRI Orbiter"]] },
+  { group: "Aputure / amaran", items: [["ap-1200d", "Aputure 1200d Pro"], ["ap-600d", "Aputure 600d Pro"], ["ap-300x", "Aputure 300X (bi-color)"], ["ap-120d", "Aputure 120d II"], ["am-200x", "amaran 200x"], ["ap-mc", "Aputure MC (pocket RGB)"]] },
+  { group: "Nanlite / Godox / Litepanels", items: [["nl-forza500", "Nanlite Forza 500"], ["nl-pavotube", "Nanlite PavoTube II (pair)"], ["gx-vl300", "Godox VL300"], ["lp-gemini", "Litepanels Gemini 2x1"]] },
+  { group: "Tubes / speciality", items: [["astera-titan", "Astera Titan tubes (set)"], ["quasar-rr", "Quasar Science Rainbow 2"], ["kino-diva", "Kino Flo Diva-Lite"], ["dedo-dled", "Dedolight DLED7"]] },
+  { group: "Modifiers", items: [["dome150", "Light Dome 150"], ["dome-mini", "Light Dome mini"], ["lantern90", "Lantern 90"], ["spotlight-max", "Spotlight Max projection"], ["chimera-m", "Chimera medium softbox"], ["grid40", "40° grid"]] },
+  { group: "Frames & fabric", items: [["4x4-frame", "4x4 frame"], ["6x6-kit", "6x6 overhead kit"], ["12x12-kit", "12x12 overhead kit"], ["silk-4x4", "4x4 china silk"], ["ub-4x4", "4x4 ultrabounce"], ["floppy-4x4", "4x4 floppy (neg fill)"], ["muslin-4x4", "4x4 muslin"], ["magic-cloth", "Magic cloth"], ["duvetyne", "Duvetyne roll"]] },
+  { group: "Diffusion rolls & gels", items: [["r216", "216 full diffusion roll"], ["r250", "250 half diffusion roll"], ["r251", "251 quarter diffusion roll"], ["opal", "Opal roll"], ["cto-set", "CTO/CTB gel set"]] },
+  { group: "Stands & grip", items: [["cstand", "C-stands with arms (x3)"], ["combo", "Combo stands (x2)"], ["sandbags", "Sandbags (x6)"], ["clamps", "Clamp kit (mafer/cardellini)"], ["5in1", "5-in-1 reflector"]] },
+];
+function loadKit() { try { return JSON.parse(localStorage.getItem("scrim-kit")) || { ids: [], custom: "" }; } catch { return { ids: [], custom: "" }; } }
+function kitList() {
+  const k = loadKit();
+  const names = [];
+  KIT_CATALOG.forEach((g) => g.items.forEach(([id, name]) => { if (k.ids.includes(id)) names.push(name); }));
+  k.custom.split("\n").map((x) => x.trim()).filter(Boolean).forEach((x) => names.push(x));
+  return names;
+}
+
 const LOOKS = [
   { id: "auto", name: "Gaffer's call", sub: "let the AI decide", brief: "auto" },
   { id: "golden", name: "Soft & golden", sub: "late-day warmth", brief: "Soften toward late golden hour: a low warm key, gentle fill on the shadow side, soft shadow edges, warm believable skin." },
@@ -1331,6 +1364,52 @@ function diagramSvg(diagram, w, h) {
   return `<svg viewBox="0 0 ${w} ${h}" aria-label="Lighting diagram overlay">${els}</svg>`;
 }
 
+// Top-down set map: camera at the bottom, subject up-stage, gear placed with heights.
+function overheadSvg(ov) {
+  if (!ov || !ov.subject) return "";
+  const W = 340, H = 300;
+  const cl = (v, a, b) => Math.min(b, Math.max(a, Number(v) || 0));
+  const px = (x) => W / 2 + cl(x, -1, 1) * (W / 2 - 30);
+  const py = (d) => H - 64 - cl(d, 0, 1) * (H - 128);
+  let els = "";
+  [0.25, 0.5, 0.75, 1].forEach((g) => {
+    els += `<line x1="18" y1="${py(g)}" x2="${W - 18}" y2="${py(g)}" stroke="var(--hair)" stroke-width="1"/>`;
+  });
+  // camera
+  const cx = W / 2, cy = H - 34;
+  els += `<path d="M ${cx} ${cy - 8} L ${cx - 30} ${cy - 44} M ${cx} ${cy - 8} L ${cx + 30} ${cy - 44}" stroke="var(--ink)" stroke-width="1.2" stroke-dasharray="3 3"/>
+    <rect x="${cx - 13}" y="${cy - 8}" width="26" height="16" fill="var(--ink)"/>
+    <text x="${cx}" y="${cy + 22}" font-size="9" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Mono,monospace" letter-spacing="1">CAMERA</text>`;
+  // sun arrow at the border
+  if (Number.isFinite(ov.sunDeg)) {
+    const a = ((ov.sunDeg % 360) + 360) % 360;
+    const r = (a * Math.PI) / 180;
+    const bx = W / 2 + Math.sin(r) * (W / 2 - 20);
+    const by = (H - 30) / 2 + 12 + Math.cos(r) * ((H - 60) / 2 - 6);
+    const ix = W / 2 + Math.sin(r) * (W / 2 - 52);
+    const iy = (H - 30) / 2 + 12 + Math.cos(r) * ((H - 60) / 2 - 38);
+    els += `<line x1="${bx}" y1="${by}" x2="${ix}" y2="${iy}" stroke="var(--ochre)" stroke-width="2.4" stroke-dasharray="5 4"/>
+      <circle cx="${bx}" cy="${by}" r="7" fill="var(--ochre)"/>
+      <text x="${bx}" y="${by - 11}" font-size="9" fill="var(--ochre)" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-weight="700">SUN</text>`;
+  }
+  // subject
+  const sx = px(ov.subject.x), sy = py(ov.subject.d);
+  els += `<circle cx="${sx}" cy="${sy}" r="9" fill="none" stroke="var(--ink)" stroke-width="1.6"/>
+    <circle cx="${sx}" cy="${sy}" r="2.6" fill="var(--ink)"/>
+    <text x="${sx}" y="${sy - 15}" font-size="9" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Mono,monospace" letter-spacing="1">SUBJECT</text>`;
+  (Array.isArray(ov.items) ? ov.items.slice(0, 5) : []).forEach((it) => {
+    const x = px(it.x), y = py(it.d);
+    els += `<line x1="${x}" y1="${y}" x2="${sx}" y2="${sy}" stroke="var(--hair)" stroke-width="1.2" stroke-dasharray="2 3"/>`;
+    if (it.kind === "light") els += `<circle cx="${x}" cy="${y}" r="8" fill="var(--ochre)"/>`;
+    else if (it.kind === "flag") els += `<rect x="${x - 13}" y="${y - 3.5}" width="26" height="7" fill="var(--ink)"/>`;
+    else if (it.kind === "bounce") els += `<rect x="${x - 13}" y="${y - 3.5}" width="26" height="7" fill="#fff" stroke="var(--ink)" stroke-width="1.4"/>`;
+    else els += `<rect x="${x - 13}" y="${y - 3.5}" width="26" height="7" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.4" stroke-dasharray="3 2"/>`;
+    const label = `${it.label || it.kind}${Number.isFinite(it.heightFt) ? " · " + it.heightFt + " ft" : ""}`;
+    els += `<text x="${x}" y="${y + 20}" font-size="9.5" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="IBM Plex Mono,monospace" stroke="var(--paper)" stroke-width="3" paint-order="stroke">${esc(label).slice(0, 34)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;background:var(--paper);border:1px solid var(--hair);border-radius:6px">${els}</svg>`;
+}
+
 function basePlan() {
   const d = state.diagnosis;
   return { name: "Gaffer's call", lookId: null, approach: null, fixes: d.fixes || [], diagram: d.diagram };
@@ -1352,6 +1431,18 @@ function updatePlanUI() {
     return `<div class="hint" style="margin-top:8px;color:var(--gold)">☀ This look happens naturally ${dayTag(w0.start).toLowerCase()} ${fmt(w0.start)}–${fmt(w0.end)}${wins[1] ? ` and ${dayTag(wins[1].start).toLowerCase()} ${fmt(wins[1].start)}–${fmt(wins[1].end)}` : ""}.</div>`;
   })();
   if (winLine) $("planBody").insertAdjacentHTML("beforeend", winLine);
+  if (Array.isArray(p.gear) && p.gear.length) {
+    $("planBody").insertAdjacentHTML("beforeend", `
+      <div class="listhead">Gear to bring</div>
+      <ul class="probs ok" style="font-size:14px">${p.gear.slice(0, 8).map((g) => `<li>${esc(g)}</li>`).join("")}</ul>`);
+  }
+  const ovTab = $("overheadTab");
+  if (ovTab) {
+    const has = Boolean(p.overhead && p.overhead.subject);
+    ovTab.style.display = has ? "" : "none";
+    if (has) $("pane-overhead").innerHTML = overheadSvg(p.overhead) + `<p class="hint">Top-down set map — camera at the bottom, heights on each piece. From the plan, not measured.</p>`;
+    else { if (ovTab.getAttribute("aria-selected") === "true") document.querySelector('[data-pane="pane-diagram"]')?.click(); $("pane-overhead").innerHTML = ""; }
+  }
 
   const overlay = diagramSvg(p.diagram, state.frame.w, state.frame.h);
   const marks = Array.isArray(p.diagram?.marks) ? p.diagram.marks : [];
@@ -1424,10 +1515,10 @@ async function fetchPlan(brief, name, lookId = null) {
   setPlanning(true);
   try {
     const l = await getLocation();
-    const res = await aiFetch("/plan", { image: state.frame.dataUrl, brief, gear: currentGear(), diagnosis: state.diagnosis, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() });
+    const res = await aiFetch("/plan", { image: state.frame.dataUrl, brief, gear: currentGear(), kit: currentGear() === "kit" ? kitList() : undefined, diagnosis: state.diagnosis, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() });
     const j = await res.json();
     if (!res.ok || j.plan?.error) throw new Error(j.plan?.error || j.error || `plan failed (${res.status})`);
-    state.plan = { name, lookId, approach: j.plan.approach || null, fixes: j.plan.fixes || [], diagram: j.plan.diagram };
+    state.plan = { name, lookId, approach: j.plan.approach || null, fixes: j.plan.fixes || [], diagram: j.plan.diagram, gear: j.plan.gear || [], overhead: j.plan.overhead || null };
     updatePlanUI();
     $("planStatus").innerHTML = "";
   } catch (e) {
@@ -1475,6 +1566,8 @@ function renderResults() {
         <button class="look" type="button" data-gear="none" style="padding:6px 12px;min-height:32px;font-size:12.5px">No kit</button>
         <button class="look" type="button" data-gear="small" style="padding:6px 12px;min-height:32px;font-size:12.5px">Small kit</button>
         <button class="look" type="button" data-gear="full" style="padding:6px 12px;min-height:32px;font-size:12.5px">Full kit</button>
+        <button class="look" type="button" data-gear="kit" style="padding:6px 12px;min-height:32px;font-size:12.5px">My kit</button>
+        <button class="look" type="button" id="editKit" style="padding:6px 12px;min-height:32px;font-size:12.5px;color:var(--muted)">✎ Edit</button>
       </div>
       <p class="status" id="planStatus"></p>
     </div>
@@ -1496,10 +1589,11 @@ function renderResults() {
       <h2>Your frame</h2>
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" aria-selected="true" data-pane="pane-diagram" type="button">Lighting diagram</button>
+        <button class="tab" role="tab" aria-selected="false" data-pane="pane-overhead" type="button" id="overheadTab" style="display:none">Overhead</button>
         <button class="tab" role="tab" aria-selected="false" data-pane="pane-compare" type="button" id="compareTab" disabled style="opacity:0.5">Before / after</button>
       </div>
       <div id="pane-diagram" role="tabpanel"></div>
-      <div id="pane-compare" role="tabpanel" hidden></div>
+      <div id="pane-overhead" role="tabpanel" hidden></div>
       <div class="actions" style="margin:12px 0 0">
         <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
         <button class="btn" id="toStudio" type="button">Open in Pro Mode ◐</button>
@@ -1522,10 +1616,12 @@ function renderResults() {
     if (e.key === "Enter" && $("customBrief").value.trim()) { e.preventDefault(); fetchPlan($("customBrief").value.trim(), "Your brief"); }
   });
 
+  $("editKit").addEventListener("click", openKitSheet);
   const gearSel = localStorage.getItem("scrim-gear") || "none";
   document.querySelectorAll("[data-gear]").forEach((b) => {
     b.setAttribute("aria-pressed", b.dataset.gear === gearSel ? "true" : "false");
     b.addEventListener("click", () => {
+      if (b.dataset.gear === "kit" && !kitList().length) { openKitSheet(); return; }
       localStorage.setItem("scrim-gear", b.dataset.gear);
       document.querySelectorAll("[data-gear]").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
       // gear changes what the gaffer would plan: refresh a non-default plan
@@ -1560,7 +1656,7 @@ async function relight() {
   btn.textContent = "Lighting… (10–30 s)";
   $("renderStatus").textContent = "";
   try {
-    const res = await aiFetch("/render", { image: state.frame.dataUrl, brief, gear: currentGear(), diagnosis: state.diagnosis });
+    const res = await aiFetch("/render", { image: state.frame.dataUrl, brief, gear: currentGear(), kit: currentGear() === "kit" ? kitList() : undefined, diagnosis: state.diagnosis });
     const j = await res.json();
     if (!res.ok || j.error) throw new Error(j.error || `render failed (${res.status})`);
     $("pane-compare").innerHTML = `
@@ -1767,6 +1863,7 @@ async function sendChat() {
       image,
       sun: sun?.now || null,
       diagnosis: state?.diagnosis || null,
+      kit: kitList().length ? kitList() : undefined,
     });
     const j = await res.json();
     if (!res.ok || j.error) throw new Error(j.error || `chat failed (${res.status})`);
@@ -2865,6 +2962,29 @@ function animateEmblem() {
     });
 }
 window.addEventListener("load", animateEmblem);
+
+/* ---------- my kit editor ---------- */
+
+function openKitSheet() {
+  const k = loadKit();
+  $("kitGroups").innerHTML = KIT_CATALOG.map((g) => `
+    <div class="listhead" style="margin-top:12px">${g.group}</div>
+    ${g.items.map(([id, name]) => `
+      <label style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--hair);font-size:14.5px;cursor:pointer">
+        <input type="checkbox" data-kit="${id}" ${k.ids.includes(id) ? "checked" : ""} style="width:20px;height:20px;accent-color:var(--ochre)">
+        <span>${name}</span>
+      </label>`).join("")}`).join("");
+  $("kitCustom").value = k.custom || "";
+  $("kitSheet").style.display = "flex";
+  track("kit_open");
+}
+$("kitClose").addEventListener("click", () => { $("kitSheet").style.display = "none"; });
+$("kitSave").addEventListener("click", () => {
+  const ids = Array.from(document.querySelectorAll("[data-kit]:checked")).map((c) => c.dataset.kit);
+  localStorage.setItem("scrim-kit", JSON.stringify({ ids, custom: $("kitCustom").value.trim() }));
+  $("kitSheet").style.display = "none";
+  track("kit_saved", String(ids.length));
+});
 
 /* ---------- beta telemetry + feedback ---------- */
 
