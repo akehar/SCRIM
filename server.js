@@ -236,7 +236,8 @@ ${read}
 ${wants}
 ${gearLine(gear, kit)} Every effect must be achievable with that gear.
 What must change: the direction, apparent size, and quality of the light on the subject. Reshape shadow EDGES (a bigger apparent source means a softer penumbra), open or deepen shadow AREAS, tame or add speculars and catchlights, and keep every effect motivated by a plausible physical source — sun angle, bounce, silk, flag, or foliage.
-What must NOT change: subject identity and pose, framing, composition, lens perspective, background content, and scene geometry. Photorealistic, like the scene was reshot under the new lighting — not stylised, not a filter.`;
+What must NOT change: subject identity and pose, framing, composition, lens perspective, background content, and scene geometry. Photorealistic, like the scene was reshot under the new lighting — not stylised, not a filter.
+CRITICAL: every piece of lighting equipment is OFF-CAMERA, outside the frame. Do NOT paint any gear into the image — no lights, stands, frames, silks, fabric, panels, reflectors, or bounce boards may appear. Show ONLY the resulting light falling on the existing scene.`;
 
   const res = await ai.models.generateContent({
     model: IMAGE_MODEL,

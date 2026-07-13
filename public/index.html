@@ -566,7 +566,8 @@
     <section class="screen" id="screen-ask">
       <div style="padding:10px 0 8px;border-bottom:1.5px solid var(--ink);display:flex;align-items:baseline;gap:10px">
         <span style="font-family:var(--serif);font-size:22px;font-weight:500">The gaffer</span>
-        <span style="font-family:var(--serif);font-style:italic;font-size:13.5px;color:var(--muted)">A gaffer you can talk to.</span>
+        <span style="font-family:var(--serif);font-style:italic;font-size:13.5px;color:var(--muted);flex:1">A gaffer you can talk to.</span>
+        <button class="ghost" id="glossBtn" type="button" style="padding:5px 10px;font-size:10.5px">GLOSSARY</button>
       </div>
       <div class="chatwrap">
         <div class="chatlog" id="chatLog">
@@ -588,6 +589,15 @@
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-ask" type="button"><span class="ico">✳</span>Ask</button>
   </nav>
 
+
+<div id="glossSheet" style="display:none;position:fixed;inset:0;z-index:75;background:var(--paper);flex-direction:column;padding:calc(14px + env(safe-area-inset-top)) 22px calc(14px + env(safe-area-inset-bottom))">
+  <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1.5px solid var(--ink);padding-bottom:10px">
+    <span style="font-family:var(--serif);font-size:22px;font-weight:500">Set language</span>
+    <span style="font-family:var(--serif);font-style:italic;font-size:13px;color:var(--muted);flex:1">The words the crew uses.</span>
+    <button type="button" id="glossClose" style="font-family:var(--mono);background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
+  </div>
+  <div id="glossList" style="flex:1;overflow-y:auto;padding:6px 0"></div>
+</div>
 
 <div id="termPop" style="display:none;position:fixed;left:16px;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:80;background:var(--paper);border:1.5px solid var(--ink);border-radius:8px;padding:14px 16px;box-shadow:0 6px 20px rgba(25,25,19,0.18)">
   <div id="termTitle" style="font-family:var(--mono);font-size:11px;letter-spacing:0.14em;color:var(--ochre);font-weight:600"></div>
@@ -1481,6 +1491,9 @@ function updatePlanUI() {
     $("planBody").insertAdjacentHTML("beforeend", `
       <div class="listhead">Gear to bring</div>
       <ul class="probs ok" style="font-size:14px">${p.gear.slice(0, 8).map((g) => `<li>${glossarize(esc(g))}</li>`).join("")}</ul>`);
+  } else {
+    $("planBody").insertAdjacentHTML("beforeend",
+      `<p class="hint" style="margin-top:10px">Tap a look above — or Gaffer's call — and the full packing list and overhead set map are drawn for it.</p>`);
   }
   const ovTab = $("overheadTab");
   if (ovTab) {
@@ -1656,7 +1669,7 @@ function renderResults() {
     document.querySelectorAll(".look[data-look]").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
     $("customBrief").value = "";
     const look = LOOKS.find((l) => l.id === b.dataset.look);
-    if (look.id === "auto") { state.plan = basePlan(); updatePlanUI(); $("planStatus").innerHTML = ""; }
+    if (look.id === "auto") fetchPlan("auto", "Gaffer's call", null);
     else fetchPlan(look.brief, look.name, look.id);
   }));
   $("customBrief").addEventListener("input", () => {
@@ -3159,6 +3172,20 @@ function track(e, m) {
   } catch { /* telemetry must never hurt */ }
 }
 document.querySelectorAll(".tabbtn").forEach((b) => b.addEventListener("click", () => track("tab", b.dataset.screen.replace("screen-", ""))));
+
+$("glossBtn").addEventListener("click", () => {
+  $("glossList").innerHTML = Object.entries(GLOSSARY).sort((a, b) => a[0].localeCompare(b[0])).map(([term, def]) => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--hair)">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;color:var(--ochre);font-weight:600;text-transform:uppercase">${term}</span>
+        <a href="https://www.google.com/search?tbm=isch&q=${encodeURIComponent(term + " film grip lighting")}" target="_blank" rel="noopener" style="font-family:var(--mono);font-size:10px;color:var(--muted);text-decoration:none;margin-left:auto">PHOTOS ↗</a>
+      </div>
+      <p style="margin:3px 0 0;font-size:14.5px;line-height:1.45">${def}</p>
+    </div>`).join("");
+  $("glossSheet").style.display = "flex";
+  track("glossary_browse");
+});
+$("glossClose").addEventListener("click", () => { $("glossSheet").style.display = "none"; });
 
 $("fbBtn").addEventListener("click", () => { $("fbSheet").style.display = "flex"; track("feedback_open"); });
 $("fbClose").addEventListener("click", () => { $("fbSheet").style.display = "none"; });
