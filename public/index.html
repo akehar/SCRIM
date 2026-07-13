@@ -852,7 +852,7 @@ async function loadSun(forceLoc = false) {
   } catch (e) {
     clearInterval(ticker);
     $("locPill").textContent = "no location — tap to retry";
-    $("clock").innerHTML = `<span class="err" style="font-size:14px;font-weight:400">${e.message || e}</span>`;
+    $("clock").innerHTML = `<span class="err" style="font-size:14px;font-weight:400">${esc(e.message || e)}</span>`;
     $("sunNow").innerHTML = `
       <div class="hint">Or set your location manually — long-press a spot in Google Maps and copy its coordinates:</div>
       <div style="display:flex;gap:8px;margin-top:8px">
@@ -1157,7 +1157,7 @@ $("openCam").addEventListener("click", async () => {
     await startStream();
   } catch (e) {
     $("finder").classList.remove("open");
-    $("status").innerHTML = `<span class="err">Camera unavailable (${e.name || e.message}). Upload a photo instead.</span>`;
+    $("status").innerHTML = `<span class="err">Camera unavailable (${esc(e.name || e.message)}). Upload a photo instead.</span>`;
   }
 });
 
@@ -1185,7 +1185,7 @@ $("shot").addEventListener("change", async (e) => {
   e.target.value = "";
   if (!file) return;
   try { handleFrame(await fileToFrame(file)); }
-  catch (err) { $("status").innerHTML = `<span class="err">${err.message || err}</span>`; }
+  catch (err) { $("status").innerHTML = `<span class="err">${esc(err.message || err)}</span>`; }
 });
 
 function handleFrame(frame) {
@@ -1339,7 +1339,7 @@ async function analyze(frame) {
     if (!state.diagnosis.error) saveLogEntry(frame, state.diagnosis);
     renderResults();
   } catch (err) {
-    $("status").innerHTML = `<span class="err">${err.message || err}</span>`;
+    $("status").innerHTML = `<span class="err">${esc(err.message || err)}</span>`;
   }
 }
 
@@ -1558,19 +1558,22 @@ function setPlanning(on) {
 }
 
 async function fetchPlan(brief, name, lookId = null) {
+  const myFrame = state?.frame;
+  if (!myFrame) return;
   setPlanning(true);
   try {
     const l = await getLocation();
-    const res = await aiFetch("/plan", { image: state.frame.dataUrl, brief, gear: currentGear(), kit: currentGear() === "kit" ? kitList() : undefined, diagnosis: state.diagnosis, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() });
+    const res = await aiFetch("/plan", { image: myFrame.dataUrl, brief, gear: currentGear(), kit: currentGear() === "kit" ? kitList() : undefined, diagnosis: state.diagnosis, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString() });
     const j = await res.json();
     if (!res.ok || j.plan?.error) throw new Error(j.plan?.error || j.error || `plan failed (${res.status})`);
+    if (state?.frame !== myFrame || !$("planBody")) return; // a newer read owns the screen now
     state.plan = { name, lookId, approach: j.plan.approach || null, fixes: j.plan.fixes || [], diagram: j.plan.diagram, gear: j.plan.gear || [], overhead: j.plan.overhead || null };
     updatePlanUI();
     $("planStatus").innerHTML = "";
   } catch (e) {
-    $("planStatus").innerHTML = `<span class="err">Plan failed: ${esc(e.message || e)} — showing the previous plan.</span>`;
+    if ($("planStatus")) $("planStatus").innerHTML = `<span class="err">Plan failed: ${esc(e.message || e)} — showing the previous plan.</span>`;
   } finally {
-    setPlanning(false);
+    if ($("planCard")) setPlanning(false);
   }
 }
 
@@ -1640,6 +1643,7 @@ function renderResults() {
       </div>
       <div id="pane-diagram" role="tabpanel"></div>
       <div id="pane-overhead" role="tabpanel" hidden></div>
+      <div id="pane-compare" role="tabpanel" hidden></div>
       <div class="actions" style="margin:12px 0 0">
         <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
         <button class="btn" id="toStudio" type="button">Open in Pro Mode ◐</button>
@@ -1696,18 +1700,20 @@ function renderResults() {
 
 async function relight() {
   if (!state) return;
+  const myFrame = state.frame; // a new read mid-render rebuilds the DOM; stale responses must drop
   const brief = currentBrief();
   const btn = $("lightIt");
   btn.disabled = true;
   btn.textContent = "Lighting… (10–30 s)";
   $("renderStatus").textContent = "";
   try {
-    const res = await aiFetch("/render", { image: state.frame.dataUrl, brief, gear: currentGear(), kit: currentGear() === "kit" ? kitList() : undefined, diagnosis: state.diagnosis });
+    const res = await aiFetch("/render", { image: myFrame.dataUrl, brief, gear: currentGear(), kit: currentGear() === "kit" ? kitList() : undefined, diagnosis: state.diagnosis });
     const j = await res.json();
     if (!res.ok || j.error) throw new Error(j.error || `render failed (${res.status})`);
+    if (state?.frame !== myFrame || !$("pane-compare")) return; // superseded by a newer read
     $("pane-compare").innerHTML = `
       <div class="compare" id="cmp" style="--pos:50%">
-        <img src="${state.frame.dataUrl}" alt="original">
+        <img src="${myFrame.dataUrl}" alt="original">
         <div class="after"><img src="${j.render}" alt="relit"></div>
         <div class="handle"></div>
       </div>
@@ -1728,10 +1734,10 @@ async function relight() {
     cmp.addEventListener("pointermove", (e) => { if (e.buttons) move(e.clientX); });
     btn.textContent = "Light it again";
   } catch (err) {
-    $("renderStatus").innerHTML = `<span class="err">${err.message || err}</span>`;
-    btn.textContent = "Light it";
+    if ($("renderStatus")) $("renderStatus").innerHTML = `<span class="err">${esc(err.message || err)}</span>`;
+    if (btn.isConnected) btn.textContent = "Light it";
   } finally {
-    btn.disabled = false;
+    if (btn.isConnected) btn.disabled = false;
   }
 }
 
@@ -1755,6 +1761,7 @@ async function recheck(afterFrame) {
     const res = await aiFetch("/recheck", { before: state.frame.dataUrl, after: afterFrame.dataUrl, diagnosis: state.diagnosis });
     const j = await res.json();
     if (!res.ok || j.check?.error) throw new Error(j.check?.error || j.error || `recheck failed (${res.status})`);
+    if (!$("recheckOut")) return; // results were rebuilt while grading
     $("status").textContent = "";
     const c = j.check;
     const cls = c.verdict === "better" ? "good" : c.verdict === "worse" ? "err" : "";
@@ -1776,7 +1783,7 @@ async function recheck(afterFrame) {
       </div>`;
     $("recheckOut").scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (err) {
-    $("status").innerHTML = `<span class="err">${err.message || err}</span>`;
+    $("status").innerHTML = `<span class="err">${esc(err.message || err)}</span>`;
   }
 }
 
