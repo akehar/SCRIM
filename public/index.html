@@ -36,7 +36,8 @@
     --serif: "Newsreader", Georgia, "Times New Roman", serif;
     --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; min-width: 0; }
+  html, body { overflow-x: hidden; max-width: 100%; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     font-family: var(--serif);
@@ -63,7 +64,7 @@
 
   main { flex: 1 1 auto; position: relative; overflow: hidden; }
   .screen {
-    position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
     padding: 6px 22px calc(14px + env(safe-area-inset-bottom));
     display: none; animation: fadein 0.18s ease;
   }
@@ -131,8 +132,8 @@
   .btn.primary:active { background: #8F3A25; }
   .btn:disabled { opacity: 0.45; cursor: default; }
   input[type=file] { display: none; }
-  input[type=text] {
-    width: 100%; font-family: var(--serif); font-size: 15px; padding: 11px 12px; border-radius: var(--radius);
+  input[type=text], textarea {
+    width: 100%; font-family: var(--serif); font-size: 16px; padding: 11px 12px; border-radius: var(--radius);
     border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink); margin-top: 8px;
   }
   input[type=text]::placeholder { color: var(--muted); font-style: italic; }
@@ -160,10 +161,12 @@
   .shutter:active { transform: scale(0.94); }
   .vfside { flex: 1 1 0; display: flex; min-width: 0; }
   .vfside.right { justify-content: flex-end; }
+  select { font-size: 16px; }
   select, .ghost {
-    font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--paper);
+    font-family: var(--mono); color: var(--ink); background: var(--paper);
     border: 1.5px solid var(--ink); border-radius: var(--radius); padding: 8px 10px; max-width: 100%; cursor: pointer;
   }
+  .ghost { font-size: 12px; }
   .ghost:active { background: var(--press); }
   details { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
   details summary { cursor: pointer; color: var(--ink); font-weight: 500; font-size: 14.5px; }
@@ -347,7 +350,7 @@
       <button class="chatclose" id="fbClose" type="button" style="font-family:var(--mono);background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
     </div>
     <input id="fbName" type="text" placeholder="Your name (optional)" autocomplete="off" style="margin-top:14px">
-    <textarea id="fbText" placeholder="What happened? What did you expect? What's missing?" style="flex:0 0 auto;height:160px;margin-top:10px;font-family:var(--serif);font-size:15px;padding:11px 12px;border-radius:6px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);resize:vertical"></textarea>
+    <textarea id="fbText" placeholder="What happened? What did you expect? What's missing?" style="flex:0 0 auto;height:160px;margin-top:10px;resize:vertical"></textarea>
     <div class="actions" style="grid-template-columns:1fr;margin-top:12px">
       <button class="btn primary" id="fbSend" type="button">Send feedback</button>
     </div>
@@ -361,7 +364,7 @@
       <button type="button" id="kitClose" style="font-family:var(--mono);background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
     </div>
     <div id="kitGroups" style="flex:1;overflow-y:auto;padding:6px 0"></div>
-    <textarea id="kitCustom" placeholder="Anything else, one per line — e.g. '2x Astera Helios', 'book light rig'" style="height:64px;margin-top:8px;font-family:var(--mono);font-size:12.5px;padding:10px 12px;border-radius:6px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);resize:vertical"></textarea>
+    <textarea id="kitCustom" placeholder="Anything else, one per line — e.g. '2x Astera Helios', 'book light rig'" style="height:64px;margin-top:8px;font-family:var(--mono);padding:10px 12px;resize:vertical"></textarea>
     <div class="actions" style="grid-template-columns:1fr;margin-top:10px">
       <button class="btn primary" id="kitSave" type="button">Save kit</button>
     </div>
