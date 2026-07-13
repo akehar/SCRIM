@@ -7,6 +7,8 @@
 <meta name="theme-color" content="#0c0b09" media="(prefers-color-scheme: dark)" />
 <meta name="theme-color" content="#faf7f1" media="(prefers-color-scheme: light)" />
 <link rel="manifest" href="/manifest.webmanifest" />
+<link rel="stylesheet" href="/vendor/leaflet.css" />
+<script src="/vendor/leaflet.js" defer></script>
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <title>Scrim — shape the light you already have</title>
 <style>
@@ -264,6 +266,18 @@
   }
   input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--gold); border: 2px solid rgba(255,255,255,0.7); cursor: pointer; }
 
+  #map { background: #1a1917; }
+  .leaflet-container { font: inherit; }
+  @media (prefers-color-scheme: dark) { .leaflet-tile { filter: brightness(0.72) contrast(1.05) saturate(0.85); } }
+  .shotrow { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .shotrow:last-child { border-bottom: none; }
+  .shotrow .when { font-variant-numeric: tabular-nums; color: var(--gold); font-weight: 700; flex: 0 0 auto; }
+  .shotrow .what { flex: 1; min-width: 0; }
+  .shotrow .what small { display: block; color: var(--muted); font-size: 12px; }
+  .shotrow .x { color: var(--muted); background: none; border: none; font-size: 16px; cursor: pointer; padding: 2px 6px; }
+  .winrow { cursor: pointer; border-radius: 8px; padding: 3px 6px !important; margin: 0 -6px; }
+  .winrow[aria-selected="true"] { background: rgba(232,163,61,0.16); }
+
   .logitem { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .logitem:last-child { border-bottom: none; }
   .logitem img { width: 62px; height: 62px; object-fit: cover; border-radius: 10px; flex: 0 0 auto; }
@@ -434,16 +448,40 @@
       </div>
     </section>
 
-    <!-- ============ LOG ============ -->
+    <!-- ============ PLAN: scene map + shot list ============ -->
     <section class="screen" id="screen-log">
-      <div class="card">
-        <h2>Scene memory</h2>
-        <div id="logList"><p class="hint">Every read is remembered here with its light and location, so returning to a spot tells you how it behaved last time.</p></div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div id="map" style="height:295px"></div>
       </div>
-      <div class="actions" style="grid-template-columns:1fr">
-        <button class="btn" id="clearLog" type="button">Clear log</button>
+      <p class="hint" id="mapHint" style="margin:6px 2px 0">Tap the map to scout a spot — gold pins are scenes you've already read.</p>
+      <div class="card" id="pinCard" style="display:none">
+        <h2 id="pinTitle">Scout pin</h2>
+        <div class="looks" id="pinLooks"></div>
+        <div class="times" id="pinWindows" style="margin-top:8px"></div>
+        <div class="actions" style="grid-template-columns:1fr;margin:10px 0 0">
+          <button class="btn primary" id="addShot" type="button">Add to shot list</button>
+        </div>
+        <p class="status" id="pinStatus"></p>
+      </div>
+      <div class="card" id="shotCard">
+        <h2>Shot list</h2>
+        <div id="shotList"><p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p></div>
+        <div class="actions" style="margin:10px 0 0">
+          <button class="btn" id="exportPlan" type="button">Share day plan</button>
+          <button class="btn" id="clearShots" type="button">Clear shots</button>
+        </div>
+      </div>
+      <div class="card">
+        <details>
+          <summary>Scene memory</summary>
+          <div id="logList" style="margin-top:8px"><p class="hint">Every read lands here with its light and location.</p></div>
+          <div class="actions" style="grid-template-columns:1fr;margin:8px 0 0">
+            <button class="btn" id="clearLog" type="button">Clear log</button>
+          </div>
+        </details>
       </div>
     </section>
+
   </main>
 
   <nav class="tabbar" role="tablist">
@@ -451,7 +489,7 @@
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button"><span class="ico">◉</span>Shoot</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Pro</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-ask" type="button"><span class="ico">✳</span>Ask</button>
-    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-log" type="button"><span class="ico">▤</span>Log</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-log" type="button"><span class="ico">⊹</span>Plan</button>
   </nav>
 
 <script>
@@ -470,6 +508,7 @@ let weather = null;        // {times:[], clouds:[]}
 document.querySelectorAll(".tabbtn").forEach((b) => b.addEventListener("click", () => {
   document.querySelectorAll(".tabbtn").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === b.dataset.screen));
+  if (b.dataset.screen === "screen-log") initPlan();
 }));
 function gotoScreen(id) { document.querySelector(`.tabbtn[data-screen="${id}"]`).click(); }
 
@@ -593,16 +632,17 @@ function renderClock() {
   else loadSun();
 }
 
-function cloudAt(t) {
-  if (!weather) return null;
+function cloudAtData(w, t) {
+  if (!w) return null;
   const target = new Date(t).getTime();
   let best = null, bestDiff = Infinity;
-  weather.times.forEach((wt, i) => {
+  w.times.forEach((wt, i) => {
     const diff = Math.abs(new Date(wt).getTime() - target);
-    if (diff < bestDiff) { bestDiff = diff; best = weather.clouds[i]; }
+    if (diff < bestDiff) { bestDiff = diff; best = w.clouds[i]; }
   });
   return bestDiff <= 45 * 60000 ? best : null;
 }
+function cloudAt(t) { return cloudAtData(weather, t); }
 
 function renderWeather() {
   const g = sun?.nextGoldenHour;
@@ -755,15 +795,15 @@ const LOOK_RULES = {
   clean:  { name: "Clean commercial", test: (p, c) => p.altitudeDeg > 5 && c != null && c >= 70, none: "No overcast coming — use open shade or a big silk in any daylight." },
 };
 
-function windowsFor(lookId) {
+function windowsForData(lookId, sunData, cloudFn) {
   const rule = LOOK_RULES[lookId];
-  if (!rule || !sun?.path) return [];
+  if (!rule || !sunData?.path) return [];
   const now = Date.now();
-  const pts = sun.path.filter((p) => new Date(p.t) >= now - 15 * 60000);
+  const pts = sunData.path.filter((p) => new Date(p.t) >= now - 15 * 60000);
   const wins = [];
   let open = null;
   pts.forEach((p) => {
-    const ok = rule.test(p, cloudAt(p.t));
+    const ok = rule.test(p, cloudFn(p.t));
     if (ok && !open) open = { start: new Date(p.t), end: new Date(p.t) };
     else if (ok && open) open.end = new Date(p.t);
     else if (!ok && open) { wins.push(open); open = null; }
@@ -771,6 +811,7 @@ function windowsFor(lookId) {
   if (open) wins.push(open);
   return wins.filter((w) => w.end - w.start >= 30 * 60000).slice(0, 3);
 }
+function windowsFor(lookId) { return windowsForData(lookId, sun, cloudAt); }
 
 function dayTag(d) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -2452,10 +2493,186 @@ $("makeReal").addEventListener("click", async () => {
   }
 });
 
+/* ---------- Plan: scene map + shot list ---------- */
+
+let map = null, pinSel = null, sunRay = null, scoutMarker = null, pinLayer = [];
+const PIN_CACHE = new Map();
+
+async function pinData(lat, lng) {
+  const key = lat.toFixed(3) + "," + lng.toFixed(3);
+  if (PIN_CACHE.has(key)) return PIN_CACHE.get(key);
+  const p = (async () => {
+    const [sr, wr] = await Promise.all([
+      fetch(`/sun?lat=${lat}&lng=${lng}`).then((r) => { if (!r.ok) throw new Error("sun lookup failed"); return r.json(); }),
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=cloud_cover&forecast_days=2&timezone=auto`)
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]);
+    return { sun: sr, weather: wr ? { times: wr.hourly.time, clouds: wr.hourly.cloud_cover } : null };
+  })();
+  PIN_CACHE.set(key, p);
+  return p;
+}
+
+function initPlan() {
+  renderShots();
+  if (typeof L === "undefined") {
+    $("mapHint").innerHTML = `<span class="err">Map library didn't load — scene memory and the shot list below still work.</span>`;
+    return;
+  }
+  if (map) { setTimeout(() => map.invalidateSize(), 60); refreshPins(); return; }
+  try {
+    const log = loadLog().filter((e) => e.lat != null);
+    const center = loc ? [loc.latitude, loc.longitude] : log.length ? [log[0].lat, log[0].lng] : [40.4, -3.7];
+    map = L.map("map", { zoomControl: false }).setView(center, 13);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+    map.on("click", (e) => selectPin({ lat: e.latlng.lat, lng: e.latlng.lng, label: "Scout pin", scout: true }));
+    refreshPins();
+    setTimeout(() => map.invalidateSize(), 60);
+  } catch (e) {
+    $("mapHint").innerHTML = `<span class="err">Map unavailable (${esc(e.message || e)}) — scene memory below still works.</span>`;
+  }
+}
+
+function refreshPins() {
+  if (!map) return;
+  pinLayer.forEach((m) => map.removeLayer(m));
+  pinLayer = [];
+  loadLog().filter((e) => e.lat != null).forEach((e) => {
+    const m = L.circleMarker([e.lat, e.lng], { radius: 8, color: "#e8a33d", weight: 2, fillColor: "#e8a33d", fillOpacity: 0.75 }).addTo(map);
+    m.on("click", () => selectPin({ lat: e.lat, lng: e.lng, label: e.sum || "Scene", scout: false }));
+    pinLayer.push(m);
+  });
+}
+
+async function selectPin(p) {
+  pinSel = { ...p, windows: [], winSel: 0, lookId: "golden", data: null };
+  $("pinCard").style.display = "block";
+  $("pinTitle").textContent = `${p.label} · ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`;
+  $("pinLooks").innerHTML = "";
+  $("pinWindows").innerHTML = `<div class="skeleton" style="width:70%"></div>`;
+  $("pinStatus").textContent = "";
+  if (map) {
+    if (scoutMarker) { map.removeLayer(scoutMarker); scoutMarker = null; }
+    if (p.scout) scoutMarker = L.circleMarker([p.lat, p.lng], { radius: 8, color: "#e8a33d", weight: 2, dashArray: "4", fillOpacity: 0.15 }).addTo(map);
+  }
+  try {
+    const d = await pinData(p.lat, p.lng);
+    if (pinSel.lat !== p.lat) return; // user moved on
+    pinSel.data = d;
+    renderPinLooks();
+    drawSunRay(p, d);
+    $("pinCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (e) {
+    $("pinWindows").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
+  }
+}
+
+function renderPinLooks() {
+  $("pinLooks").innerHTML = Object.entries(LOOK_RULES).map(([id, r]) =>
+    `<button class="look" type="button" data-pinlook="${id}" aria-pressed="${id === pinSel.lookId}" style="padding:5px 10px;min-height:30px;font-size:12px">${r.name}</button>`).join("");
+  document.querySelectorAll("[data-pinlook]").forEach((b) => b.addEventListener("click", () => {
+    pinSel.lookId = b.dataset.pinlook; pinSel.winSel = 0; renderPinLooks();
+  }));
+  const d = pinSel.data;
+  pinSel.windows = windowsForData(pinSel.lookId, d.sun, (t) => cloudAtData(d.weather, t));
+  $("pinWindows").innerHTML = pinSel.windows.length
+    ? pinSel.windows.map((w, i) => `<div class="winrow" data-win="${i}" aria-selected="${i === pinSel.winSel}"><span>${dayTag(w.start)}</span><span>${fmt(w.start)}–${fmt(w.end)}${cloudAtData(d.weather, new Date((w.start.getTime() + w.end.getTime()) / 2)) >= 70 ? " ☁" : ""}</span></div>`).join("")
+    : `<div style="color:var(--muted)">${LOOK_RULES[pinSel.lookId].none}</div>`;
+  document.querySelectorAll("[data-win]").forEach((r) => r.addEventListener("click", () => {
+    pinSel.winSel = Number(r.dataset.win);
+    document.querySelectorAll("[data-win]").forEach((x) => x.setAttribute("aria-selected", x === r ? "true" : "false"));
+  }));
+}
+
+// gold dashes from the pin toward where the sun will sit at that spot's golden hour
+function drawSunRay(p, d) {
+  if (!map) return;
+  if (sunRay) { map.removeLayer(sunRay); sunRay = null; }
+  const g = d.sun?.nextGoldenHour;
+  if (!g || !d.sun.path) return;
+  const gp = d.sun.path.reduce((best, pt) => {
+    const diff = Math.abs(new Date(pt.t) - new Date(g.start));
+    return diff < best.diff ? { pt, diff } : best;
+  }, { pt: null, diff: Infinity }).pt;
+  if (!gp) return;
+  const az = (gp.azimuthDeg * Math.PI) / 180;
+  const end = [p.lat + Math.cos(az) * 0.008, p.lng + (Math.sin(az) * 0.008) / Math.cos((p.lat * Math.PI) / 180)];
+  sunRay = L.polyline([[p.lat, p.lng], end], { color: "#e8a33d", weight: 3, dashArray: "6 6", opacity: 0.9 }).addTo(map);
+}
+
+/* ---- shot list ---- */
+
+function loadShots() { try { return JSON.parse(localStorage.getItem("scrim-shots")) || []; } catch { return []; } }
+function saveShots(x) { localStorage.setItem("scrim-shots", JSON.stringify(x)); }
+const sortedShots = () => loadShots().sort((a, b) => new Date(a.start) - new Date(b.start));
+
+$("addShot").addEventListener("click", () => {
+  if (!pinSel?.windows?.length) {
+    $("pinStatus").innerHTML = `<span class="err">No window for that look here — try another look.</span>`;
+    return;
+  }
+  const w = pinSel.windows[pinSel.winSel] || pinSel.windows[0];
+  const shots = loadShots();
+  shots.push({ lat: pinSel.lat, lng: pinSel.lng, label: pinSel.label, lookId: pinSel.lookId, lookName: LOOK_RULES[pinSel.lookId].name, start: w.start, end: w.end });
+  saveShots(shots);
+  renderShots();
+  $("pinStatus").innerHTML = `<span class="good">Added to the shot list.</span>`;
+});
+
+function renderShots() {
+  const shots = sortedShots();
+  $("shotList").innerHTML = shots.length
+    ? shots.map((sh, i) => `
+      <div class="shotrow">
+        <span class="when">${fmt(sh.start)}</span>
+        <span class="what">${esc(sh.lookName)} · ${esc(sh.label)}<small>${dayTag(sh.start)} ${fmt(sh.start)}–${fmt(sh.end)} · ${Number(sh.lat).toFixed(3)}, ${Number(sh.lng).toFixed(3)}</small></span>
+        <button class="x" data-delshot="${i}" type="button" aria-label="Remove shot">✕</button>
+      </div>`).join("")
+    : `<p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p>`;
+  document.querySelectorAll("[data-delshot]").forEach((b) => b.addEventListener("click", () => {
+    const shots2 = sortedShots();
+    shots2.splice(Number(b.dataset.delshot), 1);
+    saveShots(shots2);
+    renderShots();
+  }));
+}
+$("clearShots").addEventListener("click", () => { localStorage.removeItem("scrim-shots"); renderShots(); });
+
+$("exportPlan").addEventListener("click", () => {
+  const shots = sortedShots();
+  if (!shots.length) return;
+  const W = 1080, rowH = 104, H = 260 + shots.length * rowH + 80;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d");
+  x.fillStyle = "#0c0b09"; x.fillRect(0, 0, W, H);
+  x.fillStyle = "#f4efe6"; x.font = "750 44px system-ui";
+  x.fillText("S C R I M", 48, 84);
+  x.fillStyle = "#e8a33d"; x.font = "650 30px system-ui";
+  x.fillText("DAY PLAN", 48, 132);
+  x.fillStyle = "#9b937f"; x.font = "26px system-ui";
+  x.fillText(new Date(shots[0].start).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }), 48, 172);
+  let yy = 250;
+  shots.forEach((sh) => {
+    x.fillStyle = "#e8a33d"; x.font = "800 36px system-ui";
+    x.fillText(`${fmt(sh.start)}`, 48, yy);
+    x.fillStyle = "#f4efe6"; x.font = "600 30px system-ui";
+    x.fillText(`${sh.lookName} — ${String(sh.label).slice(0, 34)}`, 230, yy);
+    x.fillStyle = "#9b937f"; x.font = "24px system-ui";
+    x.fillText(`${dayTag(sh.start)} ${fmt(sh.start)}–${fmt(sh.end)} · ${Number(sh.lat).toFixed(4)}, ${Number(sh.lng).toFixed(4)}`, 230, yy + 36);
+    x.strokeStyle = "#2a2721"; x.beginPath(); x.moveTo(48, yy + 60); x.lineTo(W - 48, yy + 60); x.stroke();
+    yy += rowH;
+  });
+  x.fillStyle = "#9b937f"; x.font = "24px system-ui";
+  x.fillText("scrim — shape the light you already have", 48, H - 36);
+  c.toBlob((blob) => shareOrDownload(blob, "scrim-day-plan.png", "Scrim day plan"), "image/png");
+});
+
 /* ---------- boot ---------- */
 checkBackend();
 loadSun();
 renderLog();
+renderShots();
 </script>
 </body>
 </html>

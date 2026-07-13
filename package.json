@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^1.0.0",
     "express": "^4.19.2",
+    "leaflet": "^1.9.4",
     "suncalc": "^1.9.0"
   }
 }
