@@ -441,7 +441,7 @@
     <!-- ============ LIGHT: the Relight Studio ============ -->
     <section class="screen" id="screen-light">
       <div class="card" id="studioEmpty">
-        <h2>Relight Studio</h2>
+        <h2>Pro Mode — Relight Studio</h2>
         <p class="hint" style="margin:0 0 10px">The studio maps your frame in 3D, then you light it by hand: drag real fixtures, hang silks, cut with negative fill — live, on your phone. When it sings, make it real.</p>
         <div class="actions" style="margin:0">
           <button class="btn primary" id="studioUseLast" type="button">Use last read</button>
@@ -497,8 +497,13 @@
 
     <!-- ============ PLAN: scene map + shot list ============ -->
     <section class="screen" id="screen-plan">
-      <div class="card" style="padding:0;overflow:hidden">
-        <div id="map" style="height:295px"></div>
+      <div class="card" style="border-bottom:none;padding-bottom:6px">
+        <h2>Project</h2>
+        <div class="looks projrow"></div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;position:relative;border-bottom:none">
+        <div id="map" style="height:280px;border:1.5px solid var(--ink);border-radius:6px"></div>
+        <button class="ghost" id="recenter" type="button" style="position:absolute;right:8px;top:8px;z-index:500">◎ me</button>
       </div>
       <p class="hint" id="mapHint" style="margin:6px 2px 0">Tap the map to scout a spot — ochre pins are scenes you've already read.</p>
       <div class="card" id="pinCard" style="display:none">
@@ -524,7 +529,11 @@
     <section class="screen" id="screen-log">
       <div class="card" style="border-bottom:none">
         <div style="font-family:var(--serif);font-size:26px;font-weight:500;line-height:1.15;margin:6px 0 2px">Every read, remembered.</div>
-        <p class="hint" style="font-style:italic">Each frame you analyze lands here with its light, its place, and its problems.</p>
+        <p class="hint" style="font-style:italic">Each frame you analyze lands here with its light, its place, and its problems — filed to the project.</p>
+      </div>
+      <div class="card" style="border-bottom:none;padding-top:6px">
+        <h2>Project</h2>
+        <div class="looks projrow"></div>
       </div>
       <div class="card" style="border-top:1.5px solid var(--ink)">
         <div id="logList"><p class="hint">No reads yet.</p></div>
@@ -540,7 +549,7 @@
   <nav class="tabbar" role="tablist">
     <button class="tabbtn" role="tab" aria-selected="true" data-screen="screen-now" type="button"><span class="ico">●</span>Now</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button"><span class="ico">□</span>Shoot</button>
-    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Light</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Pro</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-plan" type="button"><span class="ico">▵</span>Plan</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-log" type="button"><span class="ico">≡</span>Log</button>
   </nav>
@@ -816,6 +825,7 @@ async function loadSun(forceLoc = false) {
     const l = await getLocation(forceLoc);
     clearInterval(ticker);
     $("locPill").textContent = pillText(l);
+    if (map && !userCentered) { map.setView([l.latitude, l.longitude], 13); userCentered = true; }
     await fetchSun(l);
     loadWeather(l);
   } catch (e) {
@@ -846,6 +856,10 @@ function applyManualLocation() {
 }
 
 $("locPill").addEventListener("click", () => loadSun(true));
+$("recenter").addEventListener("click", async () => {
+  try { const l = await getLocation(); if (map) { map.setView([l.latitude, l.longitude], 14); userCentered = true; } }
+  catch { $("mapHint").textContent = "No location fix — tap the coordinates pill up top to retry."; }
+});
 setInterval(() => { if (sun) { renderClock(); renderTimeline(); } }, 1000);
 setInterval(() => { if (sun) loadSun(); }, 5 * 60 * 1000);
 
@@ -1134,9 +1148,57 @@ function handleFrame(frame) {
   else analyze(frame);
 }
 
+/* ---------- projects ---------- */
+
+function loadProjects() {
+  try {
+    const p = JSON.parse(localStorage.getItem("scrim-projects"));
+    if (Array.isArray(p) && p.length) return p;
+  } catch { /* fresh install */ }
+  const def = [{ id: "p1", name: "First shoot", created: new Date().toISOString() }];
+  localStorage.setItem("scrim-projects", JSON.stringify(def));
+  return def;
+}
+function activeProject() {
+  const ps = loadProjects();
+  const id = localStorage.getItem("scrim-active-project");
+  return ps.find((p) => p.id === id) || ps[0];
+}
+function setActiveProject(id) {
+  localStorage.setItem("scrim-active-project", id);
+  renderProjectRows();
+  renderLog();
+  renderShots();
+  renderHereNote();
+  if (map) { refreshPins(); planGuidance(); $("pinCard").style.display = "none"; }
+}
+function newProject() {
+  const name = (window.prompt("Name the project — e.g. 'Marta's short', 'Brand film day 2'") || "").trim();
+  if (!name) return;
+  const ps = loadProjects();
+  const id = "p" + Date.now().toString(36);
+  ps.unshift({ id, name: name.slice(0, 40), created: new Date().toISOString() });
+  localStorage.setItem("scrim-projects", JSON.stringify(ps));
+  setActiveProject(id);
+}
+function renderProjectRows() {
+  const ps = loadProjects();
+  const act = activeProject();
+  const html = ps.map((p) =>
+    `<button class="look" type="button" data-proj="${p.id}" aria-pressed="${p.id === act.id}" style="padding:6px 11px;min-height:32px;font-size:11px">${esc(p.name)}</button>`).join("")
+    + `<button class="look" type="button" data-newproj style="padding:6px 11px;min-height:32px;font-size:11px;color:var(--muted)">+ New</button>`;
+  document.querySelectorAll(".projrow").forEach((row) => {
+    row.innerHTML = html;
+    row.querySelectorAll("[data-proj]").forEach((b) => b.addEventListener("click", () => setActiveProject(b.dataset.proj)));
+    row.querySelectorAll("[data-newproj]").forEach((b) => b.addEventListener("click", newProject));
+  });
+}
+
 /* ---------- scene memory ---------- */
 
 function loadLog() { try { return JSON.parse(localStorage.getItem("scrim-log")) || []; } catch { return []; } }
+// entries from before projects existed belong to the default project
+function logForProject() { const pid = activeProject().id; return loadLog().filter((e) => (e.pid || "p1") === pid); }
 
 function saveLogEntry(frame, d) {
   try {
@@ -1146,6 +1208,7 @@ function saveLogEntry(frame, d) {
       const log = loadLog();
       log.unshift({
         t: new Date().toISOString(),
+        pid: activeProject().id,
         lat: loc?.latitude ?? null, lng: loc?.longitude ?? null,
         sum: [d.hardness && d.hardness + " light", d.direction && "from " + d.direction].filter(Boolean).join(" "),
         probs: (d.problems || []).length,
@@ -1169,7 +1232,7 @@ function distM(a, b, c, d) {
 function renderHereNote() {
   const note = $("hereNote");
   if (!loc) { note.style.display = "none"; return; }
-  const near = loadLog().find((e) => e.lat != null && distM(loc.latitude, loc.longitude, e.lat, e.lng) < 250);
+  const near = logForProject().find((e) => e.lat != null && distM(loc.latitude, loc.longitude, e.lat, e.lng) < 250);
   if (!near) { note.style.display = "none"; return; }
   const when = new Date(near.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   note.style.display = "block";
@@ -1177,7 +1240,7 @@ function renderHereNote() {
 }
 
 function renderLog() {
-  const log = loadLog();
+  const log = logForProject();
   $("logList").innerHTML = log.length
     ? log.map((e) => `
       <div class="logitem">
@@ -1190,13 +1253,18 @@ function renderLog() {
     : `<p class="hint">No reads yet. Every frame you analyze lands here with its light, time, and place.</p>`;
 }
 
-$("clearLog").addEventListener("click", () => { localStorage.removeItem("scrim-log"); renderLog(); renderHereNote(); });
+$("clearLog").addEventListener("click", () => {
+  const keep = loadLog().filter((e) => (e.pid || "p1") !== activeProject().id);
+  localStorage.setItem("scrim-log", JSON.stringify(keep));
+  renderLog(); renderHereNote();
+  if (map) refreshPins();
+});
 $("exportCsv").addEventListener("click", () => {
-  const log = loadLog();
+  const log = logForProject();
   if (!log.length) return;
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const csv = ["time,latitude,longitude,light,problems"]
-    .concat(log.map((e) => [q(e.t), e.lat ?? "", e.lng ?? "", q(e.sum), e.probs ?? 0].join(",")))
+  const csv = ["project,time,latitude,longitude,light,problems"]
+    .concat(log.map((e) => [q(activeProject().name), q(e.t), e.lat ?? "", e.lng ?? "", q(e.sum), e.probs ?? 0].join(",")))
     .join("\n");
   shareOrDownload(new Blob([csv], { type: "text/csv" }), "scrim-light-sheet.csv", "Scrim light sheet");
 });
@@ -1438,7 +1506,7 @@ function renderResults() {
       <div id="pane-compare" role="tabpanel" hidden></div>
       <div class="actions" style="margin:12px 0 0">
         <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
-        <button class="btn" id="toStudio" type="button">Open in Relight Studio ◐</button>
+        <button class="btn" id="toStudio" type="button">Open in Pro Mode ◐</button>
       </div>
     </div>`;
 
@@ -2606,20 +2674,31 @@ async function pinData(lat, lng) {
   return p;
 }
 
+let userCentered = false;
+function planGuidance() {
+  if (!map) return;
+  const n = logForProject().filter((e) => e.lat != null).length;
+  $("mapHint").textContent = n
+    ? "Tap the map to scout a spot — ochre pins are this project's reads."
+    : "No reads in this project yet — shoot a frame on the Shoot tab, or tap anywhere on the map to scout the light there.";
+}
 function initPlan() {
   renderShots();
+  renderProjectRows();
   if (typeof L === "undefined") {
     $("mapHint").innerHTML = `<span class="err">Map library didn't load — scene memory and the shot list below still work.</span>`;
     return;
   }
-  if (map) { setTimeout(() => map.invalidateSize(), 60); refreshPins(); return; }
+  if (map) { setTimeout(() => map.invalidateSize(), 60); refreshPins(); planGuidance(); return; }
   try {
     const log = loadLog().filter((e) => e.lat != null);
     const center = loc ? [loc.latitude, loc.longitude] : log.length ? [log[0].lat, log[0].lng] : [40.4, -3.7];
     map = L.map("map", { zoomControl: false }).setView(center, 13);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
     map.on("click", (e) => selectPin({ lat: e.latlng.lat, lng: e.latlng.lng, label: "Scout pin", scout: true }));
+    if (loc) userCentered = true;
     refreshPins();
+    planGuidance();
     setTimeout(() => map.invalidateSize(), 60);
   } catch (e) {
     $("mapHint").innerHTML = `<span class="err">Map unavailable (${esc(e.message || e)}) — scene memory below still works.</span>`;
@@ -2630,7 +2709,7 @@ function refreshPins() {
   if (!map) return;
   pinLayer.forEach((m) => map.removeLayer(m));
   pinLayer = [];
-  loadLog().filter((e) => e.lat != null).forEach((e) => {
+  logForProject().filter((e) => e.lat != null).forEach((e) => {
     const m = L.circleMarker([e.lat, e.lng], { radius: 8, color: "#A6452D", weight: 2, fillColor: "#A6452D", fillOpacity: 0.75 }).addTo(map);
     m.on("click", () => selectPin({ lat: e.lat, lng: e.lng, label: e.sum || "Scene", scout: false }));
     pinLayer.push(m);
@@ -2697,7 +2776,7 @@ function drawSunRay(p, d) {
 
 function loadShots() { try { return JSON.parse(localStorage.getItem("scrim-shots")) || []; } catch { return []; } }
 function saveShots(x) { localStorage.setItem("scrim-shots", JSON.stringify(x)); }
-const sortedShots = () => loadShots().sort((a, b) => new Date(a.start) - new Date(b.start));
+const sortedShots = () => loadShots().filter((sh) => (sh.pid || "p1") === activeProject().id).sort((a, b) => new Date(a.start) - new Date(b.start));
 
 $("addShot").addEventListener("click", () => {
   if (!pinSel?.windows?.length) {
@@ -2706,7 +2785,7 @@ $("addShot").addEventListener("click", () => {
   }
   const w = pinSel.windows[pinSel.winSel] || pinSel.windows[0];
   const shots = loadShots();
-  shots.push({ lat: pinSel.lat, lng: pinSel.lng, label: pinSel.label, lookId: pinSel.lookId, lookName: LOOK_RULES[pinSel.lookId].name, start: w.start, end: w.end });
+  shots.push({ pid: activeProject().id, lat: pinSel.lat, lng: pinSel.lng, label: pinSel.label, lookId: pinSel.lookId, lookName: LOOK_RULES[pinSel.lookId].name, start: w.start, end: w.end });
   saveShots(shots);
   renderShots();
   $("pinStatus").innerHTML = `<span class="good">Added to the shot list.</span>`;
@@ -2723,13 +2802,19 @@ function renderShots() {
       </div>`).join("")
     : `<p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p>`;
   document.querySelectorAll("[data-delshot]").forEach((b) => b.addEventListener("click", () => {
-    const shots2 = sortedShots();
-    shots2.splice(Number(b.dataset.delshot), 1);
-    saveShots(shots2);
+    const victim = sortedShots()[Number(b.dataset.delshot)];
+    const all = loadShots();
+    const idx = all.findIndex((x) => x.start === victim.start && x.lat === victim.lat && x.lookId === victim.lookId);
+    if (idx >= 0) all.splice(idx, 1);
+    saveShots(all);
     renderShots();
   }));
 }
-$("clearShots").addEventListener("click", () => { localStorage.removeItem("scrim-shots"); renderShots(); });
+$("clearShots").addEventListener("click", () => {
+  const keep = loadShots().filter((sh) => (sh.pid || "p1") !== activeProject().id);
+  saveShots(keep);
+  renderShots();
+});
 
 $("exportPlan").addEventListener("click", () => {
   const shots = sortedShots();
@@ -2742,7 +2827,7 @@ $("exportPlan").addEventListener("click", () => {
   x.fillStyle = "#f4efe6"; x.font = "750 44px system-ui";
   x.fillText("S C R I M", 48, 84);
   x.fillStyle = "#e8a33d"; x.font = "650 30px system-ui";
-  x.fillText("DAY PLAN", 48, 132);
+  x.fillText(("DAY PLAN — " + activeProject().name.toUpperCase()).slice(0, 40), 48, 132);
   x.fillStyle = "#9b937f"; x.font = "26px system-ui";
   x.fillText(new Date(shots[0].start).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }), 48, 172);
   let yy = 250;
@@ -2787,6 +2872,7 @@ window.addEventListener("load", animateEmblem);
 /* ---------- boot ---------- */
 checkBackend();
 loadSun();
+renderProjectRows();
 renderLog();
 renderShots();
 </script>
