@@ -231,6 +231,15 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.5);
   }
   .lhandle.sel { background: var(--gold); color: #201503; }
+  .ghandle {
+    position: absolute; width: 34px; height: 34px; transform: translate(-50%, -50%);
+    border-radius: 8px; border: 2.5px dashed #cfd6dd; background: rgba(20,22,26,0.45);
+    color: #eef2f6; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; touch-action: none; cursor: grab; z-index: 4;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+  .ghandle.neg { border-color: #666; background: rgba(0,0,0,0.65); color: #bbb; }
+  .ghandle.sel { border-style: solid; border-color: var(--gold); color: var(--gold); }
   .lhandle.drag { cursor: grabbing; transform: translate(-50%, -50%) scale(1.12); }
   .lightsrow { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
   .sliders label { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: 12.5px; color: var(--muted); }
@@ -346,8 +355,8 @@
     <!-- ============ LIGHT: the Relight Studio ============ -->
     <section class="screen" id="screen-light">
       <div class="card" id="studioEmpty">
-        <h2>Relight Studio</h2>
-        <p class="hint" style="margin:0 0 10px">Place virtual lights on your frame and move them live — then make the look real. One depth pass per frame, everything after runs on your phone.</p>
+        <h2>Pro Mode — Relight Studio</h2>
+        <p class="hint" style="margin:0 0 10px">Pro Mode maps your frame in 3D, then you light it by hand: drag real fixtures, hang silks, cut with negative fill — live, on your phone. When it sings, make it real.</p>
         <div class="actions" style="margin:0">
           <button class="btn primary" id="studioUseLast" type="button">Use last read</button>
           <label class="btn" for="studioShot">Upload photo</label>
@@ -363,16 +372,25 @@
         </div>
         <div class="card" style="margin-top:8px">
           <div class="lightsrow" id="lightsRow"></div>
-          <div style="display:flex;gap:8px;margin-bottom:6px">
-            <select id="fixSel" aria-label="Fixture" style="flex:1.4;min-width:0"></select>
-            <select id="modSel" aria-label="Modifier" style="flex:1;min-width:0"></select>
+          <div class="lightsrow" id="gripRow"></div>
+          <div id="lightControls">
+            <div style="display:flex;gap:8px;margin-bottom:6px">
+              <select id="fixSel" aria-label="Fixture" style="flex:1.4;min-width:0"></select>
+              <select id="modSel" aria-label="Modifier" style="flex:1;min-width:0"></select>
+            </div>
+            <div class="looks" id="aimRow" style="display:none;margin-bottom:8px"></div>
+            <div class="sliders">
+              <label><span>Intensity</span><input type="range" id="sInt" min="0" max="2" step="0.01"></label>
+              <label><span id="warmLabel">Warmth</span><input type="range" id="sWarm" min="0" max="1" step="0.01"></label>
+              <label><span>Size</span><input type="range" id="sSize" min="0" max="1" step="0.01"></label>
+              <label><span>Distance</span><input type="range" id="sDist" min="0.15" max="1.4" step="0.01"></label>
+            </div>
           </div>
-          <div class="looks" id="aimRow" style="display:none;margin-bottom:8px"></div>
-          <div class="sliders" id="sliders">
-            <label><span>Intensity</span><input type="range" id="sInt" min="0" max="2" step="0.01"></label>
-            <label><span id="warmLabel">Warmth</span><input type="range" id="sWarm" min="0" max="1" step="0.01"></label>
-            <label><span>Size</span><input type="range" id="sSize" min="0" max="1" step="0.01"></label>
-            <label><span>Distance</span><input type="range" id="sDist" min="0.15" max="1.4" step="0.01"></label>
+          <div id="gripControls" class="sliders" style="display:none">
+            <label><span>Coverage</span><input type="range" id="gSize" min="0.08" max="0.6" step="0.01"></label>
+            <label><span>Strength</span><input type="range" id="gStr" min="0" max="1" step="0.01"></label>
+          </div>
+          <div class="sliders">
             <label style="border-top:1px solid var(--line);padding-top:8px"><span>Existing light</span><input type="range" id="sAmb" min="0" max="1.2" step="0.01"></label>
             <label><span>Shadows</span><input type="range" id="sShad" min="0" max="1" step="0.01"></label>
           </div>
@@ -415,7 +433,7 @@
   <nav class="tabbar" role="tablist">
     <button class="tabbtn" role="tab" aria-selected="true" data-screen="screen-now" type="button"><span class="ico">☀</span>Now</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button"><span class="ico">◉</span>Shoot</button>
-    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Light</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Pro</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-ask" type="button"><span class="ico">✳</span>Ask</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-log" type="button"><span class="ico">▤</span>Log</button>
   </nav>
@@ -1277,7 +1295,7 @@ function renderResults() {
       <div id="pane-compare" role="tabpanel" hidden></div>
       <div class="actions" style="margin:12px 0 0">
         <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
-        <button class="btn" id="toStudio" type="button">Relight Studio ◐</button>
+        <button class="btn" id="toStudio" type="button">Open in Pro Mode ◐</button>
       </div>
     </div>`;
 
@@ -1564,9 +1582,15 @@ $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.p
 
 const studio = {
   frame: null, depth: null, gl: null, prog: null, tex: {}, lights: [],
-  ambient: 0.55, shadow: 0.45, sel: 0, dirty: false, holding: false, fc: false,
+  ambient: 0.55, shadow: 0.45, sel: 0, selType: "light", gsel: 0, panels: [],
+  dirty: false, holding: false, fc: false,
 };
 const LIGHT_ROLES = ["Key", "Fill", "Rim"];
+const GRIP_TYPES = {
+  silk: { name: "China silk 4x4", short: "SILK", code: 1, str: 0.8, brief: "a 4x4 china silk diffusing" },
+  muslin: { name: "Muslin 4x4", short: "MUS", code: 2, str: 0.8, brief: "a 4x4 muslin heavily softening and slightly warming" },
+  neg: { name: "Negative fill", short: "NEG", code: 3, str: 0.75, brief: "negative fill (black floppy) deepening the shadows on" },
+};
 
 // Real fixtures with real optics: CCT range, source size per modifier, output punch.
 const FIXTURES = [
@@ -1628,6 +1652,9 @@ uniform vec3 uLcol[3];
 uniform float uLint[3];
 uniform float uLwrap[3];
 uniform float uAim[3];
+uniform vec3 uGrip[2];      // x, y, radius (uv space)
+uniform float uGripType[2]; // 0 none, 1 china silk, 2 muslin, 3 negative fill
+uniform float uGripStr[2];
 
 float dlum(vec2 uv) { return dot(texture2D(uDepth, uv).rgb, vec3(0.299, 0.587, 0.114)); }
 vec3 toLin(vec3 c) { return pow(c, vec3(2.2)); }
@@ -1661,6 +1688,17 @@ void main() {
   if (dlum(vUv + vec2(-px.x, -px.y) * aoR * 0.7) > d + 0.02) occN += 1.0;
   float ao = 1.0 - (occN / 6.0) * 0.45;
 
+  // grip influence at this pixel: silk/muslin soften, negative fill subtracts
+  float silkG = 0.0, musG = 0.0, negG = 0.0;
+  for (int p = 0; p < 2; p++) {
+    if (uGripType[p] < 0.5) continue;
+    float g = (1.0 - smoothstep(uGrip[p].z * 0.35, uGrip[p].z, distance(vUv, uGrip[p].xy))) * uGripStr[p];
+    if (uGripType[p] < 1.5) silkG = max(silkG, g);
+    else if (uGripType[p] < 2.5) musG = max(musG, g);
+    else negG = max(negG, g);
+  }
+  float softG = clamp(silkG * 0.7 + musG, 0.0, 1.0);
+
   vec3 acc = albedo * uAmbient * ao;
 
   for (int i = 0; i < 3; i++) {
@@ -1668,7 +1706,7 @@ void main() {
     vec3 Lv = uLpos[i] - P;
     float dist = length(Lv);
     vec3 L = normalize(Lv);
-    float w = uLwrap[i];
+    float w = uLwrap[i] + softG * 1.4;   // diffusion grows the apparent source
     float srcSize = clamp((w - 0.1) / 1.3, 0.0, 1.0);
     float diff = clamp((dot(N, L) + w) / (1.0 + w), 0.0, 1.0);
     // bigger apparent sources fall off more gently near the source
@@ -1688,16 +1726,19 @@ void main() {
         if (dlum(sp.xy) * 0.55 > sp.z + 0.035) occ += 1.0;
       }
       float sh = smoothstep(0.0, 1.0, 1.0 - occ / 8.0);
-      float strength = uShadow * (1.0 - srcSize * 0.65);
+      float strength = uShadow * (1.0 - srcSize * 0.65) * (1.0 - softG * 0.5);
       lit = mix(1.0, max(sh, 0.15), strength);
     }
 
     vec3 H = normalize(L + V);
-    float spec = pow(max(dot(N, H), 0.0), mix(56.0, 8.0, w)) * (1.0 - srcSize) * 0.12;
+    float spec = pow(max(dot(N, H), 0.0), mix(56.0, 8.0, w)) * (1.0 - srcSize) * 0.12 * (1.0 - softG);
     float m = texture2D(uMask, vUv).r;
     float aim = uAim[i] < 0.5 ? 1.0 : (uAim[i] < 1.5 ? smoothstep(0.3, 0.7, m) : 1.0 - smoothstep(0.3, 0.7, m));
-    acc += (albedo * diff + vec3(spec)) * toLin(uLcol[i]) * (uLint[i] * att * 2.4 * lit * aim);
+    float cut = 1.0 - silkG * 0.22 - musG * 0.38;                        // fabric eats output
+    vec3 tint = mix(vec3(1.0), vec3(1.06, 0.98, 0.90), musG);            // muslin warms what passes
+    acc += (albedo * diff + vec3(spec)) * toLin(uLcol[i]) * tint * (uLint[i] * att * 2.4 * lit * aim * cut);
   }
+  acc *= (1.0 - negG * 0.5); // negative fill: the black floppy eats bounce
 
   vec3 color = toSRGB(aces(acc));
   color += (hash(vUv * uRes + 0.5) - 0.5) / 255.0; // dither: no banding in dark falloff
@@ -1795,6 +1836,16 @@ function glDraw() {
   gl.uniform1f(u("uShadow"), studio.holding ? 0.0 : studio.shadow);
   gl.uniform1f(u("uFC"), studio.fc && !studio.holding ? 1.0 : 0.0);
   gl.uniform1fv(u("uAim"), ls.length ? studio.lights.map((l) => l.aim || 0).concat([0, 0, 0]).slice(0, 3) : [0, 0, 0]);
+  const gp = [], gt = [], gs = [];
+  for (let i = 0; i < 2; i++) {
+    const p = !studio.holding && studio.panels[i];
+    gp.push(p ? p.x : 0, p ? 1 - p.y : 0, p ? p.radius : 0);
+    gt.push(p ? GRIP_TYPES[p.type].code : 0);
+    gs.push(p ? p.str : 0);
+  }
+  gl.uniform3fv(u("uGrip"), gp);
+  gl.uniform1fv(u("uGripType"), gt);
+  gl.uniform1fv(u("uGripStr"), gs);
   gl.uniform1i(u("uCount"), ls.length);
   gl.uniform3fv(u("uLpos"), pos);
   gl.uniform3fv(u("uLcol"), col);
@@ -1812,6 +1863,19 @@ function requestDraw() {
 /* ---- studio UI ---- */
 
 function studioSyncSliders() {
+  if (studio.selType === "grip") {
+    const p = studio.panels[studio.gsel];
+    if (!p) return;
+    $("lightControls").style.display = "none";
+    $("gripControls").style.display = "";
+    $("gSize").value = p.radius;
+    $("gStr").value = p.str;
+    $("sAmb").value = studio.ambient;
+    $("sShad").value = studio.shadow;
+    return;
+  }
+  $("lightControls").style.display = "";
+  $("gripControls").style.display = "none";
   const l = studio.lights[studio.sel];
   if (!l) return;
   $("sInt").value = l.intensity;
@@ -1844,16 +1908,33 @@ function studioSyncSliders() {
 
 function studioRenderLights() {
   $("lightsRow").innerHTML = studio.lights.map((_, i) =>
-    `<button class="look" type="button" data-li="${i}" aria-pressed="${i === studio.sel}" style="padding:6px 13px;min-height:34px;font-size:12.5px">${LIGHT_ROLES[i] || "Light"}</button>`).join("")
-    + (studio.lights.length < 3 ? `<button class="look" type="button" id="addLight" style="padding:6px 13px;min-height:34px;font-size:12.5px">+ Add</button>` : "")
-    + (studio.lights.length > 1 ? `<button class="look" type="button" id="delLight" style="padding:6px 13px;min-height:34px;font-size:12.5px">− Remove</button>` : "");
+    `<button class="look" type="button" data-li="${i}" aria-pressed="${studio.selType === "light" && i === studio.sel}" style="padding:6px 13px;min-height:34px;font-size:12.5px">${LIGHT_ROLES[i] || "Light"}</button>`).join("")
+    + (studio.lights.length < 3 ? `<button class="look" type="button" id="addLight" style="padding:6px 13px;min-height:34px;font-size:12.5px">+ Light</button>` : "")
+    + (studio.lights.length > 1 && studio.selType === "light" ? `<button class="look" type="button" id="delLight" style="padding:6px 13px;min-height:34px;font-size:12.5px">− Remove</button>` : "");
+  $("gripRow").innerHTML = studio.panels.map((p, i) =>
+    `<button class="look" type="button" data-gi="${i}" aria-pressed="${studio.selType === "grip" && i === studio.gsel}" style="padding:6px 13px;min-height:34px;font-size:12.5px">${GRIP_TYPES[p.type].name.split(" ")[0]}${p.type === "neg" ? " fill" : ""}</button>`).join("")
+    + (studio.panels.length < 2
+      ? Object.entries(GRIP_TYPES).map(([id, g]) => `<button class="look" type="button" data-addgrip="${id}" style="padding:6px 13px;min-height:34px;font-size:12.5px;color:var(--muted)">+ ${g.name.split(" ")[0]}${id === "neg" ? " fill" : ""}</button>`).join("")
+      : "")
+    + (studio.panels.length && studio.selType === "grip" ? `<button class="look" type="button" id="delGrip" style="padding:6px 13px;min-height:34px;font-size:12.5px">− Remove</button>` : "");
+
   document.querySelectorAll("[data-li]").forEach((b) => b.addEventListener("click", () => {
-    studio.sel = Number(b.dataset.li);
+    studio.selType = "light"; studio.sel = Number(b.dataset.li);
     studioRenderLights(); studioSyncSliders(); studioRenderHandles();
+  }));
+  document.querySelectorAll("[data-gi]").forEach((b) => b.addEventListener("click", () => {
+    studio.selType = "grip"; studio.gsel = Number(b.dataset.gi);
+    studioRenderLights(); studioSyncSliders(); studioRenderHandles();
+  }));
+  document.querySelectorAll("[data-addgrip]").forEach((b) => b.addEventListener("click", () => {
+    const type = b.dataset.addgrip;
+    studio.panels.push({ type, x: type === "neg" ? 0.75 : 0.4, y: 0.45, radius: 0.28, str: GRIP_TYPES[type].str });
+    studio.selType = "grip"; studio.gsel = studio.panels.length - 1;
+    studioRenderLights(); studioSyncSliders(); studioRenderHandles(); requestDraw();
   }));
   $("addLight")?.addEventListener("click", () => {
     studio.lights.push(defaultLight(studio.lights.length));
-    studio.sel = studio.lights.length - 1;
+    studio.selType = "light"; studio.sel = studio.lights.length - 1;
     studioRenderLights(); studioSyncSliders(); studioRenderHandles(); requestDraw();
   });
   $("delLight")?.addEventListener("click", () => {
@@ -1861,30 +1942,29 @@ function studioRenderLights() {
     studio.sel = Math.max(0, studio.sel - 1);
     studioRenderLights(); studioSyncSliders(); studioRenderHandles(); requestDraw();
   });
+  $("delGrip")?.addEventListener("click", () => {
+    studio.panels.splice(studio.gsel, 1);
+    if (!studio.panels.length) { studio.selType = "light"; studio.gsel = 0; }
+    else studio.gsel = Math.max(0, studio.gsel - 1);
+    studioRenderLights(); studioSyncSliders(); studioRenderHandles(); requestDraw();
+  });
 }
 
 function studioRenderHandles() {
   const stage = $("stage");
-  stage.querySelectorAll(".lhandle").forEach((h) => h.remove());
-  studio.lights.forEach((l, i) => {
-    const h = document.createElement("div");
-    h.className = "lhandle" + (i === studio.sel ? " sel" : "");
-    h.style.left = l.x * 100 + "%";
-    h.style.top = l.y * 100 + "%";
-    h.textContent = (LIGHT_ROLES[i] || "L")[0];
+  stage.querySelectorAll(".lhandle, .ghandle").forEach((h) => h.remove());
+  const wireDrag = (h, obj, onSelect) => {
     h.addEventListener("pointerdown", (e) => {
       e.preventDefault();
-      studio.sel = i;
-      studioRenderLights(); studioSyncSliders();
-      stage.querySelectorAll(".lhandle").forEach((x) => x.classList.remove("sel"));
-      h.classList.add("sel", "drag");
+      onSelect();
+      h.classList.add("drag");
       try { h.setPointerCapture(e.pointerId); } catch { /* best effort */ }
       const move = (ev) => {
         const r = stage.getBoundingClientRect();
-        l.x = Math.min(0.98, Math.max(0.02, (ev.clientX - r.left) / r.width));
-        l.y = Math.min(0.98, Math.max(0.02, (ev.clientY - r.top) / r.height));
-        h.style.left = l.x * 100 + "%";
-        h.style.top = l.y * 100 + "%";
+        obj.x = Math.min(0.98, Math.max(0.02, (ev.clientX - r.left) / r.width));
+        obj.y = Math.min(0.98, Math.max(0.02, (ev.clientY - r.top) / r.height));
+        h.style.left = obj.x * 100 + "%";
+        h.style.top = obj.y * 100 + "%";
         requestDraw();
       };
       const up = () => {
@@ -1896,6 +1976,33 @@ function studioRenderHandles() {
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
+    });
+  };
+  studio.lights.forEach((l, i) => {
+    const h = document.createElement("div");
+    h.className = "lhandle" + (studio.selType === "light" && i === studio.sel ? " sel" : "");
+    h.style.left = l.x * 100 + "%";
+    h.style.top = l.y * 100 + "%";
+    h.textContent = (LIGHT_ROLES[i] || "L")[0];
+    wireDrag(h, l, () => {
+      studio.selType = "light"; studio.sel = i;
+      studioRenderLights(); studioSyncSliders();
+      stage.querySelectorAll(".lhandle, .ghandle").forEach((x) => x.classList.remove("sel"));
+      h.classList.add("sel");
+    });
+    stage.appendChild(h);
+  });
+  studio.panels.forEach((p, i) => {
+    const h = document.createElement("div");
+    h.className = "ghandle" + (p.type === "neg" ? " neg" : "") + (studio.selType === "grip" && i === studio.gsel ? " sel" : "");
+    h.style.left = p.x * 100 + "%";
+    h.style.top = p.y * 100 + "%";
+    h.textContent = GRIP_TYPES[p.type].short;
+    wireDrag(h, p, () => {
+      studio.selType = "grip"; studio.gsel = i;
+      studioRenderLights(); studioSyncSliders();
+      stage.querySelectorAll(".lhandle, .ghandle").forEach((x) => x.classList.remove("sel"));
+      h.classList.add("sel");
     });
     stage.appendChild(h);
   });
@@ -2035,7 +2142,8 @@ async function studioLoad(frame) {
     studio.hasMask = Boolean(maskImg);
     glInit(photoImg, depthImg, maskImg);
     studio.lights = [defaultLight(0)];
-    studio.sel = 0;
+    studio.panels = [];
+    studio.sel = 0; studio.gsel = 0; studio.selType = "light";
     studio.ambient = 0.55;
     $("studioBootStatus").textContent = "";
     $("studioEmpty").style.display = "none";
@@ -2051,7 +2159,7 @@ async function studioLoad(frame) {
 // sliders drive the selected light live
 [["sInt", "intensity"], ["sWarm", "warmth"], ["sSize", "size"], ["sDist", "z"]].forEach(([id, key]) => {
   $(id).addEventListener("input", () => {
-    const l = studio.lights[studio.sel];
+    const l = studio.selType === "light" && studio.lights[studio.sel];
     if (l) {
       l[key] = Number($(id).value);
       if (key === "warmth") $("warmLabel").textContent = `Warmth · ${kelvinOf(l)}K`;
@@ -2061,6 +2169,8 @@ async function studioLoad(frame) {
 });
 $("sAmb").addEventListener("input", () => { studio.ambient = Number($("sAmb").value); requestDraw(); });
 $("sShad").addEventListener("input", () => { studio.shadow = Number($("sShad").value); requestDraw(); });
+$("gSize").addEventListener("input", () => { const p = studio.panels[studio.gsel]; if (p) { p.radius = Number($("gSize").value); requestDraw(); } });
+$("gStr").addEventListener("input", () => { const p = studio.panels[studio.gsel]; if (p) { p.str = Number($("gStr").value); requestDraw(); } });
 
 $("fixSel").addEventListener("change", () => {
   const l = studio.lights[studio.sel];
@@ -2125,8 +2235,9 @@ function rigToBrief() {
   const amb = studio.ambient < 0.3 ? "Let the existing ambient light fall almost to black."
     : studio.ambient < 0.7 ? "Keep the existing ambient light present but clearly secondary."
     : "Keep the existing ambient light dominant; the added lights are accents.";
-  const gear = [...new Set(studio.lights.map((l) => `${fixOf(l).name} + ${modOf(l).name}`))].join("; ");
-  return `Relight with this exact controlled lighting setup, mimicking how these real fixtures render light: ${lines.join(". ")}. ${amb} Reproduce each fixture's characteristic quality: source size sets shadow-edge softness, the stated Kelvin sets its colour. (Gear list: ${gear}.)`;
+  const gripLines = studio.panels.map((p) => `${GRIP_TYPES[p.type].brief} the frame-${posWord(p.x, "left", "right")} area`);
+  const gear = [...new Set(studio.lights.map((l) => `${fixOf(l).name} + ${modOf(l).name}`).concat(studio.panels.map((p) => GRIP_TYPES[p.type].name)))].join("; ");
+  return `Relight with this exact controlled lighting setup, mimicking how these real fixtures render light: ${lines.join(". ")}.${gripLines.length ? ` Grip: ${gripLines.join("; ")}.` : ""} ${amb} Reproduce each fixture's characteristic quality: source size sets shadow-edge softness, the stated Kelvin sets its colour. (Gear list: ${gear}.)`;
 }
 
 $("makeReal").addEventListener("click", async () => {
