@@ -369,6 +369,7 @@
           <canvas id="glc"></canvas>
           <button class="holdbtn" id="holdOrig" type="button">◉ hold — original</button>
           <button class="holdbtn" id="fcBtn" type="button" style="right:auto;left:10px">▦ false color</button>
+          <button class="holdbtn" id="clayBtn" type="button" style="right:auto;left:10px;bottom:48px">◇ clay</button>
         </div>
         <div class="card" style="margin-top:8px">
           <div class="lightsrow" id="lightsRow"></div>
@@ -1583,7 +1584,7 @@ $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.p
 const studio = {
   frame: null, depth: null, gl: null, prog: null, tex: {}, lights: [],
   ambient: 0.55, shadow: 0.45, sel: 0, selType: "light", gsel: 0, panels: [],
-  dirty: false, holding: false, fc: false,
+  dirty: false, holding: false, fc: false, clayPin: false, clayAuto: false,
 };
 const LIGHT_ROLES = ["Key", "Fill", "Rim"];
 const GRIP_TYPES = {
@@ -1645,7 +1646,7 @@ const FS = `precision mediump float;
 varying vec2 vUv;
 uniform sampler2D uPhoto, uDepth, uMask;
 uniform vec2 uRes;
-uniform float uAmbient, uShadow, uFC;
+uniform float uAmbient, uShadow, uFC, uClay;
 uniform int uCount;
 uniform vec3 uLpos[3];
 uniform vec3 uLcol[3];
@@ -1665,6 +1666,12 @@ float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.545
 void main() {
   vec3 albedo = toLin(texture2D(uPhoto, vUv).rgb);
   float d = dlum(vUv);
+  if (uClay > 0.5) {
+    // clay: neutral surface + depth contour lines, so light and shadow read pure
+    float band = abs(fract(d * 22.0) - 0.5) * 2.0;
+    float line = 1.0 - smoothstep(0.85, 0.97, band) * 0.35;
+    albedo = vec3(0.34) * line;
+  }
   vec2 px = 1.0 / uRes;
 
   // Sobel normals: far less noise than central differences on model depth maps
@@ -1743,7 +1750,7 @@ void main() {
   vec3 color = toSRGB(aces(acc));
   color += (hash(vUv * uRes + 0.5) - 0.5) / 255.0; // dither: no banding in dark falloff
 
-  if (uFC > 0.5) {
+  if (uFC > 0.5 && uClay < 0.5) {
     // ARRI-style false color: exposure bands on the RELIT image
     float y = dot(color, vec3(0.2126, 0.7152, 0.0722));
     vec3 fc = vec3(y);
@@ -1835,6 +1842,7 @@ function glDraw() {
   gl.uniform1f(u("uAmbient"), studio.holding ? 1.0 : studio.ambient);
   gl.uniform1f(u("uShadow"), studio.holding ? 0.0 : studio.shadow);
   gl.uniform1f(u("uFC"), studio.fc && !studio.holding ? 1.0 : 0.0);
+  gl.uniform1f(u("uClay"), (studio.clayPin || studio.clayAuto) && !studio.holding ? 1.0 : 0.0);
   gl.uniform1fv(u("uAim"), ls.length ? studio.lights.map((l) => l.aim || 0).concat([0, 0, 0]).slice(0, 3) : [0, 0, 0]);
   const gp = [], gt = [], gs = [];
   for (let i = 0; i < 2; i++) {
@@ -1965,10 +1973,13 @@ function studioRenderHandles() {
         obj.y = Math.min(0.98, Math.max(0.02, (ev.clientY - r.top) / r.height));
         h.style.left = obj.x * 100 + "%";
         h.style.top = obj.y * 100 + "%";
+        studio.clayAuto = true; // clay view while moving: falloff and shadows read pure
         requestDraw();
       };
       const up = () => {
         h.classList.remove("drag");
+        studio.clayAuto = false;
+        requestDraw();
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
@@ -2193,6 +2204,12 @@ $("modSel").addEventListener("change", () => {
 });
 
 // hold to compare with the untouched frame
+$("clayBtn").addEventListener("click", () => {
+  studio.clayPin = !studio.clayPin;
+  $("clayBtn").style.background = studio.clayPin ? "var(--gold)" : "rgba(0,0,0,0.55)";
+  $("clayBtn").style.color = studio.clayPin ? "#201503" : "#fff";
+  requestDraw();
+});
 $("fcBtn").addEventListener("click", () => {
   studio.fc = !studio.fc;
   $("fcBtn").style.background = studio.fc ? "var(--gold)" : "rgba(0,0,0,0.55)";
