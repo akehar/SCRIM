@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 100">
+  
+  <defs>
+    <clipPath id="disc"><circle cx="40" cy="50" r="32"></circle></clipPath>
+  </defs>
+  <g clip-path="url(#disc)">
+    <rect x="8" y="18" width="32" height="64" fill="#D84B33"></rect>
+    <rect x="42.5" y="18" width="5.6" height="64" fill="#D84B33" opacity="0.85"></rect>
+    <rect x="51.4" y="18" width="5.6" height="64" fill="#D84B33" opacity="0.6"></rect>
+    <rect x="60.3" y="18" width="5.6" height="64" fill="#D84B33" opacity="0.38"></rect>
+    <rect x="69.2" y="18" width="5.6" height="64" fill="#D84B33" opacity="0.2"></rect>
+  </g>
+  <text x="96" y="78" font-size="82" letter-spacing="-1.5" fill="#EFEDE4">Scrim</text>
+</svg>

@@ -2,6 +2,8 @@
 
 The weekend slice of Scrim, a natural-light gaffer assistant.
 
+**Brand: Field Notes** — bone paper (`#F3F1E8`), ink (`#191913`), one red-ochre signal (`#A6452D`); Newsreader serif for judgment, IBM Plex Mono for measurement; ruled-paper panels, not cards. Light-first for daylight readability. Tagline: *Plan it. Read it. Shape it. Nail it.* Fonts and GSAP are self-hosted under `public/vendor/`; the emblem animates on load (reduced-motion aware). Tabs: ● Now · □ Shoot · ◐ Light · ▵ Plan · ≡ Log, with the chat as a floating ochre button opening a full-bleed paper sheet ("Ask the light anything.").
+
 Sun apps (PhotoPills, Sun Seeker) tell you where the sun will be but never look at your frame. AI relighters fix the photo afterwards but teach you nothing on set. Scrim sits in the gap: it reads *your* frame right now, names the problem in plain language, gives you a physical or timing fix, and shows a preview of what softer light would do — so you get it right in camera.
 
 One endpoint that, given a photo plus a location and time, returns:
