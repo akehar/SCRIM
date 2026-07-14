@@ -10,6 +10,10 @@ services:
         sync: false
       - key: ACCESS_CODE
         sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
       - key: IMAGE_MODEL
         value: gemini-3.1-flash-image
       - key: VISION_MODEL

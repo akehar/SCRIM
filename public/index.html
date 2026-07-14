@@ -61,6 +61,8 @@
     max-width: 46%; overflow: hidden; text-overflow: ellipsis;
   }
   .tagline { display: none; }
+  #acctBtn { border: 1.5px solid var(--ink); border-radius: 999px; padding: 4px 10px; color: var(--ink); font-weight: 600; }
+  #acctBtn.in { background: var(--ochre); border-color: var(--ochre); color: var(--paper); width: 30px; height: 30px; padding: 0; text-align: center; }
 
   main { flex: 1 1 auto; position: relative; overflow: hidden; }
   .screen {
@@ -340,6 +342,7 @@
     </svg>
     <h1 class="wordmark">Scrim</h1>
     <button class="pill" id="locPill" type="button" title="Tap to refresh location">locating…</button>
+    <button class="pill" id="acctBtn" type="button" title="Account" style="max-width:none;display:none">SIGN IN</button>
     <button class="pill" id="fbBtn" type="button" title="Send feedback" style="max-width:none;font-size:15px">✎</button>
   </header>
 
@@ -644,6 +647,12 @@ async function aiFetch(path, body) {
   const headers = { "Content-Type": "application/json" };
   const code = localStorage.getItem("scrim-code");
   if (code) headers["x-scrim-code"] = code;
+  if (clerkReady && window.Clerk?.session) {
+    try {
+      const t = await window.Clerk.session.getToken();
+      if (t) headers["Authorization"] = "Bearer " + t;
+    } catch { /* token refresh hiccup: code fallback still applies */ }
+  }
   const res = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
   if (res.status === 401) {
     localStorage.removeItem("scrim-code");
@@ -900,7 +909,11 @@ setInterval(() => { if (sun) loadSun(); }, 5 * 60 * 1000);
 async function checkBackend() {
   try {
     const h = await (await fetch("/health")).json();
-    if (h.locked && !localStorage.getItem("scrim-code")) showCodeCard();
+    if (h.clerk) initClerk(h.clerk);
+    if (h.locked && !localStorage.getItem("scrim-code")) {
+      showCodeCard();
+      if (h.clerk) $("codeCard").querySelector(".hint").textContent = "Sign in (top right) — or enter the crew access code below.";
+    }
     if (h.gemini === false) {
       const b = $("banner");
       b.style.display = "block";
@@ -3162,6 +3175,50 @@ $("kitSave").addEventListener("click", () => {
   localStorage.setItem("scrim-kit", JSON.stringify({ ids, custom: $("kitCustom").value.trim() }));
   $("kitSheet").style.display = "none";
   track("kit_saved", String(ids.length));
+});
+
+/* ---------- account (Clerk) ---------- */
+
+let clerkReady = false;
+async function initClerk(pk) {
+  try {
+    const domain = atob(pk.split("_")[2] || "").replace(/\$$/, "");
+    if (!domain) return;
+    await new Promise((resolve, reject) => {
+      const sc = document.createElement("script");
+      sc.src = `https://${domain}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
+      sc.setAttribute("data-clerk-publishable-key", pk);
+      sc.async = true;
+      sc.onload = resolve;
+      sc.onerror = () => reject(new Error("clerk script failed"));
+      document.head.appendChild(sc);
+    });
+    await window.Clerk.load();
+    clerkReady = true;
+    updateAcct();
+    window.Clerk.addListener(updateAcct);
+  } catch (e) { console.warn("clerk unavailable:", e?.message || e); }
+}
+
+function updateAcct() {
+  const b = $("acctBtn");
+  if (!clerkReady) { b.style.display = "none"; return; }
+  b.style.display = "";
+  const u = window.Clerk.user;
+  if (u) {
+    b.textContent = (u.firstName?.[0] || u.primaryEmailAddress?.emailAddress?.[0] || "•").toUpperCase();
+    b.classList.add("in");
+    $("codeCard").style.display = "none"; // signed in: no code needed
+  } else {
+    b.textContent = "SIGN IN";
+    b.classList.remove("in");
+  }
+}
+
+$("acctBtn").addEventListener("click", () => {
+  if (!clerkReady) return;
+  if (window.Clerk.user) window.Clerk.openUserProfile();
+  else { window.Clerk.openSignIn(); track("sign_in_open"); }
 });
 
 /* ---------- beta telemetry + feedback ---------- */

@@ -1,6 +1,7 @@
 import express from "express";
 import SunCalc from "suncalc";
 import { GoogleGenAI } from "@google/genai";
+import { clerkMiddleware, getAuth } from "@clerk/express";
 
 const app = express();
 app.use(express.json({ limit: "16mb" }));
@@ -8,12 +9,19 @@ app.use(express.static("public"));
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Shared access code protecting the AI endpoints (the ones that spend money).
-// Unset = open, for local dev. Set ACCESS_CODE in Render to lock the deploy.
+// Auth: a Clerk account OR the shared access code unlocks the AI endpoints.
+// Both come from env; with neither set the deploy is open (local dev).
 const ACCESS_CODE = process.env.ACCESS_CODE || "";
+const CLERK_PK = process.env.CLERK_PUBLISHABLE_KEY || "";
+const CLERK_ON = Boolean(process.env.CLERK_SECRET_KEY && CLERK_PK);
+if (CLERK_ON) app.use(clerkMiddleware());
 function requireCode(req, res, next) {
-  if (!ACCESS_CODE || req.get("x-scrim-code") === ACCESS_CODE) return next();
-  res.status(401).json({ error: "Access code required." });
+  if (!ACCESS_CODE && !CLERK_ON) return next();
+  if (ACCESS_CODE && req.get("x-scrim-code") === ACCESS_CODE) return next();
+  if (CLERK_ON) {
+    try { if (getAuth(req).userId) return next(); } catch { /* no session */ }
+  }
+  res.status(401).json({ error: CLERK_ON ? "Sign in (or enter the access code) to use this." : "Access code required." });
 }
 
 // ---------- beta analytics: in-memory since boot, durable via Render's log stream ----------
@@ -485,7 +493,12 @@ app.get("/sun", (req, res) => {
 });
 
 // gemini:false tells the test page to explain itself instead of failing silently.
-app.get("/health", (_req, res) => res.json({ ok: true, gemini: Boolean(process.env.GEMINI_API_KEY), locked: Boolean(ACCESS_CODE) }));
+app.get("/health", (_req, res) => res.json({
+  ok: true,
+  gemini: Boolean(process.env.GEMINI_API_KEY),
+  locked: Boolean(ACCESS_CODE) || CLERK_ON,
+  clerk: CLERK_ON ? CLERK_PK : null,
+}));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
