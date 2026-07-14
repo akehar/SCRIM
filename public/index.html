@@ -643,8 +643,19 @@ $("codeSave").addEventListener("click", () => {
 $("codeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("codeSave").click(); });
 
 // All paid endpoints go through here: attaches the code, surfaces a lock on 401.
+// A stable anonymous id per device so the admin dashboard can tell
+// "5 people used it" from "one person used it 50 times". No personal data.
+function deviceId() {
+  let id = localStorage.getItem("scrim-uid");
+  if (!/^[a-z0-9-]{4,32}$/i.test(id || "")) {
+    id = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem("scrim-uid", id);
+  }
+  return id;
+}
+
 async function aiFetch(path, body) {
-  const headers = { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json", "x-scrim-uid": deviceId() };
   const code = localStorage.getItem("scrim-code");
   if (code) headers["x-scrim-code"] = code;
   if (clerkReady && window.Clerk?.session) {
@@ -3226,7 +3237,7 @@ $("acctBtn").addEventListener("click", () => {
 // Fire-and-forget: never blocks, never errors into the UI.
 function track(e, m) {
   try {
-    const body = JSON.stringify({ e, m });
+    const body = JSON.stringify({ e, m, u: deviceId() });
     if (!(navigator.sendBeacon && navigator.sendBeacon("/track", new Blob([body], { type: "application/json" })))) {
       fetch("/track", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
     }
@@ -3257,7 +3268,7 @@ $("fbSend").addEventListener("click", async () => {
   try {
     const r = await fetch("/feedback", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-scrim-uid": deviceId() },
       body: JSON.stringify({ text, name: $("fbName").value.trim() }),
     });
     if (!r.ok) throw new Error("send failed");

@@ -1,7 +1,7 @@
 import express from "express";
 import SunCalc from "suncalc";
 import { GoogleGenAI } from "@google/genai";
-import { clerkMiddleware, getAuth } from "@clerk/express";
+import { clerkMiddleware, getAuth, clerkClient } from "@clerk/express";
 
 const app = express();
 app.use(express.json({ limit: "16mb" }));
@@ -24,13 +24,45 @@ function requireCode(req, res, next) {
   res.status(401).json({ error: CLERK_ON ? "Sign in (or enter the access code) to use this." : "Access code required." });
 }
 
+// Admin: your email(s), comma-separated, in ADMIN_EMAILS. Checked against the
+// signed-in Clerk account; ?code=ACCESS_CODE keeps working as the fallback.
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+const adminCache = new Map(); // Clerk userId -> boolean, so refreshes don't hit Clerk's API
+async function isAdmin(req) {
+  if (ACCESS_CODE && req.query.code === ACCESS_CODE) return true;
+  if (!CLERK_ON || !ADMIN_EMAILS.length) return false;
+  try {
+    const { userId } = getAuth(req);
+    if (!userId) return false;
+    if (adminCache.has(userId)) return adminCache.get(userId);
+    const u = await clerkClient.users.getUser(userId);
+    const emails = (u.emailAddresses || []).map((e) => String(e.emailAddress || "").toLowerCase());
+    const yes = emails.some((e) => ADMIN_EMAILS.includes(e));
+    adminCache.set(userId, yes);
+    return yes;
+  } catch {
+    return false;
+  }
+}
+
+// Who is behind a request, for the activity log: the Clerk user if signed in,
+// else the client's anonymous device id. Never anything personal.
+function whoami(req) {
+  try {
+    const a = getAuth(req);
+    if (a?.userId) return "user:" + a.userId.slice(-8);
+  } catch { /* clerk not mounted or no session */ }
+  const anon = String(req.get("x-scrim-uid") || "").trim();
+  return /^[a-z0-9-]{4,32}$/i.test(anon) ? "dev:" + anon : undefined;
+}
+
 // ---------- beta analytics: in-memory since boot, durable via Render's log stream ----------
 // Search "[scrim-analytics]" / "[scrim-feedback]" in Render Logs for history across restarts.
 const EVENTS = [];
 const FEEDBACK = [];
 const BOOTED = new Date();
-function logEvent(e, meta) {
-  const ev = { t: new Date().toISOString(), e, ...(meta ? { m: meta } : {}) };
+function logEvent(e, meta, who) {
+  const ev = { t: new Date().toISOString(), e, ...(meta ? { m: meta } : {}), ...(who ? { u: who } : {}) };
   EVENTS.push(ev);
   if (EVENTS.length > 2000) EVENTS.shift();
   console.log("[scrim-analytics]", JSON.stringify(ev));
@@ -284,7 +316,7 @@ app.post("/analyze", requireCode, async (req, res) => {
     const { mime, data } = parseImage(image);
     const sun = sunReport(Number(latitude), Number(longitude), timestamp);
     const diagnosis = await diagnose(data, mime, sun, Number(cloudCover)).catch((e) => ({ error: String(e?.message || e) }));
-    logEvent("analyze", diagnosis?.error ? "error" : "ok");
+    logEvent("analyze", diagnosis?.error ? "error" : "ok", whoami(req));
     res.json({ sun, diagnosis });
   } catch (err) {
     console.error(err);
@@ -323,7 +355,7 @@ Formatting: this renders in a phone chat. Use short paragraphs, "-" bullets for 
       contents: history,
     });
     const text = r.text ?? r.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ?? "";
-    logEvent("chat", "ok");
+    logEvent("chat", "ok", whoami(req));
     res.json({ reply: text || "(no answer came back)" });
   } catch (err) {
     console.error(err);
@@ -342,7 +374,7 @@ app.post("/plan", requireCode, async (req, res) => {
     const sun = sunReport(Number(latitude), Number(longitude), timestamp);
     const p = await plan(data, mime, sun, String(brief).slice(0, 500), diagnosis, gear, kit)
       .catch((e) => ({ error: String(e?.message || e) }));
-    logEvent("plan", p?.error ? "error" : "ok");
+    logEvent("plan", p?.error ? "error" : "ok", whoami(req));
     res.json({ plan: p });
   } catch (err) {
     console.error(err);
@@ -390,7 +422,7 @@ app.post("/recheck", requireCode, async (req, res) => {
     const b = parseImage(before), a = parseImage(after);
     const check = await recheckRead(b.data, b.mime, a.data, a.mime, diagnosis)
       .catch((e) => ({ error: String(e?.message || e) }));
-    logEvent("recheck", check?.error ? "error" : "ok");
+    logEvent("recheck", check?.error ? "error" : "ok", whoami(req));
     res.json({ check });
   } catch (err) {
     console.error(err);
@@ -412,7 +444,7 @@ app.post("/depth", requireCode, async (req, res) => {
     });
     const parts = r.candidates?.[0]?.content?.parts ?? [];
     const img = parts.find((p) => p.inlineData);
-    logEvent("depth", img ? "ok" : "error");
+    logEvent("depth", img ? "ok" : "error", whoami(req));
     if (!img) return res.json({ depth: null, error: "model returned no depth image" });
     res.json({ depth: `data:${img.inlineData.mimeType};base64,${img.inlineData.data}`, error: null });
   } catch (err) {
@@ -430,7 +462,7 @@ app.post("/render", requireCode, async (req, res) => {
     const { mime, data } = parseImage(image);
     const render = await renderLook(data, mime, typeof brief === "string" ? brief.slice(0, 500) : "auto", diagnosis, gear, kit)
       .catch((e) => ({ error: String(e?.message || e) }));
-    logEvent("render", render && !render.error ? "ok" : "error");
+    logEvent("render", render && !render.error ? "ok" : "error", whoami(req));
     res.json({
       render: render && !render.error ? `data:${render.mimeType};base64,${render.data}` : null,
       error: render?.error || (render ? null : "model returned no image"),
@@ -443,9 +475,11 @@ app.post("/render", requireCode, async (req, res) => {
 
 // Client-side UI events: fire-and-forget beacons (tab views, exports, studio opens).
 app.post("/track", (req, res) => {
-  const { e, m } = req.body || {};
+  const { e, m, u } = req.body || {};
   if (typeof e !== "string" || !e || e.length > 40) return res.status(400).json({ error: "bad event" });
-  logEvent(e, typeof m === "string" ? m.slice(0, 120) : undefined);
+  // sendBeacon can't set headers, so the anonymous device id rides in the body.
+  const who = whoami(req) || (typeof u === "string" && /^[a-z0-9-]{4,32}$/i.test(u) ? "dev:" + u : undefined);
+  logEvent(e, typeof m === "string" ? m.slice(0, 120) : undefined, who);
   res.json({ ok: true });
 });
 
@@ -453,33 +487,107 @@ app.post("/track", (req, res) => {
 app.post("/feedback", (req, res) => {
   const { text, name } = req.body || {};
   if (!text || typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Say something first." });
-  const fb = { t: new Date().toISOString(), name: String(name || "").slice(0, 60), text: String(text).slice(0, 2000) };
+  const who = whoami(req);
+  const fb = { t: new Date().toISOString(), name: String(name || "").slice(0, 60), text: String(text).slice(0, 2000), ...(who ? { u: who } : {}) };
   FEEDBACK.push(fb);
   if (FEEDBACK.length > 500) FEEDBACK.shift();
   console.log("[scrim-feedback]", JSON.stringify(fb));
-  logEvent("feedback");
+  logEvent("feedback", undefined, who);
   res.json({ ok: true });
 });
 
-// The owner's dashboard: /stats?code=YOUR_ACCESS_CODE
-app.get("/stats", (req, res) => {
-  if (ACCESS_CODE && req.query.code !== ACCESS_CODE) return res.status(401).send("Add ?code=YOUR_ACCESS_CODE");
-  const counts = {};
-  EVENTS.forEach((ev) => { counts[ev.e] = (counts[ev.e] || 0) + 1; });
+// The owner's dashboard. Two doors: sign in with an ADMIN_EMAILS account
+// (same browser as the app, Clerk's session cookie carries over), or the old
+// /admin?code=YOUR_ACCESS_CODE. Everyone else gets a plain 401.
+app.get("/stats", (req, res) => res.redirect("/admin" + (req.query.code ? "?code=" + encodeURIComponent(req.query.code) : "")));
+app.get("/admin", async (req, res) => {
+  if (!(await isAdmin(req))) {
+    return res.status(401).send(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scrim admin</title>
+<style>body{font-family:ui-monospace,Menlo,monospace;background:#F3F1E8;color:#191913;padding:40px 24px;max-width:520px;margin:auto}a{color:#A6452D}</style>
+<h1>Admins only.</h1><p>Sign in to the app in this browser with an admin account, then come back — or open /admin?code=YOUR_ACCESS_CODE.</p><p><a href="/">← back to Scrim</a></p>`);
+  }
+
   const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const rows = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join("");
-  const recent = EVENTS.slice(-80).reverse().map((ev) => `<tr><td>${ev.t.slice(5, 19).replace("T", " ")}</td><td>${esc(ev.e)}</td><td>${esc(ev.m || "")}</td></tr>`).join("");
-  const fb = FEEDBACK.slice().reverse().map((f) => `<div class="fb"><b>${esc(f.name || "anonymous")}</b> <span>${f.t.slice(0, 16).replace("T", " ")}</span><p>${esc(f.text)}</p></div>`).join("") || "<p>No feedback yet.</p>";
-  res.send(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scrim stats</title>
-<style>body{font-family:ui-monospace,Menlo,monospace;background:#F3F1E8;color:#191913;padding:24px;max-width:720px;margin:auto}
-h1{font-size:20px}h2{font-size:13px;letter-spacing:.14em;color:#A6452D;margin-top:28px}table{border-collapse:collapse;width:100%;font-size:13px}
-td{border-bottom:1px solid #DAD7C8;padding:5px 8px 5px 0}.fb{border-bottom:1px solid #DAD7C8;padding:10px 0;font-size:14px}
-.fb span{color:#5C5B50;font-size:11px}.fb p{margin:6px 0 0;font-family:Georgia,serif}.note{color:#5C5B50;font-size:12px}</style>
-<h1>Scrim — beta stats</h1>
-<p class="note">In-memory since boot (${BOOTED.toISOString().slice(0, 16).replace("T", " ")} UTC) · resets on deploy/idle · full history: Render Logs, search [scrim-analytics] or [scrim-feedback]</p>
+  const now = Date.now();
+
+  // Roll-ups over the in-memory ring.
+  const counts = {};
+  const devices = new Map(); // who -> { n, last, top: {event: n} }
+  let errors = 0;
+  EVENTS.forEach((ev) => {
+    counts[ev.e] = (counts[ev.e] || 0) + 1;
+    if (ev.m === "error") errors++;
+    if (ev.u) {
+      const d = devices.get(ev.u) || { n: 0, last: ev.t, top: {} };
+      d.n++; d.last = ev.t; d.top[ev.e] = (d.top[ev.e] || 0) + 1;
+      devices.set(ev.u, d);
+    }
+  });
+  const AI_EVENTS = ["analyze", "plan", "render", "recheck", "depth", "chat"];
+  const aiCalls = AI_EVENTS.reduce((s, k) => s + (counts[k] || 0), 0);
+  const activeHour = new Set(EVENTS.filter((ev) => now - Date.parse(ev.t) < 3600000 && ev.u).map((ev) => ev.u)).size;
+
+  // Activity by hour, last 24h, as inline SVG bars.
+  const hours = new Array(24).fill(0);
+  EVENTS.forEach((ev) => {
+    const age = now - Date.parse(ev.t);
+    if (age >= 0 && age < 86400000) hours[23 - Math.floor(age / 3600000)]++;
+  });
+  const hmax = Math.max(1, ...hours);
+  const bars = hours.map((n, i) => {
+    const h = Math.round((n / hmax) * 56);
+    return `<rect x="${i * 22 + 2}" y="${60 - h}" width="18" height="${Math.max(h, 1)}" fill="${n ? "#A6452D" : "#DAD7C8"}"/><text x="${i * 22 + 11}" y="72" text-anchor="middle" font-size="8" fill="#5C5B50">${n || ""}</text>`;
+  }).join("");
+  const hourLabels = [0, 6, 12, 18, 23].map((i) => {
+    const d = new Date(now - (23 - i) * 3600000);
+    return `<text x="${i * 22 + 11}" y="82" text-anchor="middle" font-size="8" fill="#5C5B50">${String(d.getUTCHours()).padStart(2, "0")}h</text>`;
+  }).join("");
+
+  const card = (label, value, sub) => `<div class="card"><div class="v">${value}</div><div class="l">${label}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>`;
+  const rows = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}</td></tr>`).join("");
+  const devRows = [...devices.entries()].sort((a, b) => Date.parse(b[1].last) - Date.parse(a[1].last)).slice(0, 40).map(([who, d]) => {
+    const top = Object.entries(d.top).sort((a, b) => b[1] - a[1])[0];
+    const cls = who.startsWith("user:") ? "acct" : "";
+    return `<tr><td class="${cls}">${esc(who)}</td><td class="num">${d.n}</td><td>${esc(top ? top[0] : "")}</td><td>${d.last.slice(5, 16).replace("T", " ")}</td></tr>`;
+  }).join("");
+  const recent = EVENTS.slice(-100).reverse().map((ev) => `<tr><td>${ev.t.slice(5, 19).replace("T", " ")}</td><td>${esc(ev.e)}</td><td>${esc(ev.m || "")}</td><td class="${(ev.u || "").startsWith("user:") ? "acct" : ""}">${esc(ev.u || "")}</td></tr>`).join("");
+  const fb = FEEDBACK.slice().reverse().map((f) => `<div class="fb"><b>${esc(f.name || "anonymous")}</b> <span>${f.t.slice(0, 16).replace("T", " ")}${f.u ? " · " + esc(f.u) : ""}</span><p>${esc(f.text)}</p></div>`).join("") || "<p class=\"note\">No feedback yet.</p>";
+  const upMin = Math.round((now - BOOTED.getTime()) / 60000);
+  const uptime = upMin < 120 ? upMin + " min" : (upMin / 60).toFixed(1) + " h";
+
+  res.send(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Scrim admin</title>
+<style>
+body{font-family:ui-monospace,Menlo,monospace;background:#F3F1E8;color:#191913;padding:24px 20px 60px;max-width:760px;margin:auto}
+h1{font-size:20px;font-family:Georgia,serif;font-weight:600}
+h2{font-size:12px;letter-spacing:.16em;color:#A6452D;margin:32px 0 8px;border-bottom:1px solid #191913;padding-bottom:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;background:#DAD7C8;border:1px solid #DAD7C8}
+.card{background:#F3F1E8;padding:12px 10px}
+.card .v{font-size:26px;font-family:Georgia,serif}.card .l{font-size:10px;letter-spacing:.14em;color:#5C5B50;text-transform:uppercase;margin-top:2px}.card .s{font-size:10px;color:#5C5B50;margin-top:2px}
+table{border-collapse:collapse;width:100%;font-size:12px}
+td{border-bottom:1px solid #DAD7C8;padding:5px 8px 5px 0;vertical-align:top}
+td.num{text-align:right;font-weight:600}
+td.acct{color:#A6452D;font-weight:600}
+.fb{border-bottom:1px solid #DAD7C8;padding:10px 0;font-size:14px}
+.fb span{color:#5C5B50;font-size:11px}.fb p{margin:6px 0 0;font-family:Georgia,serif}
+.note{color:#5C5B50;font-size:12px}
+svg{width:100%;max-width:540px;height:auto;display:block}
+</style>
+<h1>Scrim — admin</h1>
+<p class="note">In-memory since boot (${BOOTED.toISOString().slice(0, 16).replace("T", " ")} UTC, up ${uptime}) · resets on deploy/idle · auto-refreshes every 60 s · full history: Render Logs, search [scrim-analytics] / [scrim-feedback] · gemini ${process.env.GEMINI_API_KEY ? "on" : "OFF"} · clerk ${CLERK_ON ? "on" : "off"} · times UTC</p>
+<div class="grid">
+${card("devices seen", devices.size, activeHour + " active last hour")}
+${card("events", EVENTS.length, "")}
+${card("AI calls", aiCalls, (counts.render || 0) + " renders")}
+${card("errors", errors, "")}
+${card("feedback", FEEDBACK.length, "")}
+</div>
+<h2>ACTIVITY — LAST 24 H (events/hour)</h2>
+<svg viewBox="0 0 530 86">${bars}${hourLabels}</svg>
 <h2>TOTALS SINCE BOOT</h2><table>${rows(counts) || "<tr><td>nothing yet</td></tr>"}</table>
+<h2>WHO'S USING IT (last 40 devices — <span class="acct" style="border:0">red</span> = signed-in account)</h2>
+<table><tr><td class="note">who</td><td class="note num">events</td><td class="note">top action</td><td class="note">last seen</td></tr>${devRows || "<tr><td>no identified devices yet</td></tr>"}</table>
 <h2>FEEDBACK (${FEEDBACK.length})</h2>${fb}
-<h2>LAST 80 EVENTS</h2><table>${recent || "<tr><td>none</td></tr>"}</table>`);
+<h2>LAST 100 EVENTS</h2><table>${recent || "<tr><td>none</td></tr>"}</table>`);
 });
 
 // Sun-only report: no image, no AI, no key needed. Cheap enough to poll.
