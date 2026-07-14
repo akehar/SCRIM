@@ -92,10 +92,10 @@
     padding: 9px 12px; font-size: 13.5px; margin: 10px 0 0; display: none; background: var(--paper);
   }
 
-  .card { background: transparent; border: none; border-radius: 0; padding: 14px 0 12px; margin: 0; border-bottom: 1px solid var(--hair); }
+  .card { background: transparent; border: none; border-radius: 0; padding: 11px 0 9px; margin: 0; border-bottom: 1px solid var(--hair); }
   .card h2 {
     font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.16em;
-    color: var(--muted); margin: 0 0 8px; font-weight: 600;
+    color: var(--muted); margin: 0 0 6px; font-weight: 600;
   }
   #sunCard h2, #screen-now .card:first-of-type h2 { color: var(--ochre); }
 
@@ -103,17 +103,17 @@
   .clock .cword { font-family: var(--serif); font-size: clamp(30px, 9vw, 40px); font-weight: 500; line-height: 1.05; }
   .clock .cnum { font-family: var(--mono); font-size: clamp(42px, 13vw, 58px); font-weight: 500; color: var(--ochre); letter-spacing: -0.03em; line-height: 1.15; font-variant-numeric: tabular-nums; }
   .clock .cleft { font-family: var(--mono); font-size: 13px; color: var(--muted); }
-  .sunline { font-size: 16.5px; font-style: italic; margin-top: 8px; line-height: 1.45; }
-  .weather { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .sunline { font-size: 16px; font-style: italic; margin-top: 5px; line-height: 1.4; }
+  .weather { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 5px; }
   .herenote { font-family: var(--mono); font-size: 11px; color: var(--ochre); margin-top: 6px; display: none; }
 
   .timeline { width: 100%; height: 66px; display: block; margin-top: 2px; }
-  .times { font-size: 14px; color: var(--muted); }
-  .times div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .times { font-size: 13.5px; color: var(--muted); }
+  .times div { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
   .times span:last-child { font-family: var(--mono); font-size: 12.5px; color: var(--ink); }
 
   .compassrow { display: flex; align-items: center; gap: 12px; }
-  .dial { flex: 0 0 auto; width: 104px; height: 104px; cursor: pointer; transition: width 0.22s ease, height 0.22s ease; }
+  .dial { flex: 0 0 auto; width: 94px; height: 94px; cursor: pointer; transition: width 0.22s ease, height 0.22s ease; }
   .dial.expanded { width: min(74vw, 300px); height: min(74vw, 300px); }
   .dial .needle { transform-origin: 50% 50%; transition: transform 0.25s ease-out, opacity 0.3s ease; }
   #compassCard.expanded > div { flex-direction: column; align-items: center; text-align: center; }
@@ -1304,7 +1304,7 @@ function renderLog() {
       <div class="logitem" data-read="${i}" style="cursor:pointer">
         <img src="${e.thumb}" alt="">
         <div class="logmeta">
-          <div>${e.sum || "read"}</div>
+          <div>${esc(e.sum || "read")}</div>
           <small>${new Date(e.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}${e.probs ? ` · ${e.probs} problem${e.probs > 1 ? "s" : ""}` : ""}${e.lat != null && loc ? ` · ${Math.round(distM(loc.latitude, loc.longitude, e.lat, e.lng))} m away` : ""}</small>
         </div>
       </div>`).join("")
@@ -1703,10 +1703,11 @@ function renderResults() {
   $("exportSheet").addEventListener("click", () => { track("call_sheet"); exportCallSheet(); });
   $("toStudio").addEventListener("click", () => { gotoScreen("screen-light"); studioLoad(state.frame); });
 
-  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+  // scope to the frame viewer: the Plan screen has its own tabs/panels
+  document.querySelectorAll("#out .tab[data-pane]").forEach((t) => t.addEventListener("click", () => {
     if (t.disabled) return;
-    document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
-    document.querySelectorAll("[role=tabpanel]").forEach((p) => { p.hidden = p.id !== t.dataset.pane; });
+    document.querySelectorAll("#out .tab[data-pane]").forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
+    document.querySelectorAll("#out [role=tabpanel]").forEach((p) => { p.hidden = p.id !== t.dataset.pane; });
   }));
 
   $("out").scrollIntoView({ behavior: "smooth", block: "nearest" });
