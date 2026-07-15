@@ -306,7 +306,8 @@
   .shotrow .when { font-family: var(--mono); font-size: 13px; color: var(--ochre); font-weight: 600; flex: 0 0 auto; }
   .shotrow .what { flex: 1; min-width: 0; }
   .shotrow .what small { display: block; color: var(--muted); font-family: var(--mono); font-size: 10.5px; }
-  .shotrow .x { color: var(--muted); background: none; border: none; font-size: 16px; cursor: pointer; padding: 2px 6px; }
+  .shotrow .x, .logitem .x { color: var(--muted); background: none; border: none; font-size: 16px; cursor: pointer; padding: 2px 6px; flex: 0 0 auto; }
+  .logitem .logmeta { flex: 1; min-width: 0; }
   .winrow { cursor: pointer; border-radius: 4px; padding: 3px 6px !important; margin: 0 -6px; }
   .winrow[aria-selected="true"] { background: var(--tint-ochre); }
 
@@ -1268,12 +1269,40 @@ function renderProjectRows() {
   const act = activeProject();
   const html = ps.map((p) =>
     `<button class="look" type="button" data-proj="${p.id}" aria-pressed="${p.id === act.id}" style="padding:6px 11px;min-height:32px;font-size:11px">${esc(p.name)}</button>`).join("")
-    + `<button class="look" type="button" data-newproj style="padding:6px 11px;min-height:32px;font-size:11px;color:var(--muted)">+ New</button>`;
+    + `<button class="look" type="button" data-newproj style="padding:6px 11px;min-height:32px;font-size:11px;color:var(--muted)">+ New</button>`
+    + `<button class="look" type="button" data-projedit style="padding:6px 11px;min-height:32px;font-size:11px;color:var(--muted)" title="Rename or delete the current project" aria-label="Rename or delete the current project">✎</button>`;
   document.querySelectorAll(".projrow").forEach((row) => {
     row.innerHTML = html;
     row.querySelectorAll("[data-proj]").forEach((b) => b.addEventListener("click", () => setActiveProject(b.dataset.proj)));
     row.querySelectorAll("[data-newproj]").forEach((b) => b.addEventListener("click", newProject));
+    row.querySelectorAll("[data-projedit]").forEach((b) => b.addEventListener("click", manageProject));
   });
+}
+
+function manageProject() {
+  const act = activeProject();
+  const answer = window.prompt(`Rename "${act.name}" — or type DELETE to remove this project with its reads and shots.`, act.name);
+  if (answer == null) return;
+  const name = answer.trim();
+  if (!name) return;
+  const ps = loadProjects();
+  if (name.toUpperCase() === "DELETE") {
+    const reads = logForProject().length, shots = sortedShots().length;
+    const tail = reads || shots ? ` and its ${reads} read${reads === 1 ? "" : "s"}, ${shots} shot${shots === 1 ? "" : "s"}` : "";
+    if (!confirm(`Delete "${act.name}"${tail}? This can't be undone.`)) return;
+    localStorage.setItem("scrim-log", JSON.stringify(loadLog().filter((e) => (e.pid || "p1") !== act.id)));
+    saveShots(loadShots().filter((sh) => (sh.pid || "p1") !== act.id));
+    let rest = ps.filter((p) => p.id !== act.id);
+    if (!rest.length) rest = [{ id: "p1", name: "First shoot", created: new Date().toISOString() }];
+    localStorage.setItem("scrim-projects", JSON.stringify(rest));
+    setActiveProject(rest[0].id);
+    track("project_deleted");
+  } else if (name !== act.name) {
+    const p = ps.find((x) => x.id === act.id);
+    if (p) { p.name = name.slice(0, 40); localStorage.setItem("scrim-projects", JSON.stringify(ps)); }
+    renderProjectRows();
+    track("project_renamed");
+  }
 }
 
 /* ---------- scene memory ---------- */
@@ -1283,9 +1312,9 @@ function loadLog() { try { return JSON.parse(localStorage.getItem("scrim-log")) 
 function logForProject() { const pid = activeProject().id; return loadLog().filter((e) => (e.pid || "p1") === pid); }
 
 function saveLogEntry(frame, d) {
-  try {
-    const img = new Image();
-    img.onload = () => {
+  const img = new Image();
+  img.onload = () => {
+    try {
       const thumb = downscale(img, img.naturalWidth, img.naturalHeight, 144, 0.6).dataUrl;
       const log = loadLog();
       log.unshift({
@@ -1296,12 +1325,28 @@ function saveLogEntry(frame, d) {
         probs: (d.problems || []).length,
         thumb,
       });
-      localStorage.setItem("scrim-log", JSON.stringify(log.slice(0, 12)));
+      // Cap per project (a busy shoot never evicts another project's reads),
+      // plus a global ceiling so thumbnails can't crowd localStorage.
+      const perProj = {};
+      let keep = log.filter((e) => {
+        const pid = e.pid || "p1";
+        perProj[pid] = (perProj[pid] || 0) + 1;
+        return perProj[pid] <= 12;
+      }).slice(0, 60);
+      const write = (arr) => localStorage.setItem("scrim-log", JSON.stringify(arr));
+      try { write(keep); } catch {
+        // storage full (private mode, crowded device): shed oldest reads until it fits
+        while (keep.length > 1) {
+          keep.pop();
+          try { write(keep); break; } catch { /* keep shedding */ }
+        }
+      }
       renderLog();
       renderHereNote();
-    };
-    img.src = frame.dataUrl;
-  } catch { /* storage full: skip */ }
+      if (map) refreshPins();
+    } catch { /* logging must never break the read */ }
+  };
+  img.src = frame.dataUrl;
 }
 
 function distM(a, b, c, d) {
@@ -1325,12 +1370,13 @@ function renderLog() {
   const log = logForProject();
   $("logList").innerHTML = log.length
     ? log.map((e, i) => `
-      <div class="logitem" data-read="${i}" style="cursor:pointer">
+      <div class="logitem" data-read="${i}" style="cursor:${e.lat != null ? "pointer" : "default"}"${e.lat != null ? ` title="Show on the map"` : ""}>
         <img src="${e.thumb}" alt="">
         <div class="logmeta">
           <div>${esc(e.sum || "read")}</div>
-          <small>${new Date(e.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}${e.probs ? ` · ${e.probs} problem${e.probs > 1 ? "s" : ""}` : ""}${e.lat != null && loc ? ` · ${Math.round(distM(loc.latitude, loc.longitude, e.lat, e.lng))} m away` : ""}</small>
+          <small>${new Date(e.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}${e.probs ? ` · ${e.probs} problem${e.probs > 1 ? "s" : ""}` : ""}${e.lat != null && loc ? ` · ${Math.round(distM(loc.latitude, loc.longitude, e.lat, e.lng))} m away` : ""}${e.lat != null ? " · ◎ map" : ""}</small>
         </div>
+        <button class="x" data-dellog="${i}" type="button" aria-label="Remove read">✕</button>
       </div>`).join("")
     : `<p class="hint">No reads in this project yet. Every frame you analyze lands here with its light, time, and place.</p>`;
   document.querySelectorAll("[data-read]").forEach((row) => row.addEventListener("click", () => {
@@ -1340,9 +1386,22 @@ function renderLog() {
     selectPin({ lat: e.lat, lng: e.lng, label: e.sum || "Scene", scout: false });
     $("map").scrollIntoView({ behavior: "smooth", block: "start" });
   }));
+  document.querySelectorAll("[data-dellog]").forEach((b) => b.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const victim = logForProject()[Number(b.dataset.dellog)];
+    if (!victim) return;
+    const all = loadLog();
+    const idx = all.findIndex((e) => e.t === victim.t && (e.pid || "p1") === (victim.pid || "p1"));
+    if (idx >= 0) all.splice(idx, 1);
+    localStorage.setItem("scrim-log", JSON.stringify(all));
+    renderLog(); renderHereNote();
+    if (map) refreshPins();
+  }));
 }
 
 $("clearLog").addEventListener("click", () => {
+  const n = logForProject().length;
+  if (!n || !confirm(`Clear all ${n} read${n > 1 ? "s" : ""} in "${activeProject().name}"? This can't be undone.`)) return;
   const keep = loadLog().filter((e) => (e.pid || "p1") !== activeProject().id);
   localStorage.setItem("scrim-log", JSON.stringify(keep));
   renderLog(); renderHereNote();
@@ -1866,14 +1925,18 @@ function exportCallSheet() {
     const c = document.createElement("canvas");
     c.width = W; c.height = H;
     const x = c.getContext("2d");
-    x.fillStyle = "#0c0b09"; x.fillRect(0, 0, W, H);
-    x.fillStyle = "#f4efe6"; x.font = "750 44px system-ui"; x.textAlign = "left";
-    x.fillText("S C R I M", 48, 84);
-    x.fillStyle = "#e8a33d"; x.font = "650 30px system-ui";
-    x.fillText(p.name.toUpperCase(), 48, 132);
-    x.fillStyle = "#9b937f"; x.font = "26px system-ui";
-    x.fillText(new Date().toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + (loc ? `  ·  ${loc.latitude.toFixed(3)}, ${loc.longitude.toFixed(3)}` : ""), 48, 172);
+    const SERIF = "Newsreader, Georgia, serif", MONO = "'IBM Plex Mono', ui-monospace, monospace";
+    x.fillStyle = "#F3F1E8"; x.fillRect(0, 0, W, H);
+    x.fillStyle = "#191913"; x.font = "600 46px " + SERIF; x.textAlign = "left";
+    x.fillText("Scrim", 48, 80);
+    x.fillStyle = "#A6452D"; x.font = "600 22px " + MONO;
+    x.fillText("C A L L   S H E E T   —   " + p.name.toUpperCase().slice(0, 30), 48, 124);
+    x.fillStyle = "#5C5B50"; x.font = "22px " + MONO;
+    x.fillText(new Date().toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + (loc ? `  ·  ${loc.latitude.toFixed(3)}, ${loc.longitude.toFixed(3)}` : ""), 48, 160);
+    x.strokeStyle = "#191913"; x.lineWidth = 2;
+    x.beginPath(); x.moveTo(48, 178); x.lineTo(W - 48, 178); x.stroke();
     x.drawImage(img, 48, 200, W - 96, imgH);
+    x.strokeStyle = "#DAD7C8"; x.lineWidth = 1; x.strokeRect(48.5, 200.5, W - 97, imgH - 1);
     // burn the diagram marks onto the exported frame
     const dg = p.diagram;
     if (dg) {
@@ -1897,20 +1960,22 @@ function exportCallSheet() {
     x.textAlign = "left";
     lines.forEach(([n, txt]) => {
       if (n) {
-        x.fillStyle = "#e8a33d"; x.beginPath(); x.arc(68, yy - 10, 20, 0, 7); x.fill();
-        x.fillStyle = "#201503"; x.font = "800 24px system-ui"; x.textAlign = "center"; x.fillText(n, 68, yy - 2);
+        x.fillStyle = "#A6452D"; x.beginPath(); x.arc(68, yy - 10, 20, 0, 7); x.fill();
+        x.fillStyle = "#F3F1E8"; x.font = "700 24px " + MONO; x.textAlign = "center"; x.fillText(n, 68, yy - 2);
       }
-      x.fillStyle = "#f4efe6"; x.font = (n ? "" : "italic ") + "28px system-ui"; x.textAlign = "left";
+      x.fillStyle = "#191913"; x.font = (n ? "" : "italic ") + "28px " + SERIF; x.textAlign = "left";
       x.fillText(txt.length > 62 ? txt.slice(0, 60) + "…" : txt, n ? 104 : 48, yy);
       yy += 52;
     });
     if (g) {
-      x.fillStyle = "#e8a33d"; x.font = "650 30px system-ui";
-      x.fillText(`Golden hour: ${fmt(g.start)}–${fmt(g.end)}`, 48, yy + 16);
+      x.fillStyle = "#A6452D"; x.font = "600 26px " + MONO;
+      x.fillText(`GOLDEN HOUR  ${fmt(g.start)}–${fmt(g.end)}`, 48, yy + 16);
       yy += 70;
     }
-    x.fillStyle = "#9b937f"; x.font = "24px system-ui";
-    x.fillText("scrim — shape the light you already have", 48, H - 36);
+    x.strokeStyle = "#DAD7C8"; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(48, H - 64); x.lineTo(W - 48, H - 64); x.stroke();
+    x.fillStyle = "#5C5B50"; x.font = "20px " + MONO;
+    x.fillText("scrim — shape the light you already have", 48, H - 32);
     c.toBlob((blob) => shareOrDownload(blob, "scrim-call-sheet.png", "Scrim call sheet"), "image/png");
   };
   img.src = state.frame.dataUrl;
@@ -3106,6 +3171,8 @@ function renderShots() {
   }));
 }
 $("clearShots").addEventListener("click", () => {
+  const n = sortedShots().length;
+  if (!n || !confirm(`Clear all ${n} shot${n > 1 ? "s" : ""} in "${activeProject().name}"? This can't be undone.`)) return;
   const keep = loadShots().filter((sh) => (sh.pid || "p1") !== activeProject().id);
   saveShots(keep);
   renderShots();
@@ -3118,26 +3185,29 @@ $("exportPlan").addEventListener("click", () => {
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const x = c.getContext("2d");
-  x.fillStyle = "#0c0b09"; x.fillRect(0, 0, W, H);
-  x.fillStyle = "#f4efe6"; x.font = "750 44px system-ui";
-  x.fillText("S C R I M", 48, 84);
-  x.fillStyle = "#e8a33d"; x.font = "650 30px system-ui";
-  x.fillText(("DAY PLAN — " + activeProject().name.toUpperCase()).slice(0, 40), 48, 132);
-  x.fillStyle = "#9b937f"; x.font = "26px system-ui";
-  x.fillText(new Date(shots[0].start).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }), 48, 172);
+  const SERIF = "Newsreader, Georgia, serif", MONO = "'IBM Plex Mono', ui-monospace, monospace";
+  x.fillStyle = "#F3F1E8"; x.fillRect(0, 0, W, H);
+  x.fillStyle = "#191913"; x.font = "600 46px " + SERIF;
+  x.fillText("Scrim", 48, 80);
+  x.fillStyle = "#A6452D"; x.font = "600 22px " + MONO;
+  x.fillText(("D A Y   P L A N   —   " + activeProject().name.toUpperCase()).slice(0, 44), 48, 124);
+  x.fillStyle = "#5C5B50"; x.font = "22px " + MONO;
+  x.fillText(new Date(shots[0].start).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }), 48, 160);
+  x.strokeStyle = "#191913"; x.lineWidth = 2;
+  x.beginPath(); x.moveTo(48, 178); x.lineTo(W - 48, 178); x.stroke();
   let yy = 250;
   shots.forEach((sh) => {
-    x.fillStyle = "#e8a33d"; x.font = "800 36px system-ui";
+    x.fillStyle = "#A6452D"; x.font = "600 34px " + MONO;
     x.fillText(`${fmt(sh.start)}`, 48, yy);
-    x.fillStyle = "#f4efe6"; x.font = "600 30px system-ui";
+    x.fillStyle = "#191913"; x.font = "600 30px " + SERIF;
     x.fillText(`${sh.lookName} — ${String(sh.label).slice(0, 34)}`, 230, yy);
-    x.fillStyle = "#9b937f"; x.font = "24px system-ui";
+    x.fillStyle = "#5C5B50"; x.font = "22px " + MONO;
     x.fillText(`${dayTag(sh.start)} ${fmt(sh.start)}–${fmt(sh.end)} · ${Number(sh.lat).toFixed(4)}, ${Number(sh.lng).toFixed(4)}`, 230, yy + 36);
-    x.strokeStyle = "#2a2721"; x.beginPath(); x.moveTo(48, yy + 60); x.lineTo(W - 48, yy + 60); x.stroke();
+    x.strokeStyle = "#DAD7C8"; x.lineWidth = 1; x.beginPath(); x.moveTo(48, yy + 60); x.lineTo(W - 48, yy + 60); x.stroke();
     yy += rowH;
   });
-  x.fillStyle = "#9b937f"; x.font = "24px system-ui";
-  x.fillText("scrim — shape the light you already have", 48, H - 36);
+  x.fillStyle = "#5C5B50"; x.font = "20px " + MONO;
+  x.fillText("scrim — shape the light you already have", 48, H - 32);
   track("day_plan");
   c.toBlob((blob) => shareOrDownload(blob, "scrim-day-plan.png", "Scrim day plan"), "image/png");
 });
