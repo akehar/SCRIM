@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Scrim",
+    "slug": "scrim",
+    "version": "0.1.0",
+    "scheme": "scrim",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F3F1E8",
+    "ios": {
+      "bundleIdentifier": "com.akehar.scrim",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scrim uses the camera as a viewfinder to read the light in your frame.",
+        "NSLocationWhenInUseUsageDescription": "Scrim uses your location to compute where the sun is and when your light windows open."
+      }
+    },
+    "android": {
+      "package": "com.akehar.scrim",
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION"],
+      "adaptiveIcon": {
+        "backgroundColor": "#F3F1E8",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
