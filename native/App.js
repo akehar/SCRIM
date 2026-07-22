@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -49,47 +49,56 @@ function Shell() {
     webRef.current?.reload();
   }, []);
 
+  // Render's free tier sleeps the server after a quiet spell and answers
+  // 5xx while it wakes (~30-60s). Keep knocking on its own instead of
+  // making the user mash TRY AGAIN.
+  useEffect(() => {
+    if (!failed) return;
+    const t = setTimeout(retry, 10000);
+    return () => clearTimeout(t);
+  }, [failed, retry]);
+
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
       <StatusBar style="dark" backgroundColor={PAPER} />
-      {failed ? (
+      {/* The WebView stays mounted through failures so reload() has
+          something to reload; the fallback overlays it. */}
+      <WebView
+        ref={webRef}
+        source={{ uri: APP_URL }}
+        style={styles.web}
+        // camera viewfinder + AR overlay
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        mediaCapturePermissionGrantType="grant"
+        // sun math needs the phone's position
+        geolocationEnabled
+        // feel like an app, not a browser
+        allowsBackForwardNavigationGestures
+        bounces={false}
+        setSupportMultipleWindows={false}
+        onShouldStartLoadWithRequest={routeRequest}
+        onError={() => setFailed(true)}
+        onHttpError={(e) => {
+          if (e.nativeEvent.statusCode >= 500) setFailed(true);
+        }}
+        onLoadEnd={() => setLoading(false)}
+        injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1 }; true;`}
+        onMessage={() => {
+          /* native bridge: LiDAR depth, scan import, push tokens land here later */
+        }}
+      />
+      {failed && (
         <View style={styles.fallback}>
           <Text style={styles.title}>Scrim</Text>
           <Text style={styles.body}>
-            Can't reach the set right now. Check your connection — the first
-            load after a quiet spell can also take a moment while the server
-            wakes up.
+            Waking up the set — the server naps after a quiet spell and can
+            take up to a minute to answer. Retrying on its own; sit tight.
           </Text>
           <Pressable style={styles.btn} onPress={retry}>
-            <Text style={styles.btnLabel}>TRY AGAIN</Text>
+            <Text style={styles.btnLabel}>TRY NOW</Text>
           </Pressable>
         </View>
-      ) : (
-        <WebView
-          ref={webRef}
-          source={{ uri: APP_URL }}
-          style={styles.web}
-          // camera viewfinder + AR overlay
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          mediaCapturePermissionGrantType="grant"
-          // sun math needs the phone's position
-          geolocationEnabled
-          // feel like an app, not a browser
-          allowsBackForwardNavigationGestures
-          bounces={false}
-          setSupportMultipleWindows={false}
-          onShouldStartLoadWithRequest={routeRequest}
-          onError={() => setFailed(true)}
-          onHttpError={(e) => {
-            if (e.nativeEvent.statusCode >= 500) setFailed(true);
-          }}
-          onLoadEnd={() => setLoading(false)}
-          injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1 }; true;`}
-          onMessage={() => {
-            /* native bridge: LiDAR depth, scan import, push tokens land here later */
-          }}
-        />
       )}
       {loading && !failed && (
         <View style={styles.loader} pointerEvents="none">
@@ -117,7 +126,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2.2,
   },
   fallback: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     alignItems: "flex-start",
     justifyContent: "center",
     paddingHorizontal: 32,
