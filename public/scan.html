@@ -91,12 +91,15 @@
 <div id="empty">
   <div class="card">
     <h2>Walk your set before the shoot.</h2>
+    <p id="emptyNative" style="display:none">Hit <span class="mono">SCAN THIS ROOM</span> and walk the space slowly &mdash; the phone&rsquo;s LiDAR builds a 3D scene right here, then the day&rsquo;s sun path draws through it.</p>
+    <div id="emptyImport">
     <p>Import a Gaussian-splat scan of any location and orbit it with the day&rsquo;s sun path drawn through the space.</p>
     <ol>
       <li>Scan the space with <strong>Scaniverse</strong> (free, App&nbsp;Store) &mdash; a slow walk around does it.</li>
       <li>In Scaniverse: <span class="mono">Share &rarr; Export model &rarr; Splat (.splat)</span> &rarr; Save to Files.</li>
       <li>Come back and hit <span class="mono">IMPORT SCAN</span> below.</li>
     </ol>
+    </div>
     <p style="margin-top:10px">No scan yet? Load the demo room to try the controls.</p>
   </div>
 </div>
@@ -107,6 +110,7 @@
 
 <div id="panel">
   <div class="row">
+    <button class="btn primary" id="scanBtn" type="button" style="display:none">&#9678; Scan this room</button>
     <button class="btn primary" id="importBtn" type="button">Import scan</button>
     <button class="btn" id="demoBtn" type="button">Demo room</button>
     <button class="btn" id="sunBtn" type="button" aria-pressed="false">&#9788; Sun path</button>
@@ -136,6 +140,71 @@
   /* ---------- import / demo / reset ---------- */
   const hasUrl = new URLSearchParams(location.search).has("url");
   if (hasUrl) { $("empty").style.display = "none"; $("spinner").style.display = ""; }
+
+  /* ---------- in-app LiDAR scanning (iOS shell on Pro iPhones) ---------- */
+  const native = window.__SCRIM_NATIVE__ || {};
+  if (native.scan) {
+    $("scanBtn").style.display = "";
+    $("importBtn").classList.remove("primary");
+    $("emptyNative").style.display = "";
+    $("emptyImport").style.display = "none";
+  }
+
+  let nativeReqId = 0;
+  const nativePending = new Map();
+  const scanChunks = new Map(); // request id -> array of Uint8Array slices
+  window.__scrimNativeResolve = (msg) => {
+    const p = nativePending.get(msg?.id);
+    if (!p) return;
+    nativePending.delete(msg.id);
+    msg.ok ? p.res(msg) : p.rej(new Error(msg.error || "native call failed"));
+  };
+  window.__scrimScanChunk = (msg) => {
+    const bin = atob(msg.b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    if (!scanChunks.has(msg.id)) scanChunks.set(msg.id, []);
+    scanChunks.get(msg.id)[msg.seq] = bytes;
+    $("message").textContent = `receiving scene… ${scanChunks.get(msg.id).filter(Boolean).length * 1.5 | 0} MB`;
+  };
+  function nativeCall(type, timeoutMs) {
+    return new Promise((res, rej) => {
+      if (!window.ReactNativeWebView) return rej(new Error("not running in the app"));
+      const id = ++nativeReqId;
+      nativePending.set(id, { res, rej });
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type, id }));
+      setTimeout(() => {
+        if (nativePending.has(id)) {
+          nativePending.delete(id);
+          rej(new Error("native call timed out"));
+        }
+      }, timeoutMs);
+    });
+  }
+
+  $("scanBtn").addEventListener("click", async () => {
+    const btn = $("scanBtn");
+    btn.disabled = true;
+    try {
+      // the native full-screen scanner takes over; scanning can take minutes
+      const r = await nativeCall("captureScan", 15 * 60 * 1000);
+      const parts = (scanChunks.get(r.id) || []).filter(Boolean);
+      scanChunks.delete(r.id);
+      if (!parts.length) throw new Error("scan arrived empty — try again");
+      const file = new File(parts, "room.splat", { type: "application/octet-stream" });
+      $("message").textContent = `${(r.points || 0).toLocaleString()} points captured`;
+      setTimeout(() => { if ($("message").textContent.includes("points captured")) $("message").textContent = ""; }, 5000);
+      $("empty").style.display = "none";
+      $("spinner").style.display = "";
+      window.__scrimScanFile = file; // keep for a later save/share feature
+      window.__scanSelectFile?.(file);
+    } catch (e) {
+      $("message").textContent = String(e.message || e);
+      setTimeout(() => { $("message").textContent = ""; }, 6000);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   $("importBtn").addEventListener("click", () => $("fileIn").click());
   $("fileIn").addEventListener("change", (e) => {

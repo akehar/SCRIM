@@ -12,12 +12,20 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
 import ScrimDepth from "./modules/scrim-depth";
+import ScrimScan from "./modules/scrim-scan";
 
-// LiDAR scene depth: present on iPhone 12 Pro and later Pro models. The page
-// reads this flag from window.__SCRIM_NATIVE__ to show its LiDAR button.
+// LiDAR features: present on iPhone 12 Pro and later Pro models. The page
+// reads these flags from window.__SCRIM_NATIVE__ to show its buttons.
 const DEPTH_SUPPORTED = (() => {
   try {
     return Platform.OS === "ios" && Boolean(ScrimDepth?.isSupported());
+  } catch {
+    return false;
+  }
+})();
+const SCAN_SUPPORTED = (() => {
+  try {
+    return Platform.OS === "ios" && Boolean(ScrimScan?.isSupported());
   } catch {
     return false;
   }
@@ -71,7 +79,8 @@ function Shell() {
   }, [failed, retry]);
 
   // Native bridge: the page posts { type, id } and gets the reply through
-  // window.__scrimNativeResolve. First (and so far only) call: LiDAR depth.
+  // window.__scrimNativeResolve. Big payloads (room scans) stream back in
+  // slices through window.__scrimScanChunk.
   const onMessage = useCallback(async (e) => {
     let msg;
     try {
@@ -79,18 +88,44 @@ function Shell() {
     } catch {
       return;
     }
-    if (msg?.type === "captureDepthShot" && msg.id != null) {
-      let reply;
-      try {
-        if (!ScrimDepth) throw new Error("LiDAR capture needs an app update.");
-        const shot = await ScrimDepth.captureDepthShot();
-        reply = { id: msg.id, ok: true, ...shot };
-      } catch (err) {
-        reply = { id: msg.id, ok: false, error: String(err?.message || err) };
-      }
+    if (!msg || msg.id == null) return;
+    const resolve = (reply) => {
       webRef.current?.injectJavaScript(
         `window.__scrimNativeResolve && window.__scrimNativeResolve(${JSON.stringify(reply)}); true;`
       );
+    };
+
+    if (msg.type === "captureDepthShot") {
+      try {
+        if (!ScrimDepth) throw new Error("LiDAR capture needs an app update.");
+        const shot = await ScrimDepth.captureDepthShot();
+        resolve({ id: msg.id, ok: true, ...shot });
+      } catch (err) {
+        resolve({ id: msg.id, ok: false, error: String(err?.message || err) });
+      }
+    }
+
+    if (msg.type === "captureScan") {
+      try {
+        if (!ScrimScan) throw new Error("Room scanning needs an app update.");
+        const scan = await ScrimScan.captureScan();
+        // stream the .splat into the page: ~1.5 MB of binary per slice
+        const CHUNK = 1.5 * 1024 * 1024;
+        let offset = 0;
+        let seq = 0;
+        for (;;) {
+          const b64 = await ScrimScan.readScanChunk(scan.path, offset, CHUNK);
+          if (!b64) break;
+          webRef.current?.injectJavaScript(
+            `window.__scrimScanChunk && window.__scrimScanChunk(${JSON.stringify({ id: msg.id, seq, b64 })}); true;`
+          );
+          offset += CHUNK;
+          seq += 1;
+        }
+        resolve({ id: msg.id, ok: true, points: scan.points, bytes: scan.bytes, chunks: seq });
+      } catch (err) {
+        resolve({ id: msg.id, ok: false, error: String(err?.message || err) });
+      }
     }
   }, []);
 
@@ -119,7 +154,7 @@ function Shell() {
           if (e.nativeEvent.statusCode >= 500) setFailed(true);
         }}
         onLoadEnd={() => setLoading(false)}
-        injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1, depth: ${DEPTH_SUPPORTED ? 1 : 0} }; true;`}
+        injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1, depth: ${DEPTH_SUPPORTED ? 1 : 0}, scan: ${SCAN_SUPPORTED ? 1 : 0} }; true;`}
         onMessage={onMessage}
       />
       {failed && (

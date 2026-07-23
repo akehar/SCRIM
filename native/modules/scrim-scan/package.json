@@ -1,0 +1,7 @@
+{
+  "name": "scrim-scan",
+  "version": "0.1.0",
+  "description": "In-app LiDAR room scanning for Scrim: walk the space, get a colored point-splat (.splat) with no cloud step.",
+  "main": "index.js",
+  "private": true
+}
