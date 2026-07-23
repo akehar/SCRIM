@@ -2158,10 +2158,12 @@ const studio = {
   dirty: false, holding: false, fc: false, clayPin: false, clayAuto: false, sunEl: null, sceneK: null,
 };
 const LIGHT_ROLES = ["Key", "Fill", "Rim"];
+// brief describes the EFFECT on the light only — naming the fabric makes the
+// render model paint the fabric into the frame.
 const GRIP_TYPES = {
-  silk: { name: "China silk 4x4", short: "SILK", code: 1, str: 0.8, brief: "a 4x4 china silk diffusing" },
-  muslin: { name: "Muslin 4x4", short: "MUS", code: 2, str: 0.8, brief: "a 4x4 muslin heavily softening and slightly warming" },
-  neg: { name: "Negative fill", short: "NEG", code: 3, str: 0.75, brief: "negative fill (black floppy) deepening the shadows on" },
+  silk: { name: "China silk 4x4", short: "SILK", code: 1, str: 0.8, brief: "soften and diffuse the light falling on" },
+  muslin: { name: "Muslin 4x4", short: "MUS", code: 2, str: 0.8, brief: "heavily soften and slightly warm the light falling on" },
+  neg: { name: "Negative fill", short: "NEG", code: 3, str: 0.75, brief: "subtract fill and deepen the shadows on" },
 };
 
 // Real fixtures with real optics: CCT range, source size per modifier, output punch.
@@ -2968,7 +2970,7 @@ function rigToBrief() {
     : "Keep the existing ambient light dominant; the added lights are accents.";
   const gripLines = studio.panels.map((p) => `${GRIP_TYPES[p.type].brief} the frame-${posWord(p.x, "left", "right")} area`);
   const gear = [...new Set(studio.lights.map((l) => `${fixOf(l).name} + ${modOf(l).name}`).concat(studio.panels.map((p) => GRIP_TYPES[p.type].name)))].join("; ");
-  return `Relight with this exact controlled lighting setup, mimicking how these real fixtures render light: ${lines.join(". ")}.${gripLines.length ? ` Grip: ${gripLines.join("; ")}.` : ""} ${amb} Reproduce each fixture's characteristic quality: source size sets shadow-edge softness, the stated Kelvin sets its colour. (Gear list: ${gear}.)`;
+  return `Relight with this exact controlled lighting setup, mimicking how these real fixtures render light: ${lines.join(". ")}.${gripLines.length ? ` Grip effects (the rigged fabric is off-camera and must never appear in the image): ${gripLines.join("; ")}.` : ""} ${amb} Reproduce each fixture's characteristic quality: source size sets shadow-edge softness, the stated Kelvin sets its colour. (Gear list, all off-camera: ${gear}.)`;
 }
 
 $("makeReal").addEventListener("click", async () => {
