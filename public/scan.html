@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F3F1E8">
+<title>Scrim — 3D scene</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/vendor/fonts/fonts.css">
+<style>
+  :root {
+    --paper: #F3F1E8; --ink: #191913; --ochre: #A6452D; --muted: #5C5B50;
+    --hair: #DAD7C8;
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; min-width: 0; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: var(--serif); -webkit-font-smoothing: antialiased; }
+  #canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; background: #14130f; }
+  #overlay { position: fixed; inset: 0; pointer-events: none; }
+
+  header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+    padding: calc(10px + var(--sat)) 16px 10px;
+    display: flex; align-items: center; gap: 12px;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border-bottom: 1.5px solid var(--ink);
+  }
+  header a { color: var(--ink); text-decoration: none; font-family: var(--mono); font-size: 12px; letter-spacing: 1px; }
+  header h1 { margin: 0; font-size: 19px; font-weight: 500; flex: 1; }
+  #fpsWrap { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  #fps { color: var(--ochre); font-weight: 600; }
+
+  #panel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border-top: 1.5px solid var(--ink);
+    padding: 10px 16px calc(12px + var(--sab));
+  }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.6px;
+    border: 1.5px solid var(--ink); background: transparent; color: var(--ink);
+    border-radius: 999px; padding: 8px 14px; min-height: 36px; cursor: pointer;
+  }
+  .btn.primary { background: var(--ink); color: var(--paper); }
+  .slidebox { display: none; margin-top: 10px; }
+  .slidebox.on { display: block; }
+  .sl { display: grid; grid-template-columns: 92px 1fr 74px; gap: 10px; align-items: center; margin-top: 6px; }
+  .sl label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+  .sl output { font-family: var(--mono); font-size: 11.5px; text-align: right; color: var(--ink); }
+  input[type="range"] { width: 100%; accent-color: var(--ochre); height: 28px; }
+
+  #empty {
+    position: fixed; inset: 0; display: grid; place-items: center; z-index: 3;
+    padding: 24px; pointer-events: none;
+  }
+  #empty .card {
+    max-width: 430px; background: var(--paper); border: 1.5px solid var(--ink);
+    padding: 20px 22px; pointer-events: auto;
+  }
+  #empty h2 { margin: 0 0 8px; font-size: 21px; font-weight: 500; }
+  #empty p { margin: 0 0 10px; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+  #empty ol { margin: 0 0 4px; padding-left: 20px; font-size: 14px; line-height: 1.6; color: var(--ink); }
+  #empty .mono { font-family: var(--mono); font-size: 12px; }
+
+  #spinner {
+    position: fixed; inset: 0; display: grid; place-items: center; z-index: 4;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 2.2px; color: var(--muted);
+    background: color-mix(in srgb, var(--paper) 55%, transparent);
+  }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--ochre); width: 0; z-index: 6; }
+  #message { position: fixed; bottom: 130px; left: 16px; right: 16px; color: var(--ochre); font-family: var(--mono); font-size: 12px; z-index: 6; }
+  #camid, #caminfo { display: none; }
+  #sunNote { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<canvas id="overlay"></canvas>
+
+<header>
+  <a href="/" id="backLink">&larr; SCRIM</a>
+  <h1>3D scene</h1>
+  <span id="fpsWrap"><span id="fps"></span> <span id="camid"></span><span id="caminfo"></span></span>
+</header>
+
+<div id="empty">
+  <div class="card">
+    <h2>Walk your set before the shoot.</h2>
+    <p>Import a Gaussian-splat scan of any location and orbit it with the day&rsquo;s sun path drawn through the space.</p>
+    <ol>
+      <li>Scan the space with <strong>Scaniverse</strong> (free, App&nbsp;Store) &mdash; a slow walk around does it.</li>
+      <li>In Scaniverse: <span class="mono">Share &rarr; Export model &rarr; Splat (.splat)</span> &rarr; Save to Files.</li>
+      <li>Come back and hit <span class="mono">IMPORT SCAN</span> below.</li>
+    </ol>
+    <p style="margin-top:10px">No scan yet? Load the demo room to try the controls.</p>
+  </div>
+</div>
+
+<div id="spinner" style="display:none">READING THE SPACE</div>
+<div id="progress"></div>
+<div id="message"></div>
+
+<div id="panel">
+  <div class="row">
+    <button class="btn primary" id="importBtn" type="button">Import scan</button>
+    <button class="btn" id="demoBtn" type="button">Demo room</button>
+    <button class="btn" id="sunBtn" type="button" aria-pressed="false">&#9788; Sun path</button>
+    <button class="btn" id="resetBtn" type="button">Reset view</button>
+  </div>
+  <div class="slidebox" id="sunControls">
+    <div class="sl">
+      <label for="northDial">North</label>
+      <input type="range" id="northDial" min="0" max="359" step="1" value="0">
+      <output id="northOut">0&deg;</output>
+    </div>
+    <div class="sl">
+      <label for="timeDial">Time</label>
+      <input type="range" id="timeDial" min="0" max="72" step="1" value="0">
+      <output id="timeOut">now</output>
+    </div>
+    <div id="sunNote">Scans don&rsquo;t record compass north &mdash; stand in the space once, note where north is, and turn the dial until the N marker matches.</div>
+  </div>
+  <input type="file" id="fileIn" accept=".splat,.ply,.json" style="display:none">
+</div>
+
+<script src="/vendor/splat/splat.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  /* ---------- import / demo / reset ---------- */
+  const hasUrl = new URLSearchParams(location.search).has("url");
+  if (hasUrl) { $("empty").style.display = "none"; $("spinner").style.display = ""; }
+
+  $("importBtn").addEventListener("click", () => $("fileIn").click());
+  $("fileIn").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    $("empty").style.display = "none";
+    $("spinner").style.display = "";
+    window.__scanSelectFile?.(f);
+  });
+  $("demoBtn").addEventListener("click", () => { location.search = "?url=/vendor/splat/demo.splat"; });
+  $("resetBtn").addEventListener("click", () => window.__scanResetView?.());
+
+  // hide the empty card once any scene shows up (drag & drop included)
+  let sawScene = false;
+
+  /* ---------- sun path ---------- */
+  // Splat scans use the COLMAP convention: gravity is +Y, so "up" is -Y.
+  const sun = { on: false, path: null, north: 0, tIdx: -1 }; // tIdx -1 = now
+  const R = 14; // arc radius in scene units — far outside any room scan
+
+  async function loadSun() {
+    let lat, lng;
+    try { const s = JSON.parse(localStorage.getItem("scrim-manual-loc") || "null"); if (Array.isArray(s)) { lat = s[0]; lng = s[1]; } } catch {}
+    if (lat == null) {
+      try {
+        const p = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
+        lat = p.coords.latitude; lng = p.coords.longitude;
+      } catch { lat = 40.7; lng = -74.0; $("message").textContent = "No location — sun path shown for New York."; setTimeout(() => $("message").textContent = "", 5000); }
+    }
+    const r = await fetch(`/sun?lat=${lat}&lng=${lng}`);
+    if (!r.ok) throw new Error("sun lookup failed");
+    const j = await r.json();
+    sun.path = j.path.map((p) => ({ ...p, t: new Date(p.t) }));
+    sun.now = j.now;
+  }
+
+  $("sunBtn").addEventListener("click", async () => {
+    sun.on = !sun.on;
+    $("sunBtn").setAttribute("aria-pressed", String(sun.on));
+    $("sunControls").classList.toggle("on", sun.on);
+    if (sun.on && !sun.path) {
+      $("sunBtn").disabled = true;
+      try { await loadSun(); }
+      catch (e) { $("message").textContent = String(e.message || e); sun.on = false; $("sunControls").classList.remove("on"); }
+      $("sunBtn").disabled = false;
+    }
+  });
+  $("northDial").addEventListener("input", () => { sun.north = Number($("northDial").value); $("northOut").textContent = sun.north + "°"; });
+  $("timeDial").addEventListener("input", () => {
+    const v = Number($("timeDial").value);
+    sun.tIdx = v === 0 ? -1 : v;
+    $("timeOut").textContent = v === 0 ? "now" : fmtT(sun.path?.[v]?.t);
+  });
+  const fmtT = (d) => d ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—";
+
+  // world direction for an azimuth/altitude, honouring the north dial
+  function sunDir(azDeg, altDeg) {
+    const az = ((azDeg + sun.north) * Math.PI) / 180;
+    const alt = (altDeg * Math.PI) / 180;
+    return [Math.sin(az) * Math.cos(alt), -Math.sin(alt), Math.cos(az) * Math.cos(alt)];
+  }
+
+  /* ---------- overlay drawing ---------- */
+  const ov = $("overlay");
+  const octx = ov.getContext("2d");
+
+  function mul4vec(m, v) { // column-major 4x4 * vec4
+    return [
+      m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12] * v[3],
+      m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13] * v[3],
+      m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14] * v[3],
+      m[3] * v[0] + m[7] * v[1] + m[11] * v[2] + m[15] * v[3],
+    ];
+  }
+
+  function project(view, proj, p, w, h) {
+    const e = mul4vec(view, [p[0], p[1], p[2], 1]);
+    const c = mul4vec(proj, e);
+    if (c[3] <= 0.001) return null; // behind the camera
+    return [(c[0] / c[3] * 0.5 + 0.5) * w, (0.5 - c[1] / c[3] * 0.5) * h, c[3]];
+  }
+
+  window.__scanFrame = (view, proj, fps, vertexCount) => {
+    if (vertexCount > 0 && !sawScene) {
+      sawScene = true;
+      $("empty").style.display = "none";
+      $("spinner").style.display = "none";
+    }
+    const w = innerWidth, h = innerHeight;
+    if (ov.width !== w * devicePixelRatio) { ov.width = w * devicePixelRatio; ov.height = h * devicePixelRatio; ov.style.width = w + "px"; ov.style.height = h + "px"; }
+    octx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    octx.clearRect(0, 0, w, h);
+    if (!sun.on || !sun.path || !vertexCount) return;
+
+    const P = (az, alt) => { const d = sunDir(az, alt); return project(view, proj, [d[0] * R, d[1] * R, d[2] * R], w, h); };
+
+    // horizon ring with N/E/S/W ticks
+    octx.strokeStyle = "rgba(92,91,80,0.55)"; octx.lineWidth = 1; octx.setLineDash([3, 5]);
+    octx.beginPath();
+    let pen = false;
+    for (let a = 0; a <= 360; a += 5) {
+      const s = P(a, 0);
+      if (!s) { pen = false; continue; }
+      pen ? octx.lineTo(s[0], s[1]) : octx.moveTo(s[0], s[1]); pen = true;
+    }
+    octx.stroke(); octx.setLineDash([]);
+    octx.font = "600 11px 'IBM Plex Mono', monospace"; octx.textAlign = "center"; octx.textBaseline = "middle";
+    [["N", 0], ["E", 90], ["S", 180], ["W", 270]].forEach(([t, a]) => {
+      const s = P(a, 1.5);
+      if (!s) return;
+      octx.fillStyle = t === "N" ? "#A6452D" : "rgba(92,91,80,0.9)";
+      octx.fillText(t, s[0], s[1]);
+    });
+
+    // today's arc: sample the returned 36 h path, above the horizon only
+    const day = sun.path.filter((p) => p.altitudeDeg > -1);
+    octx.strokeStyle = "#A6452D"; octx.lineWidth = 2; octx.beginPath();
+    pen = false;
+    for (const p of day) {
+      const s = P(p.azimuthDeg, Math.max(0.2, p.altitudeDeg));
+      if (!s) { pen = false; continue; }
+      pen ? octx.lineTo(s[0], s[1]) : octx.moveTo(s[0], s[1]); pen = true;
+    }
+    octx.stroke();
+
+    // hour ticks
+    octx.fillStyle = "rgba(166,69,45,0.85)";
+    for (const p of day) {
+      if (p.t.getMinutes() !== 0 || p.t.getHours() % 2) continue;
+      const s = P(p.azimuthDeg, Math.max(0.2, p.altitudeDeg));
+      if (!s) continue;
+      octx.beginPath(); octx.arc(s[0], s[1], 2.2, 0, 7); octx.fill();
+    }
+
+    // the sun disc: "now" or the scrubbed time
+    const cur = sun.tIdx < 0
+      ? (sun.now ? { azimuthDeg: sun.now.azimuthDeg, altitudeDeg: sun.now.altitudeDeg, label: "now" } : null)
+      : (sun.path[sun.tIdx] ? { ...sun.path[sun.tIdx], label: fmtT(sun.path[sun.tIdx].t) } : null);
+    if (cur && cur.altitudeDeg > -6) {
+      const s = P(cur.azimuthDeg, Math.max(0.4, cur.altitudeDeg));
+      if (s) {
+        octx.beginPath(); octx.arc(s[0], s[1], 7, 0, 7);
+        octx.fillStyle = "#E8B84B"; octx.fill();
+        octx.lineWidth = 2; octx.strokeStyle = "#A6452D"; octx.stroke();
+        octx.fillStyle = "#191913"; octx.font = "600 11px 'IBM Plex Mono', monospace"; octx.textAlign = "left";
+        octx.fillText(`${cur.label} · ${Math.round(cur.altitudeDeg)}°`, s[0] + 12, s[1]);
+        // light ray into the room: from the sun toward the scene centre
+        octx.strokeStyle = "rgba(232,184,75,0.5)"; octx.lineWidth = 1.5; octx.setLineDash([6, 6]);
+        const o = project(view, proj, [0, 0, 0], w, h);
+        if (o) { octx.beginPath(); octx.moveTo(s[0], s[1]); octx.lineTo(o[0], o[1]); octx.stroke(); }
+        octx.setLineDash([]);
+      }
+    }
+  };
+
+  // native shell hint: nothing needed — this page rides the same WebView
+})();
+</script>
+</body>
+</html>

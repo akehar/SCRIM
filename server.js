@@ -591,6 +591,8 @@ ${card("feedback", FEEDBACK.length, "")}
 });
 
 // Sun-only report: no image, no AI, no key needed. Cheap enough to poll.
+app.get("/scan", (_req, res) => res.sendFile("scan.html", { root: "public" }));
+
 app.get("/sun", (req, res) => {
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
