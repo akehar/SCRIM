@@ -1,0 +1,7 @@
+{
+  "name": "scrim-depth",
+  "version": "0.1.0",
+  "description": "One-shot ARKit scene-depth capture for Scrim: photo + ground-truth LiDAR depth map.",
+  "main": "index.js",
+  "private": true
+}

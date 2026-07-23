@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -10,6 +11,17 @@ import {
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
+import ScrimDepth from "./modules/scrim-depth";
+
+// LiDAR scene depth: present on iPhone 12 Pro and later Pro models. The page
+// reads this flag from window.__SCRIM_NATIVE__ to show its LiDAR button.
+const DEPTH_SUPPORTED = (() => {
+  try {
+    return Platform.OS === "ios" && Boolean(ScrimDepth?.isSupported());
+  } catch {
+    return false;
+  }
+})();
 
 // The native shell hosts the live web app: every deploy to Render updates
 // this app instantly, no App Store release needed. Native capabilities
@@ -58,6 +70,30 @@ function Shell() {
     return () => clearTimeout(t);
   }, [failed, retry]);
 
+  // Native bridge: the page posts { type, id } and gets the reply through
+  // window.__scrimNativeResolve. First (and so far only) call: LiDAR depth.
+  const onMessage = useCallback(async (e) => {
+    let msg;
+    try {
+      msg = JSON.parse(e.nativeEvent.data);
+    } catch {
+      return;
+    }
+    if (msg?.type === "captureDepthShot" && msg.id != null) {
+      let reply;
+      try {
+        if (!ScrimDepth) throw new Error("LiDAR capture needs an app update.");
+        const shot = await ScrimDepth.captureDepthShot();
+        reply = { id: msg.id, ok: true, ...shot };
+      } catch (err) {
+        reply = { id: msg.id, ok: false, error: String(err?.message || err) };
+      }
+      webRef.current?.injectJavaScript(
+        `window.__scrimNativeResolve && window.__scrimNativeResolve(${JSON.stringify(reply)}); true;`
+      );
+    }
+  }, []);
+
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
       <StatusBar style="dark" backgroundColor={PAPER} />
@@ -83,10 +119,8 @@ function Shell() {
           if (e.nativeEvent.statusCode >= 500) setFailed(true);
         }}
         onLoadEnd={() => setLoading(false)}
-        injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1 }; true;`}
-        onMessage={() => {
-          /* native bridge: LiDAR depth, scan import, push tokens land here later */
-        }}
+        injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1, depth: ${DEPTH_SUPPORTED ? 1 : 0} }; true;`}
+        onMessage={onMessage}
       />
       {failed && (
         <View style={styles.fallback}>

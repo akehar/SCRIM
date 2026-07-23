@@ -477,6 +477,9 @@
           <button class="btn primary" id="studioUseLast" type="button">Use last read</button>
           <label class="btn" for="studioShot">Upload photo</label>
         </div>
+        <div class="actions" id="lidarRow" style="margin:8px 0 0;display:none;grid-template-columns:1fr">
+          <button class="btn" id="lidarShot" type="button">&#9678; LiDAR depth shot &mdash; ground truth</button>
+        </div>
         <input id="studioShot" type="file" accept="image/*" />
         <p class="status" id="studioBootStatus"></p>
       </div>
@@ -2952,6 +2955,52 @@ $("studioShot").addEventListener("change", async (e) => {
   if (!file) return;
   try { studioLoad(await fileToFrame(file)); }
   catch (err) { $("studioBootStatus").innerHTML = `<span class="err">${esc(err.message || err)}</span>`; }
+});
+
+/* ---- native bridge (iOS shell): request/response over postMessage ---- */
+
+let nativeReqId = 0;
+const nativePending = new Map();
+window.__scrimNativeResolve = (msg) => {
+  const p = nativePending.get(msg?.id);
+  if (!p) return;
+  nativePending.delete(msg.id);
+  msg.ok ? p.res(msg) : p.rej(new Error(msg.error || "native call failed"));
+};
+function nativeCall(type, timeoutMs = 25000) {
+  return new Promise((res, rej) => {
+    if (!window.ReactNativeWebView) return rej(new Error("not running in the app"));
+    const id = ++nativeReqId;
+    nativePending.set(id, { res, rej });
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type, id }));
+    setTimeout(() => {
+      if (nativePending.has(id)) {
+        nativePending.delete(id);
+        rej(new Error("native call timed out"));
+      }
+    }, timeoutMs);
+  });
+}
+
+// LiDAR depth shot: the phone measures the room, so the studio's 3D set is
+// ground truth instead of an AI guess. Pro-model iPhones inside the app only.
+if (window.__SCRIM_NATIVE__?.depth) $("lidarRow").style.display = "";
+$("lidarShot").addEventListener("click", async () => {
+  const btn = $("lidarShot");
+  btn.disabled = true;
+  $("studioBootStatus").textContent = "Hold the phone on your frame — reading the room with LiDAR…";
+  try {
+    const r = await nativeCall("captureDepthShot");
+    const img = await loadImg(r.photo);
+    const frame = downscale(img, img.width, img.height);
+    DEPTH_CACHE.set(frame.dataUrl, r.depth);
+    track("lidar_shot");
+    await studioLoad(frame);
+  } catch (e) {
+    $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 $("saveLook").addEventListener("click", () => {
