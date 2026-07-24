@@ -265,10 +265,10 @@ final class ScanViewController: UIViewController, ARSessionDelegate {
       for vx in stride(from: 0, to: dw, by: 2) {
         if let confBase {
           let conf = confBase.advanced(by: vy * confRow).assumingMemoryBound(to: UInt8.self)[vx]
-          if conf < 1 { continue } // ARConfidenceLevel.medium or better
+          if conf < 2 { continue } // ARConfidenceLevel.high only — noisy edges pollute the scene
         }
         let d = dLine[vx]
-        guard d.isFinite, d > 0.2, d < 8.0 else { continue }
+        guard d.isFinite, d > 0.2, d < 6.0 else { continue }
 
         // unproject through the scaled intrinsics; ARKit camera space is
         // +x right, +y up, +z toward the viewer, image origin top-left

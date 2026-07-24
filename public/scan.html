@@ -114,6 +114,8 @@
     <button class="btn primary" id="importBtn" type="button">Import scan</button>
     <button class="btn" id="demoBtn" type="button">Demo room</button>
     <button class="btn" id="sunBtn" type="button" aria-pressed="false">&#9788; Sun path</button>
+    <button class="btn" id="lightBtn" type="button" style="display:none">+ Light</button>
+    <button class="btn" id="clearBtn" type="button" style="display:none">Clear lights</button>
     <button class="btn" id="resetBtn" type="button">Reset view</button>
   </div>
   <div class="slidebox" id="sunControls">
@@ -196,7 +198,8 @@
       setTimeout(() => { if ($("message").textContent.includes("points captured")) $("message").textContent = ""; }, 5000);
       $("empty").style.display = "none";
       $("spinner").style.display = "";
-      window.__scrimScanFile = file; // keep for a later save/share feature
+      window.__scrimScanFile = file; // also feeds light-placement picking
+      window.__resetSceneMeta?.();
       window.__scanSelectFile?.(file);
     } catch (e) {
       $("message").textContent = String(e.message || e);
@@ -213,6 +216,8 @@
     if (!f) return;
     $("empty").style.display = "none";
     $("spinner").style.display = "";
+    window.__scrimScanFile = f; // keeps light-placement picking in sync
+    window.__resetSceneMeta?.();
     window.__scanSelectFile?.(f);
   });
   $("demoBtn").addEventListener("click", () => { location.search = "?url=/vendor/splat/demo.splat"; });
@@ -281,6 +286,202 @@
     ];
   }
 
+  function mul4(a, b) { // column-major 4x4 * 4x4
+    const o = new Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+      o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+    }
+    return o;
+  }
+
+  function inv4(m) { // general 4x4 inverse, column-major
+    const A2323 = m[10] * m[15] - m[11] * m[14], A1323 = m[9] * m[15] - m[11] * m[13],
+      A1223 = m[9] * m[14] - m[10] * m[13], A0323 = m[8] * m[15] - m[11] * m[12],
+      A0223 = m[8] * m[14] - m[10] * m[12], A0123 = m[8] * m[13] - m[9] * m[12],
+      A2313 = m[6] * m[15] - m[7] * m[14], A1313 = m[5] * m[15] - m[7] * m[13],
+      A1213 = m[5] * m[14] - m[6] * m[13], A2312 = m[6] * m[11] - m[7] * m[10],
+      A1312 = m[5] * m[11] - m[7] * m[9], A1212 = m[5] * m[10] - m[6] * m[9],
+      A0313 = m[4] * m[15] - m[7] * m[12], A0213 = m[4] * m[14] - m[6] * m[12],
+      A0312 = m[4] * m[11] - m[7] * m[8], A0212 = m[4] * m[10] - m[6] * m[8],
+      A0113 = m[4] * m[13] - m[5] * m[12], A0112 = m[4] * m[9] - m[5] * m[8];
+    let det = m[0] * (m[5] * A2323 - m[6] * A1323 + m[7] * A1223)
+      - m[1] * (m[4] * A2323 - m[6] * A0323 + m[7] * A0223)
+      + m[2] * (m[4] * A1323 - m[5] * A0323 + m[7] * A0123)
+      - m[3] * (m[4] * A1223 - m[5] * A0223 + m[6] * A0123);
+    if (!det) return null;
+    det = 1 / det;
+    return [
+      det * (m[5] * A2323 - m[6] * A1323 + m[7] * A1223),
+      det * -(m[1] * A2323 - m[2] * A1323 + m[3] * A1223),
+      det * (m[1] * A2313 - m[2] * A1313 + m[3] * A1213),
+      det * -(m[1] * A2312 - m[2] * A1312 + m[3] * A1212),
+      det * -(m[4] * A2323 - m[6] * A0323 + m[7] * A0223),
+      det * (m[0] * A2323 - m[2] * A0323 + m[3] * A0223),
+      det * -(m[0] * A2313 - m[2] * A0313 + m[3] * A0213),
+      det * (m[0] * A2312 - m[2] * A0312 + m[3] * A0212),
+      det * (m[4] * A1323 - m[5] * A0323 + m[7] * A0123),
+      det * -(m[0] * A1323 - m[1] * A0323 + m[3] * A0123),
+      det * (m[0] * A1313 - m[1] * A0313 + m[3] * A0113),
+      det * -(m[0] * A1312 - m[1] * A0312 + m[3] * A0112),
+      det * -(m[4] * A1223 - m[5] * A0223 + m[6] * A0123),
+      det * (m[0] * A1223 - m[1] * A0223 + m[2] * A0123),
+      det * -(m[0] * A1213 - m[1] * A0213 + m[2] * A0113),
+      det * (m[0] * A1212 - m[1] * A0212 + m[2] * A0112),
+    ];
+  }
+
+  /* ---------- lights in the scene, with real measurements ----------
+     In-app scans are in metres (ARKit world units), so heights and
+     distances here are true measurements of the actual space. */
+  const scene = { pos: null, floorY: null, isPly: false };
+  const marks = [];
+  let placeMode = false;
+  let lastView = null, lastProj = null;
+
+  // a new import/scan invalidates picking data and old markers
+  window.__resetSceneMeta = () => {
+    scene.pos = null; scene.isPly = false; scene.floorY = null;
+    marks.length = 0;
+    $("clearBtn").style.display = "none";
+  };
+
+  function ingestSplatBuffer(buf) {
+    const bytes = new Uint8Array(buf);
+    scene.isPly = bytes[0] === 112 && bytes[1] === 108 && bytes[2] === 121; // "ply"
+    if (scene.isPly) { scene.pos = null; return; }
+    const rows = Math.floor(buf.byteLength / 32);
+    if (!rows) { scene.pos = null; return; }
+    const f32 = new Float32Array(buf, 0, rows * 8);
+    const step = Math.max(1, Math.ceil(rows / 150000));
+    const n = Math.floor(rows / step);
+    const pos = new Float32Array(n * 3);
+    const ys = [];
+    for (let i = 0; i < n; i++) {
+      const r = i * step * 8;
+      pos[i * 3] = f32[r]; pos[i * 3 + 1] = f32[r + 1]; pos[i * 3 + 2] = f32[r + 2];
+      if (i % 7 === 0) ys.push(f32[r + 1]);
+    }
+    ys.sort((a, b) => a - b);
+    scene.pos = pos;
+    scene.floorY = ys.length ? ys[Math.floor(ys.length * 0.95)] : 0; // +Y is down: floor = high y
+  }
+
+  async function ensureScenePoints() {
+    if (scene.pos || scene.isPly) return;
+    if (window.__scrimScanFile) { ingestSplatBuffer(await window.__scrimScanFile.arrayBuffer()); return; }
+    if (hasUrl) {
+      const u = new URLSearchParams(location.search).get("url");
+      ingestSplatBuffer(await (await fetch(u)).arrayBuffer());
+    }
+  }
+
+  function pickPoint(sx, sy) {
+    if (!scene.pos || !lastView || !lastProj) return null;
+    const w = innerWidth, h = innerHeight;
+    const nx = (sx / w) * 2 - 1, ny = 1 - (sy / h) * 2;
+    const invVP = inv4(mul4(lastProj, lastView));
+    if (!invVP) return null;
+    const pa = mul4vec(invVP, [nx, ny, -1, 1]);
+    const pb = mul4vec(invVP, [nx, ny, 1, 1]);
+    const o = [pa[0] / pa[3], pa[1] / pa[3], pa[2] / pa[3]];
+    const q = [pb[0] / pb[3], pb[1] / pb[3], pb[2] / pb[3]];
+    let d = [q[0] - o[0], q[1] - o[1], q[2] - o[2]];
+    const dl = Math.hypot(...d);
+    d = [d[0] / dl, d[1] / dl, d[2] / dl];
+    let best = null, bestT = Infinity;
+    const P = scene.pos;
+    for (let i = 0; i < P.length; i += 3) {
+      const vx = P[i] - o[0], vy = P[i + 1] - o[1], vz = P[i + 2] - o[2];
+      const t = vx * d[0] + vy * d[1] + vz * d[2];
+      if (t < 0.2 || t >= bestT) continue;
+      const px = vx - d[0] * t, py = vy - d[1] * t, pz = vz - d[2] * t;
+      const perp = Math.hypot(px, py, pz);
+      if (perp < Math.max(0.06, t * 0.03)) { bestT = t; best = [P[i], P[i + 1], P[i + 2]]; }
+    }
+    return best;
+  }
+
+  $("lightBtn").addEventListener("click", async () => {
+    if (placeMode) { exitPlaceMode(); return; }
+    await ensureScenePoints().catch(() => {});
+    if (!scene.pos) {
+      $("message").textContent = scene.isPly ? "measurements need a .splat scan (not .ply)" : "load or scan a scene first";
+      setTimeout(() => { $("message").textContent = ""; }, 4000);
+      return;
+    }
+    placeMode = true;
+    $("lightBtn").textContent = "tap the scene…";
+    ov.style.pointerEvents = "auto";
+  });
+  function exitPlaceMode() {
+    placeMode = false;
+    $("lightBtn").textContent = "+ Light";
+    ov.style.pointerEvents = "none";
+  }
+  ov.addEventListener("click", (e) => {
+    if (!placeMode) return;
+    const hit = pickPoint(e.clientX, e.clientY);
+    if (hit) {
+      marks.push(hit);
+      $("clearBtn").style.display = "";
+    } else {
+      $("message").textContent = "no surface there — tap on the scan";
+      setTimeout(() => { $("message").textContent = ""; }, 3000);
+    }
+    exitPlaceMode();
+  });
+  $("clearBtn").addEventListener("click", () => {
+    marks.length = 0;
+    $("clearBtn").style.display = "none";
+  });
+
+  function drawMarks(view, proj, w, h) {
+    if (!marks.length) return;
+    const pj = (p) => project(view, proj, p, w, h);
+    const chip = (x, y, text) => {
+      octx.font = "600 11px 'IBM Plex Mono', monospace";
+      const tw = octx.measureText(text).width;
+      // keep the label on screen even when the marker rides the edge
+      const bx = Math.max(4, Math.min(w - tw - 14, x + 10));
+      const by = Math.max(12, Math.min(h - 12, y));
+      octx.fillStyle = "rgba(243,241,232,0.92)";
+      octx.fillRect(bx, by - 9, tw + 10, 18);
+      octx.strokeStyle = "#191913"; octx.lineWidth = 1;
+      octx.strokeRect(bx, by - 9, tw + 10, 18);
+      octx.fillStyle = "#191913"; octx.textAlign = "left"; octx.textBaseline = "middle";
+      octx.fillText(text, bx + 5, by);
+    };
+    marks.forEach((p, i) => {
+      const s = pj(p);
+      if (!s) return;
+      // drop line to the floor + height
+      if (scene.floorY != null) {
+        const f = pj([p[0], scene.floorY, p[2]]);
+        if (f) {
+          octx.strokeStyle = "rgba(166,69,45,0.7)"; octx.lineWidth = 1.5; octx.setLineDash([4, 4]);
+          octx.beginPath(); octx.moveTo(s[0], s[1]); octx.lineTo(f[0], f[1]); octx.stroke();
+          octx.setLineDash([]);
+        }
+      }
+      // distance to the previous light
+      if (i > 0) {
+        const prev = pj(marks[i - 1]);
+        if (prev) {
+          octx.strokeStyle = "rgba(25,25,19,0.65)"; octx.lineWidth = 1.5;
+          octx.beginPath(); octx.moveTo(prev[0], prev[1]); octx.lineTo(s[0], s[1]); octx.stroke();
+          const d = Math.hypot(p[0] - marks[i - 1][0], p[1] - marks[i - 1][1], p[2] - marks[i - 1][2]);
+          chip((prev[0] + s[0]) / 2 - 20, (prev[1] + s[1]) / 2, `↔ ${d.toFixed(1)} m`);
+        }
+      }
+      octx.beginPath(); octx.arc(s[0], s[1], 8, 0, 7);
+      octx.fillStyle = "#E8B84B"; octx.fill();
+      octx.lineWidth = 2; octx.strokeStyle = "#A6452D"; octx.stroke();
+      const height = scene.floorY != null ? scene.floorY - p[1] : null;
+      const fromStart = Math.hypot(p[0], p[1], p[2]);
+      chip(s[0], s[1], `L${i + 1}${height != null ? ` · h ${height.toFixed(1)} m` : ""} · ${fromStart.toFixed(1)} m from start`);
+    });
+  }
+
   function project(view, proj, p, w, h) {
     const e = mul4vec(view, [p[0], p[1], p[2], 1]);
     const c = mul4vec(proj, e);
@@ -293,11 +494,14 @@
       sawScene = true;
       $("empty").style.display = "none";
       $("spinner").style.display = "none";
+      $("lightBtn").style.display = "";
     }
+    lastView = view; lastProj = proj;
     const w = innerWidth, h = innerHeight;
     if (ov.width !== w * devicePixelRatio) { ov.width = w * devicePixelRatio; ov.height = h * devicePixelRatio; ov.style.width = w + "px"; ov.style.height = h + "px"; }
     octx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     octx.clearRect(0, 0, w, h);
+    if (vertexCount) drawMarks(view, proj, w, h);
     if (!sun.on || !sun.path || !vertexCount) return;
 
     const P = (az, alt) => { const d = sunDir(az, alt); return project(view, proj, [d[0] * R, d[1] * R, d[2] * R], w, h); };

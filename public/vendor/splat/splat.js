@@ -846,14 +846,14 @@ async function main() {
     gl.vertexAttribDivisor(a_index, 1);
 
     const resize = () => {
-        gl.uniform2fv(u_focal, new Float32Array([camera.fx, camera.fy]));
+        // Scrim: the stock code used the demo scene's focal length (tuned for
+        // a 1959px-wide desktop render) at ANY viewport — on a phone that's a
+        // 19° telephoto and the scene reads warped. Derive the focal from the
+        // viewport instead: ~70° along the long axis, square pixels.
+        const f = 0.72 * Math.max(innerWidth, innerHeight);
+        gl.uniform2fv(u_focal, new Float32Array([f, f]));
 
-        projectionMatrix = getProjectionMatrix(
-            camera.fx,
-            camera.fy,
-            innerWidth,
-            innerHeight,
-        );
+        projectionMatrix = getProjectionMatrix(f, f, innerWidth, innerHeight);
 
         gl.uniform2fv(u_viewport, new Float32Array([innerWidth, innerHeight]));
 

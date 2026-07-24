@@ -500,6 +500,7 @@
         <p class="hint" id="sunFeed" style="margin:8px 2px 0"></p>
         <div class="card" style="margin-top:8px">
           <div class="hint" id="kmeter" style="margin:0 0 8px;color:var(--gold)"></div>
+          <div class="hint" id="measureOut" style="display:none;margin:0 0 8px;font-family:var(--mono);font-size:11.5px"></div>
           <div class="lightsrow" id="lightsRow"></div>
           <div class="lightsrow" id="gripRow"></div>
           <div id="lightControls">
@@ -2465,7 +2466,59 @@ function glDraw() {
 function requestDraw() {
   if (studio.dirty) return;
   studio.dirty = true;
-  requestAnimationFrame(() => { studio.dirty = false; glDraw(); });
+  requestAnimationFrame(() => { studio.dirty = false; glDraw(); updateMeasure(); });
+}
+
+/* ---- metric readout: only when the frame came from a LiDAR depth shot ---- */
+
+function metersAt(u, v) {
+  const m = studio.metric;
+  if (!m || !m.px) return null;
+  const x = Math.max(0, Math.min(m.w - 1, Math.round(u * m.w)));
+  const y = Math.max(0, Math.min(m.h - 1, Math.round(v * m.h)));
+  const g = m.px[(y * m.w + x) * 4] / 255;
+  const disp = m.lo + g * m.span;
+  return disp > 1e-6 ? 1 / disp : null;
+}
+
+const fmtM = (v) => Math.abs(v) >= 10 ? `${v.toFixed(0)} m` : `${v.toFixed(1)} m`;
+
+function updateMeasure() {
+  const el = $("measureOut");
+  const m = studio.metric;
+  if (!m || !studio.frame) { el.style.display = "none"; return; }
+  el.style.display = "";
+
+  // subject: centre frame; background: far percentile over a sample grid
+  const subjU = 0.5, subjV = 0.42;
+  const dSubj = metersAt(subjU, subjV);
+  if (m.bg == null) {
+    const ds = [];
+    for (let gy = 1; gy < 10; gy++) for (let gx = 1; gx < 10; gx++) {
+      const d = metersAt(gx / 10, gy / 10);
+      if (d) ds.push(d);
+    }
+    ds.sort((a, b) => a - b);
+    m.bg = ds.length ? ds[Math.floor(ds.length * 0.9)] : null;
+  }
+  let out = "";
+  if (dSubj && m.bg) {
+    out = `<span style="color:var(--gold)">◎ LiDAR</span> subject ${fmtM(dSubj)} · background ${fmtM(m.bg)} · separation ${fmtM(Math.max(0, m.bg - dSubj))}`;
+  }
+
+  const l = studio.selType === "light" && studio.lights[studio.sel];
+  if (l && dSubj) {
+    // lateral offsets in real metres at the subject's distance;
+    // depth from the light's scene-z through the same disparity mapping
+    const mx = (l.x - subjU) * dSubj * m.mppW;
+    const my = (l.y - subjV) * dSubj * m.mppH;
+    const lightDisp = m.lo + Math.min(1.15, l.z / 0.55) * m.span;
+    const dLight = 1 / Math.max(lightDisp, 1e-6);
+    const dz = dSubj - dLight;
+    const role = (LIGHT_ROLES[studio.sel] || "light").toUpperCase();
+    out += `<br>${role}: ${fmtM(Math.abs(mx))} ${mx < 0 ? "camera-left" : "camera-right"} · ${fmtM(Math.abs(my))} ${my < 0 ? "above" : "below"} · ${fmtM(Math.abs(dz))} ${dz >= 0 ? "nearer than subject" : "behind subject"}`;
+  }
+  el.innerHTML = out;
 }
 
 /* ---- studio UI ---- */
@@ -2842,6 +2895,7 @@ async function studioLoad(frame) {
   if (!frame) return;
   track("studio_open");
   studio.frame = frame;
+  studio.metric = null; // set again by the LiDAR path after load
   $("studioEmpty").style.display = "block";
   $("studio").style.display = "none";
   $("studioBootStatus").textContent = "Building the set…";
@@ -2996,6 +3050,22 @@ $("lidarShot").addEventListener("click", async () => {
     DEPTH_CACHE.set(frame.dataUrl, r.depth);
     track("lidar_shot");
     await studioLoad(frame);
+    // metric calibration: LiDAR depth is in metres, so the studio can report
+    // real distances (subject vs background, light offsets)
+    if (r.dispLo != null && r.dispHi != null) {
+      const dimg = await loadImg(r.depth);
+      const c = document.createElement("canvas");
+      c.width = dimg.naturalWidth; c.height = dimg.naturalHeight;
+      const cx = c.getContext("2d", { willReadFrequently: true });
+      cx.drawImage(dimg, 0, 0);
+      studio.metric = {
+        lo: r.dispLo, span: Math.max(r.dispHi - r.dispLo, 1e-6),
+        mppW: r.mppW || 1, mppH: r.mppH || 1,
+        px: cx.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height,
+        bg: null,
+      };
+      updateMeasure();
+    }
   } catch (e) {
     $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
   } finally {

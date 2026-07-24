@@ -74,18 +74,29 @@ private final class DepthShot: NSObject, ARSessionDelegate {
 
     let capturedImage = frame.capturedImage
     let depthMap = depth.depthMap
+    let K = frame.camera.intrinsics
+    let imgW = CVPixelBufferGetWidth(capturedImage)
+    let imgH = CVPixelBufferGetHeight(capturedImage)
     session.pause()
 
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
       guard let self else { return }
       do {
         let photo = try Self.jpegDataURL(from: capturedImage)
-        let (depthURL, near, far) = try Self.depthPNGDataURL(from: depthMap)
+        let (depthURL, near, far, dispLo, dispHi) = try Self.depthPNGDataURL(from: depthMap)
+        // metric calibration for the studio: metres-per-metre-of-depth across
+        // the PORTRAIT frame (the outputs are rotated 90°, so axes swap)
+        let mppW = Double(imgH) / Double(K[1][1]) // portrait width  ← landscape y / fy
+        let mppH = Double(imgW) / Double(K[0][0]) // portrait height ← landscape x / fx
         self.resolve([
           "photo": photo,
           "depth": depthURL,
           "nearMeters": near,
           "farMeters": far,
+          "dispLo": dispLo,
+          "dispHi": dispHi,
+          "mppW": mppW,
+          "mppH": mppH,
         ])
       } catch {
         self.rejectNow("E_CONVERT", "Could not convert the capture: \(error.localizedDescription)")
@@ -138,7 +149,7 @@ private final class DepthShot: NSObject, ARSessionDelegate {
     return "data:image/jpeg;base64," + data.base64EncodedString()
   }
 
-  private static func depthPNGDataURL(from depthMap: CVPixelBuffer) throws -> (String, Double, Double) {
+  private static func depthPNGDataURL(from depthMap: CVPixelBuffer) throws -> (String, Double, Double, Double, Double) {
     CVPixelBufferLockBaseAddress(depthMap, .readOnly)
     defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
 
@@ -203,6 +214,6 @@ private final class DepthShot: NSObject, ARSessionDelegate {
           let png = UIImage(cgImage: outCG).pngData()
     else { throw NSError(domain: "ScrimDepth", code: 6, userInfo: [NSLocalizedDescriptionKey: "PNG encode failed"]) }
 
-    return ("data:image/png;base64," + png.base64EncodedString(), Double(nearM), Double(farM))
+    return ("data:image/png;base64," + png.base64EncodedString(), Double(nearM), Double(farM), Double(lo), Double(hi))
   }
 }
