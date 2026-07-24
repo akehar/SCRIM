@@ -116,6 +116,7 @@
     <button class="btn" id="sunBtn" type="button" aria-pressed="false">&#9788; Sun path</button>
     <button class="btn" id="lightBtn" type="button" style="display:none">+ Light</button>
     <button class="btn" id="clearBtn" type="button" style="display:none">Clear lights</button>
+    <button class="btn" id="orbitBtn" type="button" style="display:none" aria-pressed="false">&#9686; Orbit</button>
     <button class="btn" id="resetBtn" type="button">Reset view</button>
   </div>
   <div class="slidebox" id="sunControls">
@@ -222,6 +223,15 @@
   });
   $("demoBtn").addEventListener("click", () => { location.search = "?url=/vendor/splat/demo.splat"; });
   $("resetBtn").addEventListener("click", () => window.__scanResetView?.());
+
+  // slow cinematic turn for screen-recording fly-arounds
+  $("orbitBtn").addEventListener("click", () => {
+    const on = !window.__scanOrbitRate;
+    window.__scanOrbitRate = on ? 0.0022 : 0;
+    $("orbitBtn").setAttribute("aria-pressed", String(on));
+    $("orbitBtn").style.background = on ? "var(--ink)" : "";
+    $("orbitBtn").style.color = on ? "var(--paper)" : "";
+  });
 
   // hide the empty card once any scene shows up (drag & drop included)
   let sawScene = false;
@@ -495,6 +505,7 @@
       $("empty").style.display = "none";
       $("spinner").style.display = "none";
       $("lightBtn").style.display = "";
+      $("orbitBtn").style.display = "";
     }
     lastView = view; lastProj = proj;
     const w = innerWidth, h = innerHeight;

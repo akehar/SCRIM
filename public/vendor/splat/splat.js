@@ -1329,6 +1329,17 @@ async function main() {
 
         viewMatrix = invert4(inv);
 
+        // Scrim: cinematic auto-orbit for filming — a slow turn around the
+        // scene centre; any touch input still steers on top of it.
+        if (window.__scanOrbitRate) {
+            let oinv = invert4(viewMatrix);
+            const od = 4;
+            oinv = translate4(oinv, 0, 0, od);
+            oinv = rotate4(oinv, window.__scanOrbitRate, 0, 1, 0);
+            oinv = translate4(oinv, 0, 0, -od);
+            viewMatrix = invert4(oinv);
+        }
+
         if (carousel) {
             let inv = invert4(defaultViewMatrix);
 
