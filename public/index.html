@@ -95,6 +95,12 @@
   }
 
   .card { background: transparent; border: none; border-radius: 0; padding: 11px 0 9px; margin: 0; border-bottom: 1px solid var(--hair); }
+
+  /* Simple mode (the default) hides the pro-density surfaces; the PRO pill
+     in the header brings the full toolkit back. */
+  body:not(.pro) .pro-only { display: none !important; }
+  #modeBtn { font-family: var(--mono); letter-spacing: 0.08em; }
+  body.pro #modeBtn { background: var(--ink); border-color: var(--ink); color: var(--paper); }
   .card h2 {
     font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.16em;
     color: var(--muted); margin: 0 0 6px; font-weight: 600;
@@ -343,6 +349,7 @@
     </svg>
     <h1 class="wordmark">Scrim</h1>
     <button class="pill" id="locPill" type="button" title="Tap to refresh location">locating…</button>
+    <button class="pill" id="modeBtn" type="button" title="Simple shows the essentials; Pro unlocks the full toolkit" style="max-width:none">SIMPLE</button>
     <button class="pill" id="acctBtn" type="button" title="Account" style="max-width:none;display:none">SIGN IN</button>
     <button class="pill" id="fbBtn" type="button" title="Send feedback" style="max-width:none;font-size:15px">✎</button>
   </header>
@@ -393,12 +400,12 @@
         <div class="weather" id="weatherLine"></div>
         <div class="herenote" id="hereNote"></div>
       </div>
-      <div class="card">
+      <div class="card pro-only">
         <h2>The day</h2>
         <svg class="timeline" id="timeline" viewBox="0 0 360 74" preserveAspectRatio="none"></svg>
         <div class="times" id="sunTimes"></div>
       </div>
-      <div class="card" id="compassCard">
+      <div class="card pro-only" id="compassCard">
         <h2 style="color:var(--ochre)">Sun compass</h2>
         <div style="display:flex;align-items:center;gap:16px">
           <svg class="dial" id="dial" viewBox="0 0 120 120" aria-label="Sun direction relative to where you point">
@@ -602,8 +609,8 @@
   <nav class="tabbar" role="tablist">
     <button class="tabbtn" role="tab" aria-selected="true" data-screen="screen-now" type="button"><span class="ico">●</span>Now</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button"><span class="ico">□</span>Shoot</button>
-    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Pro</button>
-    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-plan" type="button"><span class="ico">▵</span>Plan</button>
+    <button class="tabbtn pro-only" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Pro</button>
+    <button class="tabbtn pro-only" role="tab" aria-selected="false" data-screen="screen-plan" type="button"><span class="ico">▵</span>Plan</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-ask" type="button"><span class="ico">✳</span>Ask</button>
   </nav>
 
@@ -642,6 +649,24 @@ document.querySelectorAll(".tabbtn").forEach((b) => b.addEventListener("click", 
   if (b.dataset.screen === "screen-plan") initPlan();
 }));
 function gotoScreen(id) { document.querySelector(`.tabbtn[data-screen="${id}"]`).click(); }
+
+/* ---- Simple / Pro mode: simple is the default and shows the essentials
+   (Now + Shoot + Ask); the PRO pill unlocks the full toolkit. ---- */
+function setMode(m) {
+  localStorage.setItem("scrim-mode", m);
+  document.body.classList.toggle("pro", m === "pro");
+  $("modeBtn").textContent = m === "pro" ? "PRO" : "SIMPLE";
+  const active = document.querySelector(".screen.active");
+  if (m !== "pro" && active && (active.id === "screen-light" || active.id === "screen-plan")) {
+    gotoScreen("screen-now");
+  }
+}
+$("modeBtn").addEventListener("click", () => {
+  const m = (localStorage.getItem("scrim-mode") || "simple") === "pro" ? "simple" : "pro";
+  setMode(m);
+  track("mode_" + m);
+});
+setMode(localStorage.getItem("scrim-mode") || "simple");
 
 /* ---------- access code ---------- */
 
@@ -1756,7 +1781,7 @@ function renderResults() {
       <div id="pane-compare" role="tabpanel" hidden></div>
       <div class="actions" style="margin:12px 0 0">
         <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
-        <button class="btn" id="toStudio" type="button">Open in Pro Mode ◐</button>
+        <button class="btn pro-only" id="toStudio" type="button">Open in Pro Mode ◐</button>
       </div>
     </div>`;
 
