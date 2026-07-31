@@ -57,6 +57,7 @@
   <h2 id="evLabel">Exposure value</h2>
   <div class="evbig"><span id="evNum">—</span><span style="font-size:20px;color:var(--muted)"> EV₁₀₀</span></div>
   <div class="evsub" id="evSub"></div>
+  <button class="chip" id="meterBtn" type="button" style="display:none;margin-top:12px;width:100%;background:var(--ochre);border-color:var(--ochre);color:var(--paper);font-weight:600;min-height:46px">◉ &nbsp;Meter through the camera</button>
   <div class="chips" id="skyChips" style="margin-top:12px">
     <button class="chip" data-ev="15" type="button">☀ bright sun</button>
     <button class="chip" data-ev="14" type="button">⛅ hazy sun</button>
@@ -144,7 +145,6 @@
   document.querySelectorAll("#skyChips .chip").forEach((c) => c.addEventListener("click", () => {
     document.querySelectorAll("#skyChips .chip").forEach((x) => x.setAttribute("aria-pressed", "false"));
     c.setAttribute("aria-pressed", "true");
-    stopLive();
     state.ev = Number(c.dataset.ev) + lowSunAdj;
     state.source = "sky";
     $("evLabel").textContent = "Exposure value — by eye" + (lowSunAdj ? ` (sun is low: ${lowSunAdj} EV)` : "");
@@ -170,36 +170,25 @@
     });
   }
 
-  let liveTimer = null;
-  function stopLive() {
-    if (!liveTimer) return;
-    clearInterval(liveTimer);
-    liveTimer = null;
-    nativeCall("meterStop").catch(() => {});
-  }
-  async function startLive() {
+  // one tap opens the full-screen native viewfinder; USE READING returns here
+  $("meterBtn").addEventListener("click", async () => {
+    const btn = $("meterBtn");
+    btn.disabled = true;
     try {
-      $("meterHint").innerHTML = "starting the meter…";
-      await nativeCall("meterStart");
+      const r = await nativeCall("meterShow", 5 * 60 * 1000);
+      if (r.ev100 == null) throw new Error("no reading came back");
       document.querySelectorAll("#skyChips .chip").forEach((x) => x.setAttribute("aria-pressed", "false"));
-      $("evLabel").innerHTML = `<span id="liveDot"></span>Exposure value — live`;
-      liveTimer = setInterval(async () => {
-        try {
-          const r = await nativeCall("meterRead", 3000);
-          if (!r.running || !r.iso || !r.shutter || !r.aperture) return;
-          // the AE solution IS the reading: EV100 = log2(N²/t) − log2(ISO/100)
-          state.ev = Math.log2((r.aperture * r.aperture) / r.shutter) - Math.log2(r.iso / 100);
-          state.source = "live";
-          $("meterHint").innerHTML = `camera metering at ISO ${Math.round(r.iso)} · ${fmtShutter(snapShutter(r.shutter))} · f/${r.aperture.toFixed(1)} — point the phone at your subject`;
-          render();
-        } catch {}
-      }, 450);
+      state.ev = r.ev100;
+      state.source = "camera";
+      $("evLabel").innerHTML = `<span id="liveDot"></span>Exposure value — camera reading`;
+      $("meterHint").textContent = `metered at ISO ${Math.round(r.iso)} · ${fmtShutter(snapShutter(r.shutter))} · f/${r.aperture.toFixed(1)}`;
+      render();
     } catch (e) {
-      $("meterHint").textContent = "Live metering runs inside the Scrim app on iPhone — use the sky presets here.";
+      if (!/cancel/i.test(String(e.message))) $("meterHint").textContent = String(e.message || e);
+    } finally {
+      btn.disabled = false;
     }
-  }
-  document.addEventListener("visibilitychange", () => { if (document.hidden) stopLive(); });
-  window.addEventListener("pagehide", stopLive);
+  });
 
   /* ISO stepper */
   const isoStep = (dir) => {
@@ -210,8 +199,12 @@
   $("isoUp").addEventListener("click", () => isoStep(1));
   $("isoDown").addEventListener("click", () => isoStep(-1));
 
-  if (native.meter) startLive();
-  else $("meterHint").textContent = "Live metering runs inside the Scrim app on iPhone — use the sky presets here.";
+  if (native.meter) {
+    $("meterBtn").style.display = "";
+    $("meterHint").textContent = "Meter the actual scene with the camera, or set it by eye with the sky presets.";
+  } else {
+    $("meterHint").textContent = "Camera metering runs inside the Scrim app on iPhone — set it by eye with the sky presets here.";
+  }
   render();
 })();
 </script>

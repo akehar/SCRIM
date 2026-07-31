@@ -106,12 +106,11 @@ function Shell() {
       }
     }
 
-    if (msg.type === "meterStart" || msg.type === "meterRead" || msg.type === "meterStop") {
+    if (msg.type === "meterShow") {
       try {
         if (!ScrimMeter) throw new Error("The light meter needs an app update.");
-        if (msg.type === "meterStart") await ScrimMeter.start();
-        const reading = msg.type === "meterStop" ? await ScrimMeter.stop() : ScrimMeter.read();
-        resolve({ id: msg.id, ok: true, ...(reading && typeof reading === "object" ? reading : {}) });
+        const reading = await ScrimMeter.meterShow();
+        resolve({ id: msg.id, ok: true, ...reading });
       } catch (err) {
         resolve({ id: msg.id, ok: false, error: String(err?.message || err) });
       }
