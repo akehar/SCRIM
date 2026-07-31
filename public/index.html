@@ -99,7 +99,8 @@
   /* Simple mode (the default) hides the pro-density surfaces; the PRO pill
      in the header brings the full toolkit back. */
   body:not(.pro) .pro-only { display: none !important; }
-  #modeBtn { font-family: var(--mono); letter-spacing: 0.08em; }
+  body.pro .simple-only { display: none !important; }
+  #modeBtn { font-family: var(--mono); letter-spacing: 0.08em; border-color: var(--ochre); color: var(--ochre); }
   body.pro #modeBtn { background: var(--ink); border-color: var(--ink); color: var(--paper); }
   .card h2 {
     font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.16em;
@@ -438,6 +439,13 @@
         <div class="looks" id="whenLooks" style="gap:6px"></div>
         <div id="whenWindows" class="times" style="margin-top:8px"></div>
       </div>
+      <div class="card simple-only">
+        <h2 style="color:var(--ochre)">The pro toolkit</h2>
+        <p class="hint" style="margin:0 0 10px">Relight Studio, 3D location scans, the day planner, sun compass — the full gaffer's kit is one tap away.</p>
+        <div class="actions" style="margin:0;grid-template-columns:1fr">
+          <button class="btn primary" id="goProBtn" type="button">◐ Turn on Pro</button>
+        </div>
+      </div>
     </section>
 
     <!-- ============ SHOOT ============ -->
@@ -449,6 +457,13 @@
       </div>
       <input id="shot" type="file" accept="image/*" />
       <p class="hint">Phone camera, or a pro camera over USB. Frames go to the server for analysis only — nothing renders until you ask.</p>
+      <div class="card">
+        <h2>Light meter</h2>
+        <p class="hint" style="margin:0 0 10px">EV, f-stops, ISO — meter the scene without leaving Scrim. Live through the camera in the iPhone app; sunny-16 presets anywhere.</p>
+        <div class="actions" style="margin:0;grid-template-columns:1fr">
+          <a class="btn" href="/meter" style="text-decoration:none;text-align:center">☀ Open the light meter</a>
+        </div>
+      </div>
 
       <div class="card" id="finder">
         <div class="vfwrap">
@@ -655,7 +670,7 @@ function gotoScreen(id) { document.querySelector(`.tabbtn[data-screen="${id}"]`)
 function setMode(m) {
   localStorage.setItem("scrim-mode", m);
   document.body.classList.toggle("pro", m === "pro");
-  $("modeBtn").textContent = m === "pro" ? "PRO" : "SIMPLE";
+  $("modeBtn").textContent = m === "pro" ? "PRO ✓" : "GO PRO";
   const active = document.querySelector(".screen.active");
   if (m !== "pro" && active && (active.id === "screen-light" || active.id === "screen-plan")) {
     gotoScreen("screen-now");
@@ -666,6 +681,7 @@ $("modeBtn").addEventListener("click", () => {
   setMode(m);
   track("mode_" + m);
 });
+$("goProBtn").addEventListener("click", () => { setMode("pro"); track("mode_pro"); });
 setMode(localStorage.getItem("scrim-mode") || "simple");
 
 /* ---------- access code ---------- */

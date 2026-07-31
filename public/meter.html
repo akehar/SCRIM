@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F3F1E8">
+<title>Scrim — light meter</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/vendor/fonts/fonts.css">
+<style>
+  :root {
+    --paper: #F3F1E8; --ink: #191913; --ochre: #A6452D; --muted: #5C5B50; --hair: #DAD7C8;
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; min-width: 0; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink); font-family: var(--serif);
+    -webkit-font-smoothing: antialiased;
+    padding: calc(10px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));
+    max-width: 560px; margin-inline: auto;
+  }
+  header { display: flex; align-items: baseline; gap: 12px; border-bottom: 1.5px solid var(--ink); padding-bottom: 10px; }
+  header a { color: var(--ink); text-decoration: none; font-family: var(--mono); font-size: 12px; letter-spacing: 1px; }
+  header h1 { margin: 0; font-size: 21px; font-weight: 500; flex: 1; }
+  .card { padding: 14px 0 12px; border-bottom: 1px solid var(--hair); }
+  .card h2 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+  .evbig { font-family: var(--mono); font-size: 54px; font-weight: 500; color: var(--ochre); letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .evsub { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip {
+    font-family: var(--mono); font-size: 12px; border: 1.5px solid var(--ink); background: transparent;
+    color: var(--ink); border-radius: 999px; padding: 7px 13px; min-height: 34px; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .stepper { display: grid; grid-template-columns: 44px 1fr 44px; gap: 8px; align-items: center; margin-top: 8px; }
+  .stepper button { font-family: var(--mono); font-size: 18px; border: 1.5px solid var(--ink); background: transparent; border-radius: 999px; min-height: 40px; cursor: pointer; }
+  .stepper output { text-align: center; font-family: var(--mono); font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stepper .lbl { display: block; font-size: 10px; letter-spacing: 0.14em; color: var(--muted); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  td { padding: 6px 4px; border-bottom: 1px solid var(--hair); }
+  td:last-child { text-align: right; }
+  tr.sel td { color: var(--ochre); font-weight: 600; }
+  .cine { font-family: var(--mono); font-size: 13px; margin-top: 10px; padding: 10px 12px; border: 1.5px solid var(--ink); border-radius: 8px; }
+  .hint { font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+  #liveDot { display: inline-block; width: 8px; height: 8px; border-radius: 99px; background: var(--ochre); margin-right: 6px; animation: pulse 1.2s infinite; vertical-align: 1px; }
+  @keyframes pulse { 50% { opacity: 0.25; } }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&larr; SCRIM</a>
+  <h1>Light meter</h1>
+</header>
+
+<div class="card">
+  <h2 id="evLabel">Exposure value</h2>
+  <div class="evbig"><span id="evNum">—</span><span style="font-size:20px;color:var(--muted)"> EV₁₀₀</span></div>
+  <div class="evsub" id="evSub"></div>
+  <div class="chips" id="skyChips" style="margin-top:12px">
+    <button class="chip" data-ev="15" type="button">☀ bright sun</button>
+    <button class="chip" data-ev="14" type="button">⛅ hazy sun</button>
+    <button class="chip" data-ev="13" type="button">☁ light cloud</button>
+    <button class="chip" data-ev="12" type="button">☁☁ overcast</button>
+    <button class="chip" data-ev="11" type="button">☂ heavy / dusk</button>
+    <button class="chip" data-ev="12.5" type="button">◑ open shade</button>
+  </div>
+  <p class="hint" id="meterHint" style="margin:10px 0 0"></p>
+</div>
+
+<div class="card">
+  <h2>Film speed</h2>
+  <div class="stepper">
+    <button type="button" id="isoDown">−</button>
+    <output><span class="lbl">ISO</span><span id="isoOut">400</span></output>
+    <button type="button" id="isoUp">+</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Stops — pick your aperture, read your shutter</h2>
+  <table id="pairs"></table>
+  <div class="cine" id="cineLine"></div>
+</div>
+
+<p class="hint" style="margin-top:14px">Reflected metering through the phone camera: point it at your subject. EV₁₀₀ is the classic light-meter scale (sunny&nbsp;16&nbsp;≈&nbsp;EV&nbsp;15). Sky presets follow the sunny-16 family when you're metering by eye.</p>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const native = window.__SCRIM_NATIVE__ || {};
+
+  const ISOS = [25, 50, 100, 200, 400, 800, 1600, 3200, 6400, 12800];
+  const APERTURES = [1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16, 22];
+  const SHUTTERS = [1/8000, 1/4000, 1/2000, 1/1000, 1/500, 1/250, 1/125, 1/60, 1/50, 1/48, 1/30, 1/15, 1/8, 1/4, 1/2, 1, 2, 4, 8, 15, 30];
+
+  const state = { ev: null, source: null, iso: 400, aperture: 2.8 };
+
+  const fmtShutter = (t) => t >= 1 ? `${Math.round(t)}s` : `1/${Math.round(1 / t)}`;
+  const snapShutter = (t) => SHUTTERS.reduce((a, b) => Math.abs(Math.log2(b / t)) < Math.abs(Math.log2(a / t)) ? b : a);
+
+  function render() {
+    $("evNum").textContent = state.ev == null ? "—" : (Math.round(state.ev * 10) / 10).toFixed(1);
+    $("isoOut").textContent = state.iso;
+    if (state.ev == null) { $("pairs").innerHTML = ""; $("cineLine").textContent = ""; $("evSub").textContent = ""; return; }
+    const lux = 2.5 * Math.pow(2, state.ev);
+    $("evSub").textContent = `≈ ${lux >= 1000 ? (lux / 1000).toFixed(1) + "k" : Math.round(lux)} lux`;
+    const evIso = state.ev + Math.log2(state.iso / 100);
+    $("pairs").innerHTML = APERTURES.map((N) => {
+      const t = (N * N) / Math.pow(2, evIso);
+      const cls = N === state.aperture ? ' class="sel"' : "";
+      return `<tr${cls} data-n="${N}"><td>f/${N}</td><td>${fmtShutter(snapShutter(t))}</td></tr>`;
+    }).join("");
+    document.querySelectorAll("#pairs tr").forEach((tr) => tr.addEventListener("click", () => { state.aperture = Number(tr.dataset.n); render(); }));
+    // cine: 24 fps at a 180° shutter is 1/48
+    const nCine = Math.sqrt(Math.pow(2, evIso) / 48);
+    if (nCine > 22) {
+      // brighter than any iris: shoot at a working stop and eat the rest with ND
+      const work = 5.6;
+      const stops = Math.round(2 * Math.log2(nCine / work));
+      $("cineLine").innerHTML = `◐ Cine · 24 fps · 180° (1/48): brighter than f/22 — shoot <b>f/${work} + ND ${(stops * 0.3).toFixed(1)}</b> (${stops} stops)`;
+    } else {
+      const snapN = APERTURES.reduce((a, b) => Math.abs(Math.log2((b * b) / (nCine * nCine))) < Math.abs(Math.log2((a * a) / (nCine * nCine))) ? b : a);
+      $("cineLine").innerHTML = `◐ Cine · 24 fps · 180° shutter (1/48): <b>f/${nCine < 1 ? nCine.toFixed(1) : (Math.round(nCine * 10) / 10)}</b> — nearest stop f/${snapN}`;
+    }
+  }
+
+  /* sky presets: sunny-16 by eye, softened when the sun is low */
+  let lowSunAdj = 0;
+  (async () => {
+    try {
+      let lat, lng;
+      try { const s = JSON.parse(localStorage.getItem("scrim-manual-loc") || "null"); if (Array.isArray(s)) { lat = s[0]; lng = s[1]; } } catch {}
+      if (lat == null && navigator.geolocation) {
+        const p = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 6000 }));
+        lat = p.coords.latitude; lng = p.coords.longitude;
+      }
+      if (lat == null) return;
+      const j = await (await fetch(`/sun?lat=${lat}&lng=${lng}`)).json();
+      const alt = j?.now?.altitudeDeg;
+      if (alt != null && alt < 10) lowSunAdj = alt < 4 ? -2 : -1;
+    } catch {}
+  })();
+  document.querySelectorAll("#skyChips .chip").forEach((c) => c.addEventListener("click", () => {
+    document.querySelectorAll("#skyChips .chip").forEach((x) => x.setAttribute("aria-pressed", "false"));
+    c.setAttribute("aria-pressed", "true");
+    stopLive();
+    state.ev = Number(c.dataset.ev) + lowSunAdj;
+    state.source = "sky";
+    $("evLabel").textContent = "Exposure value — by eye" + (lowSunAdj ? ` (sun is low: ${lowSunAdj} EV)` : "");
+    render();
+  }));
+
+  /* live metering through the shell's camera AE */
+  let nativeReqId = 0;
+  const nativePending = new Map();
+  window.__scrimNativeResolve = (msg) => {
+    const p = nativePending.get(msg?.id);
+    if (!p) return;
+    nativePending.delete(msg.id);
+    msg.ok ? p.res(msg) : p.rej(new Error(msg.error || "native call failed"));
+  };
+  function nativeCall(type, timeoutMs = 10000) {
+    return new Promise((res, rej) => {
+      if (!window.ReactNativeWebView) return rej(new Error("not in the app"));
+      const id = ++nativeReqId;
+      nativePending.set(id, { res, rej });
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type, id }));
+      setTimeout(() => { if (nativePending.has(id)) { nativePending.delete(id); rej(new Error("timed out")); } }, timeoutMs);
+    });
+  }
+
+  let liveTimer = null;
+  function stopLive() {
+    if (!liveTimer) return;
+    clearInterval(liveTimer);
+    liveTimer = null;
+    nativeCall("meterStop").catch(() => {});
+  }
+  async function startLive() {
+    try {
+      $("meterHint").innerHTML = "starting the meter…";
+      await nativeCall("meterStart");
+      document.querySelectorAll("#skyChips .chip").forEach((x) => x.setAttribute("aria-pressed", "false"));
+      $("evLabel").innerHTML = `<span id="liveDot"></span>Exposure value — live`;
+      liveTimer = setInterval(async () => {
+        try {
+          const r = await nativeCall("meterRead", 3000);
+          if (!r.running || !r.iso || !r.shutter || !r.aperture) return;
+          // the AE solution IS the reading: EV100 = log2(N²/t) − log2(ISO/100)
+          state.ev = Math.log2((r.aperture * r.aperture) / r.shutter) - Math.log2(r.iso / 100);
+          state.source = "live";
+          $("meterHint").innerHTML = `camera metering at ISO ${Math.round(r.iso)} · ${fmtShutter(snapShutter(r.shutter))} · f/${r.aperture.toFixed(1)} — point the phone at your subject`;
+          render();
+        } catch {}
+      }, 450);
+    } catch (e) {
+      $("meterHint").textContent = "Live metering runs inside the Scrim app on iPhone — use the sky presets here.";
+    }
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopLive(); });
+  window.addEventListener("pagehide", stopLive);
+
+  /* ISO stepper */
+  const isoStep = (dir) => {
+    const i = Math.max(0, Math.min(ISOS.length - 1, ISOS.indexOf(state.iso) + dir));
+    state.iso = ISOS[i];
+    render();
+  };
+  $("isoUp").addEventListener("click", () => isoStep(1));
+  $("isoDown").addEventListener("click", () => isoStep(-1));
+
+  if (native.meter) startLive();
+  else $("meterHint").textContent = "Live metering runs inside the Scrim app on iPhone — use the sky presets here.";
+  render();
+})();
+</script>
+</body>
+</html>

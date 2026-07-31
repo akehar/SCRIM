@@ -1,0 +1,7 @@
+{
+  "name": "scrim-meter",
+  "version": "0.1.0",
+  "description": "Light meter for Scrim: reads the camera's live auto-exposure (ISO, shutter, aperture) for EV metering.",
+  "main": "index.js",
+  "private": true
+}

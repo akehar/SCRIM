@@ -13,6 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
 import ScrimDepth from "./modules/scrim-depth";
 import ScrimScan from "./modules/scrim-scan";
+import ScrimMeter from "./modules/scrim-meter";
 
 // LiDAR features: present on iPhone 12 Pro and later Pro models. The page
 // reads these flags from window.__SCRIM_NATIVE__ to show its buttons.
@@ -105,6 +106,17 @@ function Shell() {
       }
     }
 
+    if (msg.type === "meterStart" || msg.type === "meterRead" || msg.type === "meterStop") {
+      try {
+        if (!ScrimMeter) throw new Error("The light meter needs an app update.");
+        if (msg.type === "meterStart") await ScrimMeter.start();
+        const reading = msg.type === "meterStop" ? await ScrimMeter.stop() : ScrimMeter.read();
+        resolve({ id: msg.id, ok: true, ...(reading && typeof reading === "object" ? reading : {}) });
+      } catch (err) {
+        resolve({ id: msg.id, ok: false, error: String(err?.message || err) });
+      }
+    }
+
     if (msg.type === "captureScan") {
       try {
         if (!ScrimScan) throw new Error("Room scanning needs an app update.");
@@ -154,7 +166,7 @@ function Shell() {
           if (e.nativeEvent.statusCode >= 500) setFailed(true);
         }}
         onLoadEnd={() => setLoading(false)}
-        injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1, depth: ${DEPTH_SUPPORTED ? 1 : 0}, scan: ${SCAN_SUPPORTED ? 1 : 0} }; true;`}
+        injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1, depth: ${DEPTH_SUPPORTED ? 1 : 0}, scan: ${SCAN_SUPPORTED ? 1 : 0}, meter: ${ScrimMeter ? 1 : 0} }; true;`}
         onMessage={onMessage}
       />
       {failed && (
