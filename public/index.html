@@ -499,6 +499,9 @@
           <button class="btn primary" id="studioUseLast" type="button">Use last read</button>
           <label class="btn" for="studioShot">Upload photo</label>
         </div>
+        <div class="actions" style="margin:8px 0 0;grid-template-columns:1fr">
+          <button class="btn" id="studioLiveBtn" type="button">&#9673; Live relight &mdash; light the room as you look at it</button>
+        </div>
         <div class="actions" id="lidarRow" style="margin:8px 0 0;display:none;grid-template-columns:1fr">
           <button class="btn" id="lidarShot" type="button">&#9678; LiDAR depth shot &mdash; ground truth</button>
         </div>
@@ -518,6 +521,8 @@
           <button class="holdbtn" id="holdOrig" type="button">◉ hold — original</button>
           <button class="holdbtn" id="fcBtn" type="button" style="right:auto;left:10px">▦ false color</button>
           <button class="holdbtn" id="clayBtn" type="button" style="right:auto;left:10px;bottom:48px">◇ clay</button>
+          <span class="holdbtn" id="liveBadge" style="display:none;right:auto;left:10px;bottom:auto;top:10px;background:var(--ochre);border-color:var(--ochre)">◉ LIVE</span>
+          <button class="holdbtn" id="liveStop" type="button" style="display:none;bottom:auto;top:10px">❚❚ freeze frame</button>
         </div>
         <p class="hint" id="sunFeed" style="margin:8px 2px 0"></p>
         <div class="card" style="margin-top:8px">
@@ -2435,9 +2440,9 @@ function glInit(photoImg, depthImg, maskImg) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     return t;
   };
-  mkTex(photoImg, 0);
-  mkTex(depthImg, 1);
-  if (maskImg) mkTex(maskImg, 2);
+  // handles kept so Live relight can stream new frames into the same textures
+  studio.tex = { photo: mkTex(photoImg, 0), depth: mkTex(depthImg, 1) };
+  if (maskImg) studio.tex.mask = mkTex(maskImg, 2);
   else {
     // no mask: a single white texel means "aim" has no effect — identical to no segmentation
     const t = gl.createTexture();
@@ -2987,6 +2992,102 @@ async function studioLoad(frame) {
     $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
   }
 }
+
+/* ---- Live relight: the camera feed is the canvas ----
+   Lighting rerenders every frame at display rate; the depth model refreshes
+   asynchronously underneath (the same decoupling that makes GPU relight
+   demos feel instant — dragging a light never waits for the model). */
+
+const live = { on: false, stream: null, video: null, raf: 0 };
+
+async function studioLive() {
+  track("studio_live");
+  const btn = $("studioLiveBtn");
+  btn.disabled = true;
+  $("studioBootStatus").textContent = "Opening the camera…";
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error("No camera available in this browser.");
+    live.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 960 } }, audio: false,
+    });
+    const v = document.createElement("video");
+    v.playsInline = true; v.muted = true; v.srcObject = live.stream;
+    await v.play();
+    if (!v.videoWidth) await new Promise((r) => { v.onloadedmetadata = r; });
+    live.video = v;
+    // boot the studio from the first frame — warms the depth model + mask
+    await studioLoad(downscale(v, v.videoWidth, v.videoHeight, 960));
+    if (!studio.gl) throw new Error("The studio could not start.");
+    live.on = true;
+    $("liveBadge").style.display = "";
+    $("liveStop").style.display = "";
+    liveRender();
+    liveDepthLoop();
+  } catch (e) {
+    stopLive();
+    $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function liveRender() {
+  if (!live.on || !studio.gl) return;
+  const gl = studio.gl;
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, studio.tex.photo);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, live.video);
+  glDraw();
+  live.raf = requestAnimationFrame(liveRender);
+}
+
+async function liveDepthLoop() {
+  const c = document.createElement("canvas");
+  const cx = c.getContext("2d");
+  while (live.on) {
+    const t0 = performance.now();
+    try {
+      // small input keeps the model fast; the relight shader upsamples fine
+      const s = Math.min(1, 420 / Math.max(live.video.videoWidth, live.video.videoHeight));
+      c.width = Math.round(live.video.videoWidth * s);
+      c.height = Math.round(live.video.videoHeight * s);
+      cx.drawImage(live.video, 0, 0, c.width, c.height);
+      const depthUrl = await localDepth({ dataUrl: c.toDataURL("image/jpeg", 0.7) }, () => {});
+      if (!live.on) break;
+      const img = await loadImg(depthUrl);
+      const gl = studio.gl;
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, studio.tex.depth);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      const hz = 1000 / (performance.now() - t0);
+      $("liveBadge").textContent = `◉ LIVE · depth ${hz < 1 ? hz.toFixed(1) : Math.round(hz)}×/s`;
+    } catch {
+      // model unavailable: hold the last depth and keep the light live
+      await new Promise((r) => setTimeout(r, 900));
+    }
+  }
+}
+
+function stopLive() {
+  live.on = false;
+  cancelAnimationFrame(live.raf);
+  live.stream?.getTracks().forEach((t) => t.stop());
+  live.stream = null;
+  $("liveBadge").style.display = "none";
+  $("liveStop").style.display = "none";
+}
+
+$("studioLiveBtn").addEventListener("click", studioLive);
+$("liveStop").addEventListener("click", async () => {
+  // freeze: this exact frame becomes a normal still session at full quality
+  const v = live.video;
+  const frame = v && v.videoWidth ? downscale(v, v.videoWidth, v.videoHeight) : null;
+  stopLive();
+  if (frame) await studioLoad(frame);
+});
+document.addEventListener("visibilitychange", () => { if (document.hidden && live.on) stopLive(); });
 
 // sliders drive the selected light live
 [["sInt", "intensity"], ["sWarm", "warmth"], ["sSize", "size"], ["sDist", "z"]].forEach(([id, key]) => {
