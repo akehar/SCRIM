@@ -3000,6 +3000,19 @@ async function studioLoad(frame) {
 
 const live = { on: false, stream: null, video: null, raf: 0 };
 
+// neutral room-shaped depth (floor near, top far) for the instant live boot
+function placeholderDepth() {
+  const c = document.createElement("canvas");
+  c.width = 4; c.height = 128;
+  const g = c.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, 0, 128);
+  grad.addColorStop(0, "#464646");
+  grad.addColorStop(1, "#b4b4b4");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 4, 128);
+  return c.toDataURL("image/png");
+}
+
 async function studioLive() {
   track("studio_live");
   const btn = $("studioLiveBtn");
@@ -3015,8 +3028,13 @@ async function studioLive() {
     await v.play();
     if (!v.videoWidth) await new Promise((r) => { v.onloadedmetadata = r; });
     live.video = v;
-    // boot the studio from the first frame — warms the depth model + mask
-    await studioLoad(downscale(v, v.videoWidth, v.videoHeight, 960));
+    // Live mode must never wait on (or pay for) cloud depth: seed the boot
+    // with a neutral depth so the studio starts instantly, give the local
+    // model a fresh chance, and let the depth loop refine as it warms up.
+    sessionStorage.removeItem("scrim-local-depth-broken");
+    const frame = downscale(v, v.videoWidth, v.videoHeight, 960);
+    DEPTH_CACHE.set(frame.dataUrl, placeholderDepth());
+    await studioLoad(frame);
     if (!studio.gl) throw new Error("The studio could not start.");
     live.on = true;
     $("liveBadge").style.display = "";

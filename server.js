@@ -295,9 +295,18 @@ CRITICAL: every piece of lighting equipment is OFF-CAMERA, outside the frame. Do
   return img ? { mimeType: img.inlineData.mimeType, data: img.inlineData.data } : null;
 }
 
+// Billing/quota failures come back as raw JSON walls; translate them into a
+// sentence a beta tester can act on (or relay) instead.
+function aiErr(e) {
+  const s = String(e?.message || e);
+  if (/"code"\s*:\s*402|prepayment|credits are depleted|RESOURCE_EXHAUSTED|exceeded your current quota/i.test(s)) {
+    return "The AI budget is empty — Scrim's Gemini credits need topping up (ai.studio → billing). Sun timing and the live tools still work.";
+  }
+  return s;
+}
+
 // accept either a data URL or raw base64
-function parseImage(image) {
-  let mime = "image/jpeg";
+function parseImage(image) {  let mime = "image/jpeg";
   let data = image;
   const m = /^data:(.+?);base64,(.*)$/s.exec(image);
   if (m) { mime = m[1]; data = m[2]; }
@@ -315,12 +324,12 @@ app.post("/analyze", requireCode, async (req, res) => {
     }
     const { mime, data } = parseImage(image);
     const sun = sunReport(Number(latitude), Number(longitude), timestamp);
-    const diagnosis = await diagnose(data, mime, sun, Number(cloudCover)).catch((e) => ({ error: String(e?.message || e) }));
+    const diagnosis = await diagnose(data, mime, sun, Number(cloudCover)).catch((e) => ({ error: aiErr(e) }));
     logEvent("analyze", diagnosis?.error ? "error" : "ok", whoami(req));
     res.json({ sun, diagnosis });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "analyze failed", detail: String(err?.message || err) });
+    res.status(500).json({ error: "analyze failed", detail: aiErr(err) });
   }
 });
 
@@ -359,7 +368,7 @@ Formatting: this renders in a phone chat. Use short paragraphs, "-" bullets for 
     res.json({ reply: text || "(no answer came back)" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "chat failed", detail: String(err?.message || err) });
+    res.status(500).json({ error: "chat failed", detail: aiErr(err) });
   }
 });
 
@@ -373,12 +382,12 @@ app.post("/plan", requireCode, async (req, res) => {
     const { mime, data } = parseImage(image);
     const sun = sunReport(Number(latitude), Number(longitude), timestamp);
     const p = await plan(data, mime, sun, String(brief).slice(0, 500), diagnosis, gear, kit)
-      .catch((e) => ({ error: String(e?.message || e) }));
+      .catch((e) => ({ error: aiErr(e) }));
     logEvent("plan", p?.error ? "error" : "ok", whoami(req));
     res.json({ plan: p });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "plan failed", detail: String(err?.message || err) });
+    res.status(500).json({ error: "plan failed", detail: aiErr(err) });
   }
 });
 
@@ -421,12 +430,12 @@ app.post("/recheck", requireCode, async (req, res) => {
     if (!before || !after) return res.status(400).json({ error: "Need before and after images (base64)." });
     const b = parseImage(before), a = parseImage(after);
     const check = await recheckRead(b.data, b.mime, a.data, a.mime, diagnosis)
-      .catch((e) => ({ error: String(e?.message || e) }));
+      .catch((e) => ({ error: aiErr(e) }));
     logEvent("recheck", check?.error ? "error" : "ok", whoami(req));
     res.json({ check });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "recheck failed", detail: String(err?.message || err) });
+    res.status(500).json({ error: "recheck failed", detail: aiErr(err) });
   }
 });
 
@@ -449,7 +458,7 @@ app.post("/depth", requireCode, async (req, res) => {
     res.json({ depth: `data:${img.inlineData.mimeType};base64,${img.inlineData.data}`, error: null });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "depth failed", detail: String(err?.message || err) });
+    res.status(500).json({ error: "depth failed", detail: aiErr(err) });
   }
 });
 
@@ -461,7 +470,7 @@ app.post("/render", requireCode, async (req, res) => {
     if (!image) return res.status(400).json({ error: "Need image (base64)." });
     const { mime, data } = parseImage(image);
     const render = await renderLook(data, mime, typeof brief === "string" ? brief.slice(0, 500) : "auto", diagnosis, gear, kit)
-      .catch((e) => ({ error: String(e?.message || e) }));
+      .catch((e) => ({ error: aiErr(e) }));
     logEvent("render", render && !render.error ? "ok" : "error", whoami(req));
     res.json({
       render: render && !render.error ? `data:${render.mimeType};base64,${render.data}` : null,
@@ -469,7 +478,7 @@ app.post("/render", requireCode, async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "render failed", detail: String(err?.message || err) });
+    res.status(500).json({ error: "render failed", detail: aiErr(err) });
   }
 });
 
