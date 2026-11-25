@@ -13,7 +13,7 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ScrimAnalytics"] }],
   "vars": {
-    "IMAGE_MODEL": "gemini-3.1-flash-image",
+    "IMAGE_MODEL": "gemini-3.1-flash-lite-image",
     "VISION_MODEL": "gemini-3.5-flash"
   },
   "observability": { "enabled": true }

@@ -211,8 +211,9 @@ ${gearLine(gear, kit)} Every effect must be achievable with that gear.
 What must change: the direction, apparent size, and quality of the light on the subject. Reshape shadow EDGES (a bigger apparent source means a softer penumbra), open or deepen shadow AREAS, tame or add speculars and catchlights, and keep every effect motivated by a plausible physical source — sun angle, bounce, silk, flag, or foliage.
 What must NOT change: subject identity and pose, framing, composition, lens perspective, background content, and scene geometry. Photorealistic, like the scene was reshot under the new lighting — not stylised, not a filter.
 CRITICAL: every piece of lighting equipment is OFF-CAMERA, outside the frame. Do NOT paint any gear into the image — no lights, stands, frames, silks, fabric, panels, reflectors, or bounce boards may appear. When the brief names gear (silk, muslin, flag, negative fill), it names OFF-CAMERA rigging: render only its effect on the light. "Negative fill" means the shadow side goes DEEPER and less filled — never a black object, black panel, or dark fabric anywhere in the picture. Show ONLY the resulting light falling on the existing scene.`;
-  const j = await gemini(env, env.IMAGE_MODEL || "gemini-3.1-flash-image", {
+  const j = await gemini(env, env.IMAGE_MODEL || "gemini-3.1-flash-lite-image", {
     contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data } }, { text: prompt }] }],
+    generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
   });
   const img = genImage(j);
   return img ? { mimeType: img.inlineData.mimeType, data: img.inlineData.data } : null;
@@ -577,8 +578,9 @@ Formatting: this renders in a phone chat. Use short paragraphs, "-" bullets for 
         const { mime, data } = parseImage(image);
         const prompt = `Generate the DEPTH MAP of this exact photograph. Output an image with identical framing where each pixel's brightness encodes distance from the camera: pure white = nearest to camera, pure black = farthest, smooth grayscale in between. Preserve the exact geometry and silhouettes. No colors, no outlines, no text, no stylization — only the grayscale depth map.`;
         try {
-          const j = await gemini(env, env.IMAGE_MODEL || "gemini-3.1-flash-image", {
+          const j = await gemini(env, env.IMAGE_MODEL || "gemini-3.1-flash-lite-image", {
             contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data } }, { text: prompt }] }],
+            generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
           });
           const img = genImage(j);
           logEvent(env, ctx, "depth", img ? "ok" : "error", who);
