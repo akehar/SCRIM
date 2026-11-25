@@ -28,8 +28,10 @@ function requireCode(req, res, next) {
 // signed-in Clerk account; ?code=ACCESS_CODE keeps working as the fallback.
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
 const adminCache = new Map(); // Clerk userId -> boolean, so refreshes don't hit Clerk's API
+const ADMIN_CODE = process.env.ADMIN_CODE || "";
 async function isAdmin(req) {
-  if (ACCESS_CODE && req.query.code === ACCESS_CODE) return true;
+  const door = ADMIN_CODE || ACCESS_CODE;
+  if (door && req.query.code === door) return true;
   if (!CLERK_ON || !ADMIN_EMAILS.length) return false;
   try {
     const { userId } = getAuth(req);

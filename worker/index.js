@@ -286,7 +286,9 @@ function whoami(request, userId, bodyUid) {
 
 const ADMIN_CACHE = new Map(); // userId -> boolean (per-isolate; fine as a cache)
 async function isAdmin(request, env, url) {
-  if (env.ACCESS_CODE && url.searchParams.get("code") === env.ACCESS_CODE) return true;
+  // ADMIN_CODE keeps the dashboard private even when the app itself is open
+  const door = env.ADMIN_CODE || env.ACCESS_CODE;
+  if (door && url.searchParams.get("code") === door) return true;
   const admins = (env.ADMIN_EMAILS || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
   if (!clerkOn(env) || !admins.length) return false;
   const userId = await clerkUserId(request, env);
