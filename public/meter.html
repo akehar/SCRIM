@@ -3,29 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#F3F1E8">
+<meta name="theme-color" content="#0D0C12">
 <title>Scrim — light meter</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/vendor/fonts/fonts.css">
 <style>
   :root {
-    --paper: #F3F1E8; --ink: #191913; --ochre: #A6452D; --muted: #5C5B50; --hair: #DAD7C8;
+    color-scheme: dark;
+    --paper: #0D0C12; --ink: #F4EFE6; --ochre: #E8A33D; --muted: #A59E90; --hair: rgba(244,239,230,0.16);
     --serif: "Newsreader", Georgia, "Times New Roman", serif;
     --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   }
   * { box-sizing: border-box; min-width: 0; }
   body {
-    margin: 0; background: var(--paper); color: var(--ink); font-family: var(--serif);
+    margin: 0; background: linear-gradient(180deg, #07091A 0%, #16142A 60%, #241A28 100%) fixed var(--paper);
+    color: var(--ink); font-family: var(--serif);
     -webkit-font-smoothing: antialiased;
     padding: calc(10px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));
-    max-width: 560px; margin-inline: auto;
+    max-width: 560px; margin-inline: auto; min-height: 100dvh;
   }
-  header { display: flex; align-items: baseline; gap: 12px; border-bottom: 1.5px solid var(--ink); padding-bottom: 10px; }
+  header { display: flex; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--hair); padding-bottom: 10px; }
   header a { color: var(--ink); text-decoration: none; font-family: var(--mono); font-size: 12px; letter-spacing: 1px; }
   header h1 { margin: 0; font-size: 21px; font-weight: 500; flex: 1; }
-  .card { padding: 14px 0 12px; border-bottom: 1px solid var(--hair); }
+  .card {
+    padding: 14px 16px 13px; margin-top: 12px; background: rgba(13,11,18,0.46);
+    border: 1px solid var(--hair); border-radius: 18px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
   .card h2 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
-  .evbig { font-family: var(--mono); font-size: 54px; font-weight: 500; color: var(--ochre); letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .evbig { font-family: var(--serif); font-size: 62px; font-weight: 500; color: #FBF6EC; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
   .evsub { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; }
   .chips { display: flex; flex-wrap: wrap; gap: 7px; }
   .chip {

@@ -4,8 +4,8 @@
   "description": "A gaffer you can talk to. Plan it. Read it. Shape it. Nail it.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F3F1E8",
-  "theme_color": "#F3F1E8",
+  "background_color": "#0D0C12",
+  "theme_color": "#0D0C12",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]

@@ -54,10 +54,11 @@ const ROOM_SUPPORTED = (() => {
 // to the page through window.__SCRIM_NATIVE__ + postMessage.
 const APP_URL = "https://scrim.amitkehar-portfolio.workers.dev";
 
-const PAPER = "#F3F1E8";
-const INK = "#191913";
-const OCHRE = "#A6452D";
-const MUTED = "#5C5B50";
+// Live-sky dark theme: the shell chrome matches the page's night ground.
+const PAPER = "#0D0C12";
+const INK = "#F4EFE6";
+const OCHRE = "#E8A33D";
+const MUTED = "#A59E90";
 
 export default function App() {
   return (
@@ -178,7 +179,7 @@ function Shell() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
-      <StatusBar style="dark" backgroundColor={PAPER} />
+      <StatusBar style="light" backgroundColor={PAPER} />
       {/* The WebView stays mounted through failures so reload() has
           something to reload; the fallback overlays it. */}
       <WebView

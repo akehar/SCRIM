@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="description" content="Scrim reads the natural light in your frame, tells you the fix, and shows you what softer looks like." />
-<meta name="theme-color" content="#F3F1E8" />
+<meta name="theme-color" content="#0D0C12" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="stylesheet" href="/vendor/fonts/fonts.css" />
 <link rel="stylesheet" href="/vendor/leaflet.css" />
@@ -13,26 +13,27 @@
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <title>Scrim — shape the light you already have</title>
 <style>
-  /* ————— Scrim · Field Notes ————— */
+  /* ————— Scrim · Live Sky ————— */
   :root {
-    color-scheme: light;
-    --paper: #F3F1E8;
-    --ink: #191913;
-    --ochre: #A6452D;
-    --muted: #5C5B50;
-    --hair: #DAD7C8;
-    --press: #EBE8DC;
-    --tint-ochre: rgba(166, 69, 45, 0.12);
-    --tint-ink: rgba(25, 25, 19, 0.08);
+    color-scheme: dark;
+    --paper: #0D0C12;            /* the ground: near-black night */
+    --ink: #F4EFE6;              /* text: warm cream */
+    --ochre: #E8A33D;            /* the one accent: golden-hour amber */
+    --muted: #A59E90;
+    --hair: rgba(244, 239, 230, 0.16);
+    --press: rgba(244, 239, 230, 0.1);
+    --tint-ochre: rgba(232, 163, 61, 0.14);
+    --tint-ink: rgba(244, 239, 230, 0.08);
     /* aliases so JS-injected styles keep resolving */
     --bg: var(--paper);
     --surface: var(--paper);
     --line: var(--hair);
     --gold: var(--ochre);
-    --gold-ink: var(--paper);
-    --err: #8A2B1C;
-    --okc: #4A6B3A;
-    --radius: 6px;
+    --gold-ink: #171106;
+    --glass: rgba(13, 11, 18, 0.46);
+    --err: #FF8E70;
+    --okc: #A9C88F;
+    --radius: 14px;
     --serif: "Newsreader", Georgia, "Times New Roman", serif;
     --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   }
@@ -47,10 +48,23 @@
   }
   .mono { font-family: var(--mono); }
 
+  /* The sky IS the interface: a full-screen gradient computed from the real
+     sun position for your location, updated as the day turns. */
+  #sky {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: linear-gradient(180deg, #07091A 0%, #1B1E3C 34%, #4A3140 66%, #8A4A33 88%, #C9792F 100%);
+    transition: opacity 1.2s ease;
+  }
+  #sky::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(120% 60% at 50% 112%, rgba(232,163,61,0.22), transparent 70%);
+  }
+
   header {
     flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
     padding: calc(12px + env(safe-area-inset-top)) 22px 10px;
-    border-bottom: 1.5px solid var(--ink);
+    border-bottom: 1px solid var(--hair);
+    background: transparent;
   }
   .emblem { width: 40px; height: 40px; flex: 0 0 auto; }
   .wordmark { font-size: 25px; font-weight: 500; letter-spacing: -0.015em; margin: 0; flex: 1; font-family: var(--serif); }
@@ -67,10 +81,11 @@
   main { flex: 1 1 auto; position: relative; overflow: hidden; }
   .screen {
     position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
-    padding: 6px 22px calc(14px + env(safe-area-inset-bottom));
+    padding: 6px 22px calc(84px + env(safe-area-inset-bottom));
     display: none; animation: fadein 0.18s ease;
   }
   .screen.active { display: block; }
+  #screen-ask.active { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
   #screen-ask.active { display: flex; flex-direction: column; }
   #screen-ask .chatwrap { flex: 1; min-height: 0; }
   #screen-ask .chatlog { padding: 6px 0 10px; }
@@ -78,40 +93,79 @@
   @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
   nav.tabbar {
-    flex: 0 0 auto; display: flex; border-top: 1.5px solid var(--ink); background: var(--paper);
+    flex: 0 0 auto; display: flex; border-top: 1px solid var(--hair);
+    background: rgba(8, 7, 12, 0.62);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
     padding-bottom: env(safe-area-inset-bottom);
   }
   .tabbtn {
-    flex: 1; font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em;
-    background: none; border: none; color: var(--muted); padding: 9px 0 7px; cursor: pointer; text-transform: uppercase;
+    flex: 1; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.22em;
+    background: none; border: none; color: rgba(244,239,230,0.55); padding: 10px 0 8px; cursor: pointer; text-transform: uppercase;
   }
-  .tabbtn .ico { display: block; font-size: 15px; margin-bottom: 1px; font-family: var(--mono); }
+  .tabbtn .ico { display: block; margin: 0 auto 3px; width: 22px; height: 22px; }
+  .tabbtn .ico svg { display: block; width: 22px; height: 22px; }
   .tabbtn[aria-selected="true"] { color: var(--ochre); }
   .tabbtn:active { background: var(--press); }
+
+  /* Ask: the floating gaffer — one button, every screen */
+  #askFab {
+    position: fixed; right: 18px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 60;
+    width: 54px; height: 54px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--ochre); color: #171106;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+  }
+  #askFab:active { transform: scale(0.94); }
+  body.asking #askFab { display: none; }
+
+  /* Camera mode dial: READ · METER · SCAN */
+  .camdial { display: flex; justify-content: center; align-items: baseline; gap: 30px; padding: 12px 0 2px; }
+  .cmode {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.2em;
+    background: none; border: none; color: rgba(244,239,230,0.45); cursor: pointer; padding: 6px 2px; text-transform: uppercase;
+  }
+  .cmode[aria-selected="true"] { color: var(--ochre); font-size: 14.5px; letter-spacing: 0.26em; }
+  .dialtick { width: 0; height: 0; margin: 0 auto; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 5px solid var(--ochre); }
+  .dialhint { text-align: center; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--muted); margin: 6px 0 4px; text-transform: uppercase; }
+
+  .backrow {
+    display: flex; align-items: center; gap: 10px; padding: 10px 0 8px;
+  }
+  .backrow .backbtn {
+    width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--hair); background: var(--glass);
+    color: var(--ink); font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 2px;
+  }
+  .backrow .backttl { font-family: var(--mono); font-size: 11px; letter-spacing: 0.26em; color: rgba(244,239,230,0.85); text-transform: uppercase; }
 
   .banner {
     border: 1.5px solid var(--ink); color: var(--ink); border-radius: var(--radius);
     padding: 9px 12px; font-size: 13.5px; margin: 10px 0 0; display: none; background: var(--paper);
   }
 
-  .card { background: transparent; border: none; border-radius: 0; padding: 11px 0 9px; margin: 0; border-bottom: 1px solid var(--hair); }
+  /* glass over sky: every reading floats on a blurred card */
+  .card {
+    background: var(--glass); border: 1px solid var(--hair); border-radius: 18px;
+    padding: 14px 16px 13px; margin: 12px 0 0;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
 
-  /* Simple mode (the default) hides the pro-density surfaces; the PRO pill
-     in the header brings the full toolkit back. */
+  /* The old Simple/Pro split is gone: three places, instruments behind them.
+     body.pro stays so every former pro-only surface simply shows. */
   body:not(.pro) .pro-only { display: none !important; }
   body.pro .simple-only { display: none !important; }
-  #modeBtn { font-family: var(--mono); letter-spacing: 0.08em; border-color: var(--ochre); color: var(--ochre); }
-  body.pro #modeBtn { background: var(--ink); border-color: var(--ink); color: var(--paper); }
   .card h2 {
     font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.16em;
     color: var(--muted); margin: 0 0 6px; font-weight: 600;
   }
   #sunCard h2, #screen-now .card:first-of-type h2 { color: var(--ochre); }
 
-  .clock { line-height: 1.1; }
-  .clock .cword { font-family: var(--serif); font-size: clamp(30px, 9vw, 40px); font-weight: 500; line-height: 1.05; }
-  .clock .cnum { font-family: var(--mono); font-size: clamp(42px, 13vw, 58px); font-weight: 500; color: var(--ochre); letter-spacing: -0.03em; line-height: 1.15; font-variant-numeric: tabular-nums; }
-  .clock .cleft { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  /* the hero: huge editorial serif numerals over the live sky */
+  .clock { line-height: 1.1; text-align: center; padding: 10px 0 2px; }
+  .clock .cword { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.34em; text-transform: uppercase; color: rgba(244,239,230,0.72); line-height: 1.6; }
+  .clock .cnum { font-family: var(--serif); font-size: clamp(76px, 25vw, 118px); font-weight: 500; color: #FBF6EC; letter-spacing: -0.04em; line-height: 1.02; font-variant-numeric: tabular-nums; }
+  .clock .cleft { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; color: var(--muted); }
+  #heroCard { background: none; border: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding-top: 4px; }
+  #heroCard .sunline, #heroCard .weather, #heroCard .herenote { text-align: center; }
   .sunline { font-size: 16px; font-style: italic; margin-top: 5px; line-height: 1.4; }
   .weather { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 5px; }
   .herenote { font-family: var(--mono); font-size: 11px; color: var(--ochre); margin-top: 6px; display: none; }
@@ -137,8 +191,8 @@
     border: 1.5px solid var(--ink); background: transparent; color: var(--ink);
   }
   .btn:active { background: var(--press); }
-  .btn.primary { background: var(--ochre); border-color: var(--ochre); color: var(--paper); }
-  .btn.primary:active { background: #8F3A25; }
+  .btn.primary { background: var(--ochre); border-color: var(--ochre); color: #171106; }
+  .btn.primary:active { background: #C9892F; }
   .btn:disabled { opacity: 0.45; cursor: default; }
   input[type=file] { display: none; }
   input[type=text], textarea {
@@ -261,14 +315,21 @@
     border-radius: 999px; padding: 6px 11px; cursor: pointer; user-select: none; -webkit-user-select: none;
   }
   .lhandle {
-    position: absolute; width: 34px; height: 34px; transform: translate(-50%, -50%);
-    border-radius: 50%; border: 2.5px solid #E8A33D; background: rgba(12,11,9,0.35);
+    position: absolute; width: 36px; height: 36px; transform: translate(-50%, -50%);
+    border-radius: 50%; border: 2.5px solid #E8A33D; background: rgba(12,11,9,0.55);
     color: #E8A33D; display: flex; align-items: center; justify-content: center;
     font-family: var(--mono); font-size: 13px; font-weight: 700; touch-action: none; cursor: grab; z-index: 4;
     box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    transition: box-shadow 0.18s ease;
   }
-  .lhandle.sel { background: #E8A33D; color: #201503; }
-  .lhandle.drag { cursor: grabbing; transform: translate(-50%, -50%) scale(1.12); }
+  .lhandle .ltag {
+    position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; font-weight: 700; letter-spacing: 0.16em; white-space: nowrap;
+    color: rgba(244,239,230,0.75); text-shadow: 0 1px 4px rgba(0,0,0,0.8); pointer-events: none;
+  }
+  .lhandle.sel { background: #E8A33D; color: #201503; box-shadow: 0 0 26px rgba(232,163,61,0.85), 0 0 6px rgba(232,163,61,0.9); }
+  .lhandle.sel .ltag { color: #E8A33D; }
+  .lhandle.drag { cursor: grabbing; transform: translate(-50%, -50%) scale(1.14); }
   .ghandle {
     position: absolute; width: 34px; height: 34px; transform: translate(-50%, -50%);
     border-radius: 8px; border: 2.5px dashed #cfd6dd; background: rgba(20,22,26,0.45);
@@ -296,7 +357,7 @@
   .sliders label span { flex: 0 0 96px; }
   input[type=range] {
     flex: 1; appearance: none; -webkit-appearance: none; height: 26px; border-radius: 13px;
-    background: #E9E6D9; border: 1px solid var(--hair); outline: none;
+    background: rgba(244,239,230,0.1); border: 1px solid var(--hair); outline: none;
   }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%;
@@ -306,7 +367,7 @@
 
   /* chat lives in the Ask tab */
 
-  #map { background: #E9E6D9; }
+  #map { background: #15141C; filter: saturate(0.8) brightness(0.9); }
   .leaflet-container { font-family: var(--mono); }
   .shotrow { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--hair); font-size: 14.5px; }
   .shotrow:last-child { border-bottom: none; }
@@ -334,23 +395,23 @@
   }
 </style>
 </head>
-<body>
+<body class="pro">
+  <div id="sky" aria-hidden="true"></div>
   <header>
     <svg class="emblem" id="emblem" viewBox="0 0 120 120" aria-hidden="true">
-      <circle id="emRing" cx="60" cy="60" r="52" fill="none" stroke="#191913" stroke-width="2.5" pathLength="100" transform="rotate(-90 60 60)"/>
+      <circle id="emRing" cx="60" cy="60" r="52" fill="none" stroke="#F4EFE6" stroke-width="2.5" pathLength="100" transform="rotate(-90 60 60)"/>
       <defs><clipPath id="sunTop"><rect x="8" y="8" width="104" height="52"/></clipPath></defs>
-      <circle id="emSun" cx="60" cy="60" r="26" fill="#A6452D" clip-path="url(#sunTop)"/>
-      <line id="emHorizon" x1="18" y1="60" x2="102" y2="60" stroke="#191913" stroke-width="2.5" stroke-linecap="round" pathLength="100"/>
+      <circle id="emSun" cx="60" cy="60" r="26" fill="#E8A33D" clip-path="url(#sunTop)"/>
+      <line id="emHorizon" x1="18" y1="60" x2="102" y2="60" stroke="#F4EFE6" stroke-width="2.5" stroke-linecap="round" pathLength="100"/>
       <g id="emBars">
-        <rect x="36" y="66" width="48" height="4.5" rx="2.25" fill="#A6452D" opacity="0.75"/>
-        <rect x="40" y="75" width="40" height="4.5" rx="2.25" fill="#A6452D" opacity="0.5"/>
-        <rect x="45" y="84" width="30" height="4.5" rx="2.25" fill="#A6452D" opacity="0.3"/>
-        <rect x="51" y="93" width="18" height="4.5" rx="2.25" fill="#A6452D" opacity="0.15"/>
+        <rect x="36" y="66" width="48" height="4.5" rx="2.25" fill="#E8A33D" opacity="0.75"/>
+        <rect x="40" y="75" width="40" height="4.5" rx="2.25" fill="#E8A33D" opacity="0.5"/>
+        <rect x="45" y="84" width="30" height="4.5" rx="2.25" fill="#E8A33D" opacity="0.3"/>
+        <rect x="51" y="93" width="18" height="4.5" rx="2.25" fill="#E8A33D" opacity="0.15"/>
       </g>
     </svg>
     <h1 class="wordmark">Scrim</h1>
     <button class="pill" id="locPill" type="button" title="Tap to refresh location">locating…</button>
-    <button class="pill" id="modeBtn" type="button" title="Simple shows the essentials; Pro unlocks the full toolkit" style="max-width:none">SIMPLE</button>
     <button class="pill" id="acctBtn" type="button" title="Account" style="max-width:none;display:none">SIGN IN</button>
     <button class="pill" id="fbBtn" type="button" title="Send feedback" style="max-width:none;font-size:15px">✎</button>
   </header>
@@ -394,8 +455,7 @@
           <button class="ghost" id="codeSave" type="button">Unlock</button>
         </div>
       </div>
-      <div class="card">
-        <h2>Next soft light</h2>
+      <div class="card" id="heroCard">
         <div id="clock" class="clock"><span class="skeleton" style="display:block;width:70%"></span></div>
         <div class="sunline" id="sunNow"><span class="skeleton" style="display:block;width:50%"></span></div>
         <div class="weather" id="weatherLine"></div>
@@ -446,18 +506,59 @@
         <div class="looks" id="whenLooks" style="gap:6px"></div>
         <div id="whenWindows" class="times" style="margin-top:8px"></div>
       </div>
-      <div class="card simple-only">
-        <h2 style="color:var(--ochre)">The pro toolkit</h2>
-        <p class="hint" style="margin:0 0 10px">Relight Studio, 3D location scans, the day planner, sun compass — the full gaffer's kit is one tap away.</p>
-        <div class="actions" style="margin:0;grid-template-columns:1fr">
-          <button class="btn primary" id="goProBtn" type="button">◐ Turn on Pro</button>
+      <!-- ——— Plan the day (absorbed from the old Plan tab) ——— -->
+      <div class="card" style="border-bottom:none;padding-bottom:6px">
+        <h2 style="color:var(--ochre)">Plan the day</h2>
+        <div class="looks projrow"></div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;position:relative">
+        <div id="map" style="height:280px;border-radius:18px"></div>
+        <button class="ghost" id="recenter" type="button" style="position:absolute;right:8px;top:8px;z-index:500">◎ me</button>
+      </div>
+      <p class="hint" id="mapHint" style="margin:8px 2px 0">Tap the map to scout a spot — amber pins are scenes you've already read.</p>
+      <div class="card" id="pinCard" style="display:none">
+        <h2 id="pinTitle">Scout pin</h2>
+        <div class="looks" id="pinLooks"></div>
+        <div class="times" id="pinWindows" style="margin-top:8px"></div>
+        <div class="actions" style="grid-template-columns:1fr;margin:10px 0 0">
+          <button class="btn primary" id="addShot" type="button">Add to shot list</button>
+        </div>
+        <p class="status" id="pinStatus"></p>
+      </div>
+      <div class="card" id="shotCard">
+        <div class="tabs" role="tablist" style="margin-bottom:8px">
+          <button class="tab" role="tab" aria-selected="true" data-ppane="ppane-shots" type="button">Shot list</button>
+          <button class="tab" role="tab" aria-selected="false" data-ppane="ppane-reads" type="button">Reads</button>
+        </div>
+        <div id="ppane-shots" role="tabpanel">
+          <div id="shotList"><p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p></div>
+          <div class="actions" style="margin:10px 0 0">
+            <button class="btn" id="exportPlan" type="button">Share day plan</button>
+            <button class="btn" id="clearShots" type="button">Clear shots</button>
+          </div>
+        </div>
+        <div id="ppane-reads" role="tabpanel" hidden>
+          <p class="hint" style="font-style:italic;margin:0 0 4px">Every read, remembered — tap one to see it on the map.</p>
+          <div id="logList"><p class="hint">No reads in this project yet.</p></div>
+          <div class="actions" style="margin:10px 0 0">
+            <button class="btn" id="exportCsv" type="button">Light sheet (CSV)</button>
+            <button class="btn" id="clearLog" type="button">Clear reads</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- ============ SHOOT ============ -->
+    <!-- ============ CAMERA: one viewfinder, a mode dial ============ -->
     <section class="screen" id="screen-shoot">
       <div class="banner" id="recheckBanner" style="border-color:var(--okc);color:var(--okc)"></div>
+      <div class="camdial" role="tablist">
+        <button class="cmode" role="tab" data-cmode="read" aria-selected="true" type="button">Read</button>
+        <button class="cmode" role="tab" data-cmode="meter" aria-selected="false" type="button">Meter</button>
+        <button class="cmode" role="tab" data-cmode="scan" aria-selected="false" type="button">Scan</button>
+      </div>
+      <p class="dialhint" id="dialHint">AI reads the light in your frame, then plans the fix</p>
+
+      <div id="cpane-read">
       <div class="actions">
         <button class="btn primary" id="openCam" type="button">Open camera</button>
         <label class="btn" for="shot">Upload photo</label>
@@ -465,10 +566,10 @@
       <input id="shot" type="file" accept="image/*" />
       <p class="hint">Phone camera, or a pro camera over USB. Frames go to the server for analysis only — nothing renders until you ask.</p>
       <div class="card">
-        <h2>Light meter</h2>
-        <p class="hint" style="margin:0 0 10px">EV, f-stops, ISO — meter the scene without leaving Scrim. Live through the camera in the iPhone app; sunny-16 presets anywhere.</p>
+        <h2 style="color:var(--ochre)">Relight Studio</h2>
+        <p class="hint" style="margin:0 0 10px">Light your frame by hand — drag real fixtures, hang silks, cut with negative fill, live. Then make it real.</p>
         <div class="actions" style="margin:0;grid-template-columns:1fr">
-          <a class="btn" href="/meter" style="text-decoration:none;text-align:center">☀ Open the light meter</a>
+          <button class="btn" id="openStudio" type="button">◐ Open the studio</button>
         </div>
       </div>
 
@@ -495,12 +596,41 @@
 
       <p class="status" id="status" role="status"></p>
       <div id="out"></div>
+      </div>
+
+      <div id="cpane-meter" hidden>
+        <div class="card">
+          <h2>Light meter</h2>
+          <p class="hint" style="margin:0 0 10px">EV, f-stops, ISO, shutter — meter the scene without leaving Scrim. Live through the camera in the iPhone app; sunny-16 presets anywhere.</p>
+          <div class="actions" style="margin:0;grid-template-columns:1fr">
+            <a class="btn primary" href="/meter" style="text-decoration:none;text-align:center">☀ Open the light meter</a>
+          </div>
+        </div>
+      </div>
+
+      <div id="cpane-scan" hidden>
+        <div class="card" id="scanDepthCard" style="display:none">
+          <h2 style="color:var(--ochre)">LiDAR depth shot</h2>
+          <p class="hint" style="margin:0 0 10px">The phone measures the room — your Relight set becomes ground truth, with real meters between lights, subject, and background.</p>
+          <div class="actions" style="margin:0;grid-template-columns:1fr">
+            <button class="btn primary" id="scanDepthGo" type="button">&#9678; Take a depth shot</button>
+          </div>
+        </div>
+        <div class="card" id="scanWebCard">
+          <h2>Scanning on the web</h2>
+          <p class="hint" style="margin:0">LiDAR depth and room scanning live in the iPhone app. Here you can still import a Gaussian-splat scan on the <b>Set</b> tab and walk it with the sun path drawn through.</p>
+        </div>
+      </div>
     </section>
 
-    <!-- ============ LIGHT: the Relight Studio ============ -->
+    <!-- ============ RELIGHT STUDIO (instrument, reached from Camera) ============ -->
     <section class="screen" id="screen-light">
+      <div class="backrow">
+        <button class="backbtn" id="studioBack" type="button" aria-label="Back to camera">‹</button>
+        <span class="backttl">Relight Studio</span>
+      </div>
       <div class="card" id="studioEmpty">
-        <h2>Pro Mode — Relight Studio</h2>
+        <h2>Light it by hand</h2>
         <p class="hint" style="margin:0 0 10px">The studio maps your frame in 3D, then you light it by hand: drag real fixtures, hang silks, cut with negative fill — live, on your phone. When it sings, make it real.</p>
         <div class="actions" style="margin:0">
           <button class="btn primary" id="studioUseLast" type="button">Use last read</button>
@@ -514,20 +644,6 @@
         </div>
         <input id="studioShot" type="file" accept="image/*" />
         <p class="status" id="studioBootStatus"></p>
-      </div>
-      <div class="card">
-        <h2>Room &amp; sun &mdash; light through the actual windows</h2>
-        <p class="hint" style="margin:0 0 10px">Scan a room once (&sim;30 s on a LiDAR iPhone): Scrim rebuilds its walls and windows, then traces where sunlight lands on the floor at any hour. Works with a demo room on the web.</p>
-        <div class="actions" style="margin:0">
-          <a class="btn" href="/room" style="text-decoration:none;text-align:center">Open Room &amp; sun</a>
-        </div>
-      </div>
-      <div class="card">
-        <h2>3D scene &mdash; walk the set</h2>
-        <p class="hint" style="margin:0 0 10px">Scanned a location? Import the Gaussian-splat scan and orbit it with the day&rsquo;s sun path drawn through the space. Scan with Scaniverse (free), export as .splat, import here.</p>
-        <div class="actions" style="margin:0">
-          <a class="btn" href="/scan" style="text-decoration:none;text-align:center">Open the 3D scene viewer</a>
-        </div>
       </div>
       <div id="studio" style="display:none">
         <div class="stage" id="stage">
@@ -577,60 +693,39 @@
     </section>
 
 
-    <!-- ============ PLAN: scene map + shot list ============ -->
-    <section class="screen" id="screen-plan">
-      <div class="card" style="border-bottom:none;padding-bottom:6px">
-        <h2>Project</h2>
-        <div class="looks projrow"></div>
+    <!-- ============ SET: the space itself ============ -->
+    <section class="screen" id="screen-set">
+      <div class="card" id="roomCard" style="display:none">
+        <h2 style="color:var(--ochre)">Room &amp; sun &mdash; light through the actual windows</h2>
+        <p class="hint" style="margin:0 0 10px">Scan a room once (&sim;30 s): Scrim rebuilds its walls and windows, then traces where sunlight pools on the floor at any hour &mdash; with real meters.</p>
+        <div class="actions" style="margin:0">
+          <a class="btn primary" href="/room" style="text-decoration:none;text-align:center">Open Room &amp; sun</a>
+        </div>
       </div>
-      <div class="card" style="padding:0;overflow:hidden;position:relative;border-bottom:none">
-        <div id="map" style="height:280px;border:1.5px solid var(--ink);border-radius:6px"></div>
-        <button class="ghost" id="recenter" type="button" style="position:absolute;right:8px;top:8px;z-index:500">◎ me</button>
+      <div class="card">
+        <h2>3D scene &mdash; walk the set</h2>
+        <p class="hint" style="margin:0 0 10px">Import a Gaussian-splat scan and orbit it with the day&rsquo;s sun path drawn through the space. Place virtual lights and read real distances off the scan.</p>
+        <div class="actions" style="margin:0">
+          <a class="btn" href="/scan" style="text-decoration:none;text-align:center">Open the 3D scene viewer</a>
+        </div>
       </div>
-      <p class="hint" id="mapHint" style="margin:6px 2px 0">Tap the map to scout a spot — ochre pins are scenes you've already read.</p>
-      <div class="card" id="pinCard" style="display:none">
-        <h2 id="pinTitle">Scout pin</h2>
-        <div class="looks" id="pinLooks"></div>
-        <div class="times" id="pinWindows" style="margin-top:8px"></div>
-        <div class="actions" style="grid-template-columns:1fr;margin:10px 0 0">
-          <button class="btn primary" id="addShot" type="button">Add to shot list</button>
-        </div>
-        <p class="status" id="pinStatus"></p>
-      </div>
-      <div class="card" id="shotCard" style="border-top:1.5px solid var(--ink)">
-        <div class="tabs" role="tablist" style="margin-bottom:8px">
-          <button class="tab" role="tab" aria-selected="true" data-ppane="ppane-shots" type="button">Shot list</button>
-          <button class="tab" role="tab" aria-selected="false" data-ppane="ppane-reads" type="button">Reads</button>
-        </div>
-        <div id="ppane-shots" role="tabpanel">
-          <div id="shotList"><p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p></div>
-          <div class="actions" style="margin:10px 0 0">
-            <button class="btn" id="exportPlan" type="button">Share day plan</button>
-            <button class="btn" id="clearShots" type="button">Clear shots</button>
-          </div>
-        </div>
-        <div id="ppane-reads" role="tabpanel" hidden>
-          <p class="hint" style="font-style:italic;margin:0 0 4px">Every read, remembered — tap one to see it on the map.</p>
-          <div id="logList"><p class="hint">No reads in this project yet.</p></div>
-          <div class="actions" style="margin:10px 0 0">
-            <button class="btn" id="exportCsv" type="button">Light sheet (CSV)</button>
-            <button class="btn" id="clearLog" type="button">Clear reads</button>
-          </div>
-        </div>
+      <div class="card" id="setWebNote">
+        <h2>On the iPhone</h2>
+        <p class="hint" style="margin:0">Room scanning and the AR sun path are built into the Scrim iPhone app &mdash; the phone&rsquo;s LiDAR rebuilds the space around you.</p>
       </div>
     </section>
 
-
-    <!-- ============ ASK ============ -->
+    <!-- ============ ASK: the floating gaffer ============ -->
     <section class="screen" id="screen-ask">
-      <div style="padding:10px 0 8px;border-bottom:1.5px solid var(--ink);display:flex;align-items:baseline;gap:10px">
+      <div style="padding:10px 0 8px;border-bottom:1px solid var(--hair);display:flex;align-items:baseline;gap:10px">
         <span style="font-family:var(--serif);font-size:22px;font-weight:500">The gaffer</span>
-        <span style="font-family:var(--serif);font-style:italic;font-size:13.5px;color:var(--muted);flex:1">A gaffer you can talk to.</span>
+        <span style="font-family:var(--serif);font-style:italic;font-size:13.5px;color:var(--muted);flex:1">Sees what you see.</span>
         <button class="ghost" id="glossBtn" type="button" style="padding:5px 10px;font-size:10.5px">GLOSSARY</button>
+        <button class="ghost" id="askClose" type="button" style="padding:5px 12px;font-size:12px" aria-label="Close">✕</button>
       </div>
       <div class="chatwrap">
         <div class="chatlog" id="chatLog">
-          <div class="msg ai">Ask me anything about the light — what gear to bring, how to shape what you've got, when to shoot. If you've done a read on the Shoot tab, I can see that frame too.</div>
+          <div class="msg ai">Ask me anything about the light — what gear to bring, how to shape what you've got, when to shoot. If you've done a read in Camera, I can see that frame too.</div>
         </div>
         <div class="chatrow">
           <input id="chatInput" type="text" placeholder="Ask the light anything." autocomplete="off" enterkeyhint="send">
@@ -640,12 +735,17 @@
     </section>
   </main>
 
+  <button id="askFab" type="button" aria-label="Ask the gaffer">
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 C12.8 8 16 11.2 21 12 C16 12.8 12.8 16 12 21 C11.2 16 8 12.8 3 12 C8 11.2 11.2 8 12 3 Z" fill="currentColor"/></svg>
+  </button>
+
   <nav class="tabbar" role="tablist">
-    <button class="tabbtn" role="tab" aria-selected="true" data-screen="screen-now" type="button"><span class="ico">●</span>Now</button>
-    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button"><span class="ico">□</span>Shoot</button>
-    <button class="tabbtn pro-only" role="tab" aria-selected="false" data-screen="screen-light" type="button"><span class="ico">◐</span>Pro</button>
-    <button class="tabbtn pro-only" role="tab" aria-selected="false" data-screen="screen-plan" type="button"><span class="ico">▵</span>Plan</button>
-    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-ask" type="button"><span class="ico">✳</span>Ask</button>
+    <button class="tabbtn" role="tab" aria-selected="true" data-screen="screen-now" type="button">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><line x1="12" y1="2.5" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21.5"/><line x1="2.5" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21.5" y2="12"/><line x1="5.3" y1="5.3" x2="7" y2="7"/><line x1="17" y1="17" x2="18.7" y2="18.7"/><line x1="5.3" y1="18.7" x2="7" y2="17"/><line x1="17" y1="7" x2="18.7" y2="5.3"/></svg></span>Light</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9 a2 2 0 0 1 2 -2 h2 l1.6 -2.4 h6.8 L17 7 h2 a2 2 0 0 1 2 2 v9 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 Z"/><circle cx="12" cy="13" r="3.8"/></svg></span>Camera</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-set" type="button">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 L21 7.5 V16.5 L12 21.5 L3 16.5 V7.5 Z"/><path d="M3 7.5 L12 12.5 L21 7.5"/><path d="M12 12.5 V21.5"/></svg></span>Set</button>
   </nav>
 
 
@@ -677,31 +777,37 @@ let weather = null;        // {times:[], clouds:[]}
 
 /* ---------- app shell ---------- */
 
-document.querySelectorAll(".tabbtn").forEach((b) => b.addEventListener("click", () => {
-  document.querySelectorAll(".tabbtn").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
-  document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === b.dataset.screen));
-  if (b.dataset.screen === "screen-plan") initPlan();
-}));
-function gotoScreen(id) { document.querySelector(`.tabbtn[data-screen="${id}"]`).click(); }
-
-/* ---- Simple / Pro mode: simple is the default and shows the essentials
-   (Now + Shoot + Ask); the PRO pill unlocks the full toolkit. ---- */
-function setMode(m) {
-  localStorage.setItem("scrim-mode", m);
-  document.body.classList.toggle("pro", m === "pro");
-  $("modeBtn").textContent = m === "pro" ? "PRO ✓" : "GO PRO";
-  const active = document.querySelector(".screen.active");
-  if (m !== "pro" && active && (active.id === "screen-light" || active.id === "screen-plan")) {
-    gotoScreen("screen-now");
-  }
+// Three places (Light / Camera / Set) plus two full-screen surfaces that no
+// tab owns: the Relight Studio instrument and the Ask sheet.
+function gotoScreen(id) {
+  document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
+  document.querySelectorAll(".tabbtn").forEach((x) => x.setAttribute("aria-selected", x.dataset.screen === id ? "true" : "false"));
+  document.body.classList.toggle("asking", id === "screen-ask");
+  if (id === "screen-now" && map) setTimeout(() => map.invalidateSize(), 80);
 }
-$("modeBtn").addEventListener("click", () => {
-  const m = (localStorage.getItem("scrim-mode") || "simple") === "pro" ? "simple" : "pro";
-  setMode(m);
-  track("mode_" + m);
+document.querySelectorAll(".tabbtn").forEach((b) => b.addEventListener("click", () => gotoScreen(b.dataset.screen)));
+
+let askReturn = "screen-now";
+$("askFab").addEventListener("click", () => {
+  askReturn = document.querySelector(".screen.active")?.id || "screen-now";
+  if (askReturn === "screen-ask") askReturn = "screen-now";
+  gotoScreen("screen-ask");
+  track("tab", "ask");
 });
-$("goProBtn").addEventListener("click", () => { setMode("pro"); track("mode_pro"); });
-setMode(localStorage.getItem("scrim-mode") || "simple");
+$("askClose").addEventListener("click", () => gotoScreen(askReturn));
+
+/* ---- Camera mode dial: READ · METER · SCAN ---- */
+const DIAL_HINTS = {
+  read: "AI reads the light in your frame, then plans the fix",
+  meter: "EV · f-stop · ISO — a light meter in your pocket",
+  scan: "LiDAR measures the space — depth shots and rooms",
+};
+document.querySelectorAll(".cmode").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll(".cmode").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
+  ["read", "meter", "scan"].forEach((m) => { $("cpane-" + m).hidden = m !== b.dataset.cmode; });
+  $("dialHint").textContent = DIAL_HINTS[b.dataset.cmode];
+  track("cam_mode", b.dataset.cmode);
+}));
 
 /* ---------- access code ---------- */
 
@@ -918,9 +1024,33 @@ function renderTimeline() {
   $("timeline").innerHTML = els;
 }
 
+/* ---- the live sky: every screen's background is the real sky, computed
+   from the sun's altitude at your location. The app feels alive before
+   you touch it. ---- */
+function skyGradient(alt) {
+  const bands = [
+    { a: -90, g: ["#05060D", "#0A0C1C", "#12142A"] },                 // deep night
+    { a: -10, g: ["#07091A", "#141733", "#1F1E3E"] },                 // astro twilight
+    { a: -4,  g: ["#0A0C22", "#1B1E3C", "#4A3140"] },                 // blue hour
+    { a: 0,   g: ["#10122B", "#4A3140", "#8A4A33", "#D9843D"] },      // golden hour
+    { a: 10,  g: ["#0F1428", "#2A3450", "#5A5570", "#8A6A4A"] },      // low sun
+    { a: 25,  g: ["#101A30", "#27405E", "#4A6584"] },                 // full day
+  ];
+  let g = bands[0].g;
+  for (const b of bands) if (alt >= b.a) g = b.g;
+  const n = g.length;
+  return `linear-gradient(180deg, ${g.map((c, i) => `${c} ${Math.round((i / (n - 1)) * 100)}%`).join(", ")})`;
+}
+function renderSky() {
+  const alt = sun?.now?.altitudeDeg;
+  if (alt == null) return;
+  $("sky").style.background = skyGradient(alt);
+}
+
 function renderSunCard() {
   if (!sun) return;
   const n = sun.now;
+  renderSky();
   renderClock();
   $("sunNow").innerHTML = `Sun ${n.altitudeDeg}&deg; up, from the ${n.direction} &mdash; ${n.quality}.`;
   $("sunTimes").innerHTML = `
@@ -1816,7 +1946,7 @@ function renderResults() {
       <div id="pane-compare" role="tabpanel" hidden></div>
       <div class="actions" style="margin:12px 0 0">
         <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
-        <button class="btn pro-only" id="toStudio" type="button">Open in Pro Mode ◐</button>
+        <button class="btn pro-only" id="toStudio" type="button">Open in Relight Studio ◐</button>
       </div>
     </div>`;
 
@@ -2768,9 +2898,11 @@ function studioRenderHandles() {
     h.className = "lhandle" + (studio.selType === "light" && i === studio.sel ? " sel" : "");
     h.style.left = l.x * 100 + "%";
     h.style.top = l.y * 100 + "%";
-    h.textContent = (LIGHT_ROLES[i] || "L")[0];
+    const role = LIGHT_ROLES[i] || "Light";
+    h.innerHTML = `${esc(role[0])}<span class="ltag">${esc(role.toUpperCase())}</span>`;
     wireDrag(h, l, () => {
       studio.selType = "light"; studio.sel = i;
+      try { navigator.vibrate?.(8); } catch { /* haptics are a bonus */ }
       studioRenderLights(); studioSyncSliders();
       stage.querySelectorAll(".lhandle, .ghandle").forEach((x) => x.classList.remove("sel"));
       h.classList.add("sel");
@@ -3247,7 +3379,17 @@ $("arSunBtn").addEventListener("click", async () => {
 
 // LiDAR depth shot: the phone measures the room, so the studio's 3D set is
 // ground truth instead of an AI guess. Pro-model iPhones inside the app only.
-if (window.__SCRIM_NATIVE__?.depth) $("lidarRow").style.display = "";
+if (window.__SCRIM_NATIVE__?.depth) {
+  $("lidarRow").style.display = "";
+  $("scanDepthCard").style.display = "";
+}
+// Room & sun is iPhone-app-only — on the web it does nothing, so it hides.
+if (window.__SCRIM_NATIVE__?.room) $("roomCard").style.display = "";
+if (window.__SCRIM_NATIVE__?.shell) $("setWebNote").style.display = "none";
+$("scanDepthGo").addEventListener("click", () => {
+  gotoScreen("screen-light");
+  $("lidarShot").click();
+});
 $("lidarShot").addEventListener("click", async () => {
   const btn = $("lidarShot");
   btn.disabled = true;
@@ -3367,8 +3509,8 @@ function planGuidance() {
   if (!map) return;
   const n = logForProject().filter((e) => e.lat != null).length;
   $("mapHint").textContent = n
-    ? "Tap the map to scout a spot — ochre pins are this project's reads."
-    : "No reads in this project yet — shoot a frame on the Shoot tab, or tap anywhere on the map to scout the light there.";
+    ? "Tap the map to scout a spot — amber pins are this project's reads."
+    : "No reads in this project yet — read a frame on the Camera tab, or tap anywhere on the map to scout the light there.";
 }
 document.querySelectorAll("[data-ppane]").forEach((t) => t.addEventListener("click", () => {
   document.querySelectorAll("[data-ppane]").forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
@@ -3687,6 +3829,13 @@ $("fbSend").addEventListener("click", async () => {
   }
 });
 
+/* ---------- instruments: enter and leave the studio ---------- */
+$("studioBack").addEventListener("click", () => {
+  if (live.on) stopLive();
+  gotoScreen("screen-shoot");
+});
+$("openStudio").addEventListener("click", () => { gotoScreen("screen-light"); track("studio_entry"); });
+
 /* ---------- boot ---------- */
 track("app_open");
 checkBackend();
@@ -3694,6 +3843,9 @@ loadSun();
 renderProjectRows();
 renderLog();
 renderShots();
+// the planner now lives at the bottom of Light; Leaflet is a deferred script,
+// so the map waits for load
+window.addEventListener("load", () => { try { initPlan(); } catch { /* map is a bonus */ } });
 </script>
 </body>
 </html>
