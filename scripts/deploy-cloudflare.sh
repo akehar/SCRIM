@@ -9,6 +9,10 @@ cd "$(dirname "$0")/.."
 
 echo "— Scrim → Cloudflare —"
 echo
+echo "[0/3] Installing packages (first run takes a minute)…"
+npm install --no-audit --no-fund
+
+echo
 echo "[1/3] Signing in (your browser will open; free account is fine)…"
 npx wrangler login
 
