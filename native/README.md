@@ -1,6 +1,6 @@
 # Scrim — native shell (Expo / React Native)
 
-The iPhone app. It wraps the live web app (`https://scrim-backend-wxcn.onrender.com`)
+The iPhone app. It wraps the live web app (`https://scrim.amitkehar-portfolio.workers.dev`)
 in a native shell, so every push to `main` updates the app instantly — no App
 Store release needed. Native capabilities (LiDAR depth, ARKit scan capture,
 golden-hour push notifications) get added here as Expo modules and talk to the

@@ -52,7 +52,7 @@ const ROOM_SUPPORTED = (() => {
 // this app instantly, no App Store release needed. Native capabilities
 // (LiDAR depth, ARKit capture, push) get added here as modules and exposed
 // to the page through window.__SCRIM_NATIVE__ + postMessage.
-const APP_URL = "https://scrim-backend-wxcn.onrender.com";
+const APP_URL = "https://scrim.amitkehar-portfolio.workers.dev";
 
 const PAPER = "#F3F1E8";
 const INK = "#191913";
