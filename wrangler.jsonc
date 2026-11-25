@@ -1,0 +1,22 @@
+{
+  // Scrim on Cloudflare Workers: static app from /public, API in worker/,
+  // analytics in a SQLite Durable Object. Deploy: npx wrangler deploy
+  "name": "scrim",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "ANALYTICS", "class_name": "ScrimAnalytics" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ScrimAnalytics"] }],
+  "vars": {
+    "IMAGE_MODEL": "gemini-3.1-flash-image",
+    "VISION_MODEL": "gemini-3.5-flash"
+  },
+  "observability": { "enabled": true }
+  // Secrets (set with: npx wrangler secret put NAME):
+  //   GEMINI_API_KEY, ACCESS_CODE, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, ADMIN_EMAILS
+}

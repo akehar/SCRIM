@@ -7,9 +7,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "cf": "wrangler dev",
+    "cf:deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@clerk/backend": "^3.33.0",
     "@clerk/clerk-js": "^6.25.2",
     "@clerk/express": "^2.1.40",
     "@google/genai": "^1.0.0",
@@ -17,5 +20,8 @@
     "gsap": "^3.12.5",
     "leaflet": "^1.9.4",
     "suncalc": "^1.9.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.168.0"
   }
 }
