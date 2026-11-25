@@ -2519,12 +2519,11 @@ function requestDraw() {
 
 function metersAt(u, v) {
   const m = studio.metric;
-  if (!m || !m.px) return null;
-  const x = Math.max(0, Math.min(m.w - 1, Math.round(u * m.w)));
-  const y = Math.max(0, Math.min(m.h - 1, Math.round(v * m.h)));
-  const g = m.px[(y * m.w + x) * 4] / 255;
-  const disp = m.lo + g * m.span;
-  return disp > 1e-6 ? 1 / disp : null;
+  if (!m) return null;
+  const x = Math.max(0, Math.min(m.w - 1, Math.floor(u * m.w)));
+  const y = Math.max(0, Math.min(m.h - 1, Math.floor(v * m.h)));
+  const meters = m.samples.getFloat32((y * m.w + x) * 4, true);
+  return Number.isFinite(meters) && meters > 0 ? meters : null;
 }
 
 const fmtM = (v) => Math.abs(v) >= 10 ? `${v.toFixed(0)} m` : `${v.toFixed(1)} m`;
@@ -3192,21 +3191,19 @@ $("lidarShot").addEventListener("click", async () => {
     DEPTH_CACHE.set(frame.dataUrl, r.depth);
     track("lidar_shot");
     await studioLoad(frame);
-    // metric calibration: LiDAR depth is in metres, so the studio can report
-    // real distances (subject vs background, light offsets)
-    if (r.dispLo != null && r.dispHi != null) {
-      const dimg = await loadImg(r.depth);
-      const c = document.createElement("canvas");
-      c.width = dimg.naturalWidth; c.height = dimg.naturalHeight;
-      const cx = c.getContext("2d", { willReadFrequently: true });
-      cx.drawImage(dimg, 0, 0);
-      studio.metric = {
-        lo: r.dispLo, span: Math.max(r.dispHi - r.dispLo, 1e-6),
-        mppW: r.mppW || 1, mppH: r.mppH || 1,
-        px: cx.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height,
-        bg: null,
-      };
-      updateMeasure();
+    // Metric distances come from raw LiDAR values, independent of the
+    // display map's clipping, quantization, and browser color conversion.
+    if (r.metricMeters && studio.frame === frame) {
+      const w = r.metricWidth, h = r.metricHeight;
+      const bytes = Uint8Array.from(atob(r.metricMeters), c => c.charCodeAt(0));
+      if (Number.isInteger(w) && w > 0 && Number.isInteger(h) && h > 0 && bytes.length === w * h * 4) {
+        studio.metric = {
+          samples: new DataView(bytes.buffer), w, h,
+          mppW: r.mppW || 1, mppH: r.mppH || 1,
+          bg: null,
+        };
+        updateMeasure();
+      }
     }
   } catch (e) {
     $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;

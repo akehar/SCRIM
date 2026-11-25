@@ -105,7 +105,7 @@
     $("isoOut").textContent = state.iso;
     if (state.ev == null) { $("pairs").innerHTML = ""; $("cineLine").textContent = ""; $("evSub").textContent = ""; return; }
     const lux = 2.5 * Math.pow(2, state.ev);
-    $("evSub").textContent = `≈ ${lux >= 1000 ? (lux / 1000).toFixed(1) + "k" : Math.round(lux)} lux`;
+    $("evSub").textContent = state.source === "camera" ? "Reflected light · EV at ISO 100" : `≈ ${lux >= 1000 ? (lux / 1000).toFixed(1) + "k" : Math.round(lux)} lux`;
     const evIso = state.ev + Math.log2(state.iso / 100);
     $("pairs").innerHTML = APERTURES.map((N) => {
       const t = (N * N) / Math.pow(2, evIso);
@@ -176,7 +176,7 @@
     btn.disabled = true;
     try {
       const r = await nativeCall("meterShow", 5 * 60 * 1000);
-      if (r.ev100 == null) throw new Error("no reading came back");
+      if (!Number.isFinite(r.ev100)) throw new Error("no reading came back");
       document.querySelectorAll("#skyChips .chip").forEach((x) => x.setAttribute("aria-pressed", "false"));
       state.ev = r.ev100;
       state.source = "camera";

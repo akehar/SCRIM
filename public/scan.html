@@ -160,9 +160,11 @@
     const p = nativePending.get(msg?.id);
     if (!p) return;
     nativePending.delete(msg.id);
+    if (!msg.ok) scanChunks.delete(msg.id);
     msg.ok ? p.res(msg) : p.rej(new Error(msg.error || "native call failed"));
   };
   window.__scrimScanChunk = (msg) => {
+    if (!nativePending.has(msg.id)) return;
     const bin = atob(msg.b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -179,6 +181,7 @@
       setTimeout(() => {
         if (nativePending.has(id)) {
           nativePending.delete(id);
+          scanChunks.delete(id);
           rej(new Error("native call timed out"));
         }
       }, timeoutMs);
@@ -193,7 +196,10 @@
       const r = await nativeCall("captureScan", 15 * 60 * 1000);
       const parts = (scanChunks.get(r.id) || []).filter(Boolean);
       scanChunks.delete(r.id);
-      if (!parts.length) throw new Error("scan arrived empty — try again");
+      const bytes = parts.reduce((total, part) => total + part.byteLength, 0);
+      if (!bytes || parts.length !== r.chunks || bytes !== r.bytes || bytes !== r.points * 32) {
+        throw new Error("Scan transfer was incomplete. Capture the room again.");
+      }
       const file = new File(parts, "room.splat", { type: "application/octet-stream" });
       $("message").textContent = `${(r.points || 0).toLocaleString()} points captured`;
       setTimeout(() => { if ($("message").textContent.includes("points captured")) $("message").textContent = ""; }, 5000);

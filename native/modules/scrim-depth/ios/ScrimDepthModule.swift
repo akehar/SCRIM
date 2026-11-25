@@ -83,7 +83,7 @@ private final class DepthShot: NSObject, ARSessionDelegate {
       guard let self else { return }
       do {
         let photo = try Self.jpegDataURL(from: capturedImage)
-        let (depthURL, near, far, dispLo, dispHi) = try Self.depthPNGDataURL(from: depthMap)
+        let (depthURL, near, far, dispLo, dispHi, metric, metricWidth, metricHeight) = try Self.depthPNGDataURL(from: depthMap)
         // metric calibration for the studio: metres-per-metre-of-depth across
         // the PORTRAIT frame (the outputs are rotated 90°, so axes swap)
         let mppW = Double(imgH) / Double(K[1][1]) // portrait width  ← landscape y / fy
@@ -95,6 +95,9 @@ private final class DepthShot: NSObject, ARSessionDelegate {
           "farMeters": far,
           "dispLo": dispLo,
           "dispHi": dispHi,
+          "metricMeters": metric,
+          "metricWidth": metricWidth,
+          "metricHeight": metricHeight,
           "mppW": mppW,
           "mppH": mppH,
         ])
@@ -149,7 +152,7 @@ private final class DepthShot: NSObject, ARSessionDelegate {
     return "data:image/jpeg;base64," + data.base64EncodedString()
   }
 
-  private static func depthPNGDataURL(from depthMap: CVPixelBuffer) throws -> (String, Double, Double, Double, Double) {
+  private static func depthPNGDataURL(from depthMap: CVPixelBuffer) throws -> (String, Double, Double, Double, Double, String, Int, Int) {
     CVPixelBufferLockBaseAddress(depthMap, .readOnly)
     defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
 
@@ -163,6 +166,7 @@ private final class DepthShot: NSObject, ARSessionDelegate {
     // Metres → disparity, then percentile-normalise so one distant outlier
     // can't flatten the whole map. Brighter = nearer.
     var disparity = [Float](repeating: 0, count: width * height)
+    var metric = [UInt32](repeating: 0, count: width * height)
     var finite: [Float] = []
     finite.reserveCapacity(width * height)
     var nearM: Float = .greatestFiniteMagnitude
@@ -174,6 +178,8 @@ private final class DepthShot: NSObject, ARSessionDelegate {
         let d: Float = (metres.isFinite && metres > 0.01) ? 1.0 / metres : 0
         disparity[y * width + x] = d
         if d > 0 {
+          // Match the clockwise portrait rotation applied to the photo.
+          metric[x * height + (height - 1 - y)] = metres.bitPattern.littleEndian
           finite.append(d)
           nearM = min(nearM, metres)
           farM = max(farM, metres)
@@ -214,6 +220,7 @@ private final class DepthShot: NSObject, ARSessionDelegate {
           let png = UIImage(cgImage: outCG).pngData()
     else { throw NSError(domain: "ScrimDepth", code: 6, userInfo: [NSLocalizedDescriptionKey: "PNG encode failed"]) }
 
-    return ("data:image/png;base64," + png.base64EncodedString(), Double(nearM), Double(farM), Double(lo), Double(hi))
+    return ("data:image/png;base64," + png.base64EncodedString(), Double(nearM), Double(farM), Double(lo), Double(hi),
+            metric.withUnsafeBytes { Data($0).base64EncodedString() }, height, width)
   }
 }
