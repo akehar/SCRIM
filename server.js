@@ -301,6 +301,9 @@ CRITICAL: every piece of lighting equipment is OFF-CAMERA, outside the frame. Do
 // sentence a beta tester can act on (or relay) instead.
 function aiErr(e) {
   const s = String(e?.message || e);
+  if (/API key not valid|API_KEY_INVALID|"code"\s*:\s*401/i.test(s)) {
+    return "The Gemini API key on the server is wrong — re-save GEMINI_API_KEY (wrangler secret put GEMINI_API_KEY) with a clean copy of the key.";
+  }
   if (/"code"\s*:\s*402|prepayment|credits are depleted|RESOURCE_EXHAUSTED|exceeded your current quota/i.test(s)) {
     return "The AI budget is empty — Scrim's Gemini credits need topping up (ai.studio → billing). Sun timing and the live tools still work.";
   }
