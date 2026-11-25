@@ -1,0 +1,7 @@
+{
+  "name": "scrim-arsun",
+  "version": "0.1.0",
+  "description": "AR sun path for Scrim: the day's sun arc drawn through the real location, anchored in space.",
+  "main": "index.js",
+  "private": true
+}

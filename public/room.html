@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F3F1E8">
+<title>Scrim — room &amp; sun</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/vendor/fonts/fonts.css">
+<style>
+  :root {
+    --paper: #F3F1E8; --ink: #191913; --ochre: #A6452D; --muted: #5C5B50; --hair: #DAD7C8;
+    --gold: #E8B84B;
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; min-width: 0; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: var(--serif); -webkit-font-smoothing: antialiased; }
+  #stage { position: fixed; inset: 0; }
+  header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+    padding: calc(10px + var(--sat)) 16px 10px;
+    display: flex; align-items: center; gap: 12px;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border-bottom: 1.5px solid var(--ink);
+  }
+  header a { color: var(--ink); text-decoration: none; font-family: var(--mono); font-size: 12px; letter-spacing: 1px; }
+  header h1 { margin: 0; font-size: 19px; font-weight: 500; flex: 1; }
+  #sunReadout { font-family: var(--mono); font-size: 10.5px; color: var(--ochre); font-weight: 600; }
+
+  #panel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border-top: 1.5px solid var(--ink);
+    padding: 10px 16px calc(12px + var(--sab));
+  }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.6px;
+    border: 1.5px solid var(--ink); background: transparent; color: var(--ink);
+    border-radius: 999px; padding: 8px 14px; min-height: 36px; cursor: pointer;
+  }
+  .btn.primary { background: var(--ink); color: var(--paper); }
+  .btn[aria-pressed="true"] { background: var(--ochre); border-color: var(--ochre); color: var(--paper); }
+  .sl { display: grid; grid-template-columns: 92px 1fr 86px; gap: 10px; align-items: center; margin-top: 8px; }
+  .sl label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+  .sl output { font-family: var(--mono); font-size: 11.5px; text-align: right; color: var(--ink); }
+  input[type="range"] { width: 100%; accent-color: var(--ochre); height: 28px; }
+  #note { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 8px; }
+
+  #empty { position: fixed; inset: 0; display: grid; place-items: center; z-index: 3; padding: 24px; pointer-events: none; }
+  #empty .card { max-width: 430px; background: var(--paper); border: 1.5px solid var(--ink); padding: 20px 22px; pointer-events: auto; }
+  #empty h2 { margin: 0 0 8px; font-size: 21px; font-weight: 500; }
+  #empty p { margin: 0 0 10px; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+  #message { position: fixed; bottom: 150px; left: 16px; right: 16px; color: var(--ochre); font-family: var(--mono); font-size: 12px; z-index: 6; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<header>
+  <a href="/">&larr; SCRIM</a>
+  <h1>Room &amp; sun</h1>
+  <span id="sunReadout"></span>
+</header>
+
+<div id="empty">
+  <div class="card">
+    <h2>Trace the sun through your actual windows.</h2>
+    <p>Scan the room once (&sim;30 seconds, LiDAR iPhone) &mdash; Scrim rebuilds its walls, windows and doors, then shows where sunlight lands on the floor at any hour of the day.</p>
+    <p>Set north once with the dial, and the light pools are real: &ldquo;the sun hits the sofa through the west window at 4:12.&rdquo;</p>
+    <p style="margin:0">No LiDAR phone handy? Load the demo room.</p>
+  </div>
+</div>
+<div id="message"></div>
+
+<div id="panel">
+  <div class="row">
+    <button class="btn primary" id="scanBtn" type="button" style="display:none">&#9634; Scan this room</button>
+    <button class="btn" id="demoBtn" type="button">Demo room</button>
+    <button class="btn" id="playBtn" type="button" aria-pressed="false">&#9654; Play the day</button>
+  </div>
+  <div class="sl">
+    <label for="timeDial">Time</label>
+    <input type="range" id="timeDial" min="0" max="47" step="1" value="24">
+    <output id="timeOut">—</output>
+  </div>
+  <div class="sl">
+    <label for="northDial">North</label>
+    <input type="range" id="northDial" min="0" max="359" step="1" value="0">
+    <output id="northOut">0&deg;</output>
+  </div>
+  <div id="note">Scans don&rsquo;t record compass north &mdash; turn the dial until the light matches what the room really does.</div>
+</div>
+
+<script src="/vendor/three/three.min.js"></script>
+<script src="/vendor/three/OrbitControls.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const native = window.__SCRIM_NATIVE__ || {};
+
+  /* ---------- three.js scene ---------- */
+  const PAPER = 0xf3f1e8, INK = 0x191913, OCHRE = 0xa6452d, MUTED = 0x8a897c, GOLD = 0xe8b84b;
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  $("stage").appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x14130f);
+  const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.05, 200);
+  camera.position.set(5, 5.5, 7);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.maxPolarAngle = Math.PI * 0.49 + 0.5;
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.35);
+  dir.position.set(3, 8, 2);
+  scene.add(dir);
+
+  addEventListener("resize", () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  /* ---------- room model ---------- */
+  const roomGroup = new THREE.Group();
+  const poolGroup = new THREE.Group();
+  const rayGroup = new THREE.Group();
+  scene.add(roomGroup, poolGroup, rayGroup);
+  let room = null;       // the serialized RoomPlan capture
+  let windows = [];      // [{ corners: [Vector3 x4], center, normal }]
+  let floorY = 0;
+
+  const m4 = (a) => new THREE.Matrix4().fromArray(a); // column-major, as serialized
+
+  function surfaceCorners(s) {
+    const m = m4(s.transform);
+    const hw = s.w / 2, hh = s.h / 2;
+    return [
+      new THREE.Vector3(-hw, -hh, 0), new THREE.Vector3(hw, -hh, 0),
+      new THREE.Vector3(hw, hh, 0), new THREE.Vector3(-hw, hh, 0),
+    ].map((v) => v.applyMatrix4(m));
+  }
+
+  function addSurface(s, { color, opacity, line }) {
+    const geo = new THREE.PlaneGeometry(s.w, s.h);
+    const mat = new THREE.MeshLambertMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.applyMatrix4(m4(s.transform));
+    roomGroup.add(mesh);
+    if (line) {
+      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: line }));
+      edge.applyMatrix4(m4(s.transform));
+      roomGroup.add(edge);
+    }
+    return mesh;
+  }
+
+  function buildRoom(r) {
+    room = r;
+    roomGroup.clear(); poolGroup.clear(); rayGroup.clear();
+    windows = [];
+    $("empty").style.display = "none";
+
+    // floor height: the lowest wall bottom
+    floorY = Infinity;
+    for (const w of r.walls || []) {
+      for (const c of surfaceCorners(w)) floorY = Math.min(floorY, c.y);
+    }
+    if (!isFinite(floorY)) floorY = 0;
+
+    for (const w of r.walls || []) addSurface(w, { color: PAPER, opacity: 0.28, line: MUTED });
+    for (const d of r.doors || []) addSurface(d, { color: MUTED, opacity: 0.25, line: INK });
+    for (const o of r.openings || []) addSurface(o, { color: MUTED, opacity: 0.12, line: MUTED });
+    for (const win of r.windows || []) {
+      addSurface(win, { color: GOLD, opacity: 0.3, line: GOLD });
+      const m = m4(win.transform);
+      windows.push({
+        corners: surfaceCorners(win),
+        center: new THREE.Vector3(0, 0, 0).applyMatrix4(m),
+        normal: new THREE.Vector3(0, 0, 1).transformDirection(m),
+      });
+    }
+    for (const o of r.objects || []) {
+      const box = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(o.w, o.h, o.d)),
+        new THREE.LineBasicMaterial({ color: 0x5c5b50 })
+      );
+      box.applyMatrix4(m4(o.transform));
+      roomGroup.add(box);
+    }
+
+    // ground plane + grid, centred under the room
+    const bbox = new THREE.Box3().setFromObject(roomGroup);
+    const cx = (bbox.min.x + bbox.max.x) / 2, cz = (bbox.min.z + bbox.max.z) / 2;
+    const span = Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z) + 2;
+    const grid = new THREE.GridHelper(span, Math.round(span), 0x3a392f, 0x2a291f);
+    grid.position.set(cx, floorY + 0.002, cz);
+    roomGroup.add(grid);
+    controls.target.set(cx, floorY + 1.1, cz);
+    camera.position.set(cx + span * 0.75, floorY + span * 0.65, cz + span * 0.9);
+
+    try { localStorage.setItem("scrim-room", JSON.stringify(r)); } catch {}
+    updateSun();
+  }
+
+  /* ---------- sun ---------- */
+  let sunPath = null;    // 48 half-hour points of today: {t, azimuthDeg, altitudeDeg}
+  let north = 0;
+
+  async function loadSun() {
+    let lat, lng;
+    try { const s = JSON.parse(localStorage.getItem("scrim-manual-loc") || "null"); if (Array.isArray(s)) { lat = s[0]; lng = s[1]; } } catch {}
+    if (lat == null && navigator.geolocation) {
+      try {
+        const p = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
+        lat = p.coords.latitude; lng = p.coords.longitude;
+      } catch {}
+    }
+    if (lat == null) { lat = 40.7; lng = -74.0; flash("no location — showing New York sun"); }
+    // ask for midnight today so the scrubber covers one civil day
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    const r = await fetch(`/sun?lat=${lat}&lng=${lng}&t=${midnight.toISOString()}`);
+    const j = await r.json();
+    sunPath = j.path.slice(0, 48).map((p) => ({ ...p, t: new Date(p.t) }));
+    // start the scrubber at the current half-hour
+    const now = Date.now();
+    let best = 24, bestD = Infinity;
+    sunPath.forEach((p, i) => { const d = Math.abs(p.t - now); if (d < bestD) { bestD = d; best = i; } });
+    $("timeDial").value = best;
+    updateSun();
+  }
+
+  function sunDirAt(i) { // unit vector pointing TOWARD the sun, y up
+    const p = sunPath?.[i];
+    if (!p || p.altitudeDeg <= 0) return null;
+    const az = ((p.azimuthDeg + north) * Math.PI) / 180;
+    const alt = (p.altitudeDeg * Math.PI) / 180;
+    return new THREE.Vector3(Math.sin(az) * Math.cos(alt), Math.sin(alt), -Math.cos(az) * Math.cos(alt));
+  }
+
+  const fmtT = (d) => d ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—";
+
+  function updateSun() {
+    poolGroup.clear(); rayGroup.clear();
+    const i = Number($("timeDial").value);
+    const p = sunPath?.[i];
+    $("timeOut").textContent = fmtT(p?.t);
+    $("northOut").textContent = north + "°";
+    if (!room || !sunPath) { $("sunReadout").textContent = ""; return; }
+    const toSun = sunDirAt(i);
+    if (!toSun) { $("sunReadout").textContent = "sun is down"; return; }
+    const light = toSun.clone().negate(); // direction the light travels
+    let lit = 0;
+
+    for (const win of windows) {
+      // skip windows facing away from the sun (normal sign is ambiguous, so
+      // test the horizontal angle both ways and keep the stronger facing)
+      const facing = Math.abs(win.normal.dot(toSun));
+      if (facing < 0.12) continue;
+      const pts = win.corners.map((c) => {
+        const t = (floorY - c.y) / light.y; // light.y < 0 when the sun is up
+        return new THREE.Vector3(c.x + light.x * t, floorY + 0.01, c.z + light.z * t);
+      });
+      if (pts.some((q) => !isFinite(q.x) || !isFinite(q.z))) continue;
+      lit++;
+      const shape = new THREE.Shape(pts.map((q) => new THREE.Vector2(q.x, -q.z)));
+      const geo = new THREE.ShapeGeometry(shape);
+      geo.rotateX(-Math.PI / 2); // Shape xy → floor xz (y stays up)
+      const alt = sunPath[i].altitudeDeg;
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+        color: GOLD, transparent: true,
+        opacity: Math.min(0.55, 0.2 + alt / 60), depthWrite: false,
+      }));
+      mesh.position.y = floorY + 0.01;
+      poolGroup.add(mesh);
+      // the shaft of light from window to pool
+      const centerPool = pts.reduce((a, q) => a.add(q), new THREE.Vector3()).multiplyScalar(0.25);
+      const rayGeo = new THREE.BufferGeometry().setFromPoints([win.center, centerPool]);
+      rayGroup.add(new THREE.Line(rayGeo, new THREE.LineDashedMaterial({ color: GOLD, transparent: true, opacity: 0.5, dashSize: 0.15, gapSize: 0.1 })));
+      rayGroup.children[rayGroup.children.length - 1].computeLineDistances();
+    }
+    $("sunReadout").textContent = lit
+      ? `☀ ${fmtT(p.t)} · sun through ${lit} window${lit > 1 ? "s" : ""}`
+      : `☀ ${fmtT(p.t)} · no direct sun inside`;
+  }
+
+  function flash(t) {
+    $("message").textContent = t;
+    setTimeout(() => { if ($("message").textContent === t) $("message").textContent = ""; }, 5000);
+  }
+
+  /* ---------- controls ---------- */
+  $("timeDial").addEventListener("input", updateSun);
+  $("northDial").addEventListener("input", () => { north = Number($("northDial").value); updateSun(); });
+  let playTimer = null;
+  $("playBtn").addEventListener("click", () => {
+    if (playTimer) {
+      clearInterval(playTimer); playTimer = null;
+      $("playBtn").setAttribute("aria-pressed", "false");
+      return;
+    }
+    $("playBtn").setAttribute("aria-pressed", "true");
+    playTimer = setInterval(() => {
+      const d = $("timeDial");
+      d.value = (Number(d.value) + 1) % 48;
+      updateSun();
+    }, 180);
+  });
+
+  /* ---------- native bridge: RoomPlan capture ---------- */
+  let nativeReqId = 0;
+  const nativePending = new Map();
+  window.__scrimNativeResolve = (msg) => {
+    const p = nativePending.get(msg?.id);
+    if (!p) return;
+    nativePending.delete(msg.id);
+    msg.ok ? p.res(msg) : p.rej(new Error(msg.error || "native call failed"));
+  };
+  function nativeCall(type, timeoutMs = 10 * 60 * 1000) {
+    return new Promise((res, rej) => {
+      if (!window.ReactNativeWebView) return rej(new Error("not running in the app"));
+      const id = ++nativeReqId;
+      nativePending.set(id, { res, rej });
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type, id }));
+      setTimeout(() => { if (nativePending.has(id)) { nativePending.delete(id); rej(new Error("timed out")); } }, timeoutMs);
+    });
+  }
+
+  if (native.room) $("scanBtn").style.display = "";
+  $("scanBtn").addEventListener("click", async () => {
+    const btn = $("scanBtn");
+    btn.disabled = true;
+    try {
+      const r = await nativeCall("roomScan");
+      if (!r.room || !(r.room.walls || []).length) throw new Error("the scan came back empty — sweep the walls slowly");
+      buildRoom(r.room);
+      flash(`${(r.room.walls || []).length} walls · ${(r.room.windows || []).length} windows captured`);
+    } catch (e) {
+      if (!/cancel/i.test(String(e.message))) flash(String(e.message || e));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  /* ---------- demo room: 5×4 m, windows south + west ---------- */
+  // column-major transform helper: rotateY(deg) then translate
+  function T(x, y, z, rotDeg = 0) {
+    const m = new THREE.Matrix4().makeRotationY((rotDeg * Math.PI) / 180);
+    m.setPosition(x, y, z);
+    return m.toArray();
+  }
+  const DEMO = {
+    walls: [
+      { w: 5, h: 2.7, transform: T(0, 1.35, -2, 0) },      // north wall
+      { w: 5, h: 2.7, transform: T(0, 1.35, 2, 0) },       // south wall
+      { w: 4, h: 2.7, transform: T(-2.5, 1.35, 0, 90) },   // west wall
+      { w: 4, h: 2.7, transform: T(2.5, 1.35, 0, 90) },    // east wall
+    ],
+    windows: [
+      { w: 1.8, h: 1.3, transform: T(-0.8, 1.5, 2, 0) },   // south window
+      { w: 1.2, h: 1.3, transform: T(-2.5, 1.5, -0.6, 90) }, // west window
+    ],
+    doors: [{ w: 0.9, h: 2.05, transform: T(2.5, 1.025, 1.2, 90) }],
+    openings: [],
+    objects: [
+      { category: "sofa", w: 2.1, h: 0.8, d: 0.9, transform: T(0.4, 0.4, -1.3, 0) },
+      { category: "table", w: 1.2, h: 0.75, d: 0.7, transform: T(-1.2, 0.375, 0.6, 0) },
+    ],
+  };
+  $("demoBtn").addEventListener("click", () => { buildRoom(DEMO); });
+
+  /* ---------- boot ---------- */
+  (function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  })();
+  loadSun().catch((e) => flash(String(e.message || e)));
+  try {
+    const saved = JSON.parse(localStorage.getItem("scrim-room") || "null");
+    if (saved?.walls?.length) buildRoom(saved);
+  } catch {}
+})();
+</script>
+</body>
+</html>

@@ -401,6 +401,13 @@
         <div class="weather" id="weatherLine"></div>
         <div class="herenote" id="hereNote"></div>
       </div>
+      <div class="card" id="arSunCard" style="display:none">
+        <h2 style="color:var(--ochre)">See it in the sky</h2>
+        <p class="hint" style="margin:0 0 10px">Point the phone at your location and today&rsquo;s whole sun path hangs in the air &mdash; sunrise to sunset, golden hours marked, anchored to the real world.</p>
+        <div class="actions" style="margin:0;grid-template-columns:1fr">
+          <button class="btn primary" id="arSunBtn" type="button">&#9673; AR sun path</button>
+        </div>
+      </div>
       <div class="card pro-only">
         <h2>The day</h2>
         <svg class="timeline" id="timeline" viewBox="0 0 360 74" preserveAspectRatio="none"></svg>
@@ -507,6 +514,13 @@
         </div>
         <input id="studioShot" type="file" accept="image/*" />
         <p class="status" id="studioBootStatus"></p>
+      </div>
+      <div class="card">
+        <h2>Room &amp; sun &mdash; light through the actual windows</h2>
+        <p class="hint" style="margin:0 0 10px">Scan a room once (&sim;30 s on a LiDAR iPhone): Scrim rebuilds its walls and windows, then traces where sunlight lands on the floor at any hour. Works with a demo room on the web.</p>
+        <div class="actions" style="margin:0">
+          <a class="btn" href="/room" style="text-decoration:none;text-align:center">Open Room &amp; sun</a>
+        </div>
       </div>
       <div class="card">
         <h2>3D scene &mdash; walk the set</h2>
@@ -3181,12 +3195,12 @@ window.__scrimNativeResolve = (msg) => {
   nativePending.delete(msg.id);
   msg.ok ? p.res(msg) : p.rej(new Error(msg.error || "native call failed"));
 };
-function nativeCall(type, timeoutMs = 25000) {
+function nativeCall(type, timeoutMs = 25000, payload) {
   return new Promise((res, rej) => {
     if (!window.ReactNativeWebView) return rej(new Error("not running in the app"));
     const id = ++nativeReqId;
     nativePending.set(id, { res, rej });
-    window.ReactNativeWebView.postMessage(JSON.stringify({ type, id }));
+    window.ReactNativeWebView.postMessage(JSON.stringify(payload ? { type, id, payload } : { type, id }));
     setTimeout(() => {
       if (nativePending.has(id)) {
         nativePending.delete(id);
@@ -3195,6 +3209,42 @@ function nativeCall(type, timeoutMs = 25000) {
     }, timeoutMs);
   });
 }
+
+// AR sun path: the page owns the sun math, the shell owns the AR view.
+if (window.__SCRIM_NATIVE__?.arsun) $("arSunCard").style.display = "";
+function arSunPayload() {
+  const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const srT = sun.sunrise ? new Date(sun.sunrise).getTime() : null;
+  const ssT = sun.sunset ? new Date(sun.sunset).getTime() : null;
+  let srDone = false, ssDone = false;
+  const points = [];
+  for (const p of sun.path.slice(0, 48)) {
+    if (p.altitudeDeg <= -2) continue;
+    const t = new Date(p.t);
+    let label = "";
+    if (!srDone && srT && Math.abs(t - srT) <= 15 * 60000) { label = "sunrise " + fmt(srT); srDone = true; }
+    else if (!ssDone && ssT && Math.abs(t - ssT) <= 15 * 60000) { label = "sunset " + fmt(ssT); ssDone = true; }
+    else if (t.getMinutes() === 0 && t.getHours() % 3 === 0) label = fmt(t);
+    points.push({ az: p.azimuthDeg, alt: p.altitudeDeg, label, golden: p.altitudeDeg > -1 && p.altitudeDeg <= 8 });
+  }
+  return {
+    points,
+    now: sun.now && sun.now.altitudeDeg > -6 ? { az: sun.now.azimuthDeg, alt: sun.now.altitudeDeg } : null,
+  };
+}
+$("arSunBtn").addEventListener("click", async () => {
+  const btn = $("arSunBtn");
+  if (!sun?.path) return;
+  btn.disabled = true;
+  track("ar_sun");
+  try {
+    await nativeCall("arSunShow", 30 * 60 * 1000, arSunPayload());
+  } catch (e) {
+    alert(String(e.message || e));
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // LiDAR depth shot: the phone measures the room, so the studio's 3D set is
 // ground truth instead of an AI guess. Pro-model iPhones inside the app only.

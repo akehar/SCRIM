@@ -1,0 +1,7 @@
+{
+  "name": "scrim-roomplan",
+  "version": "0.1.0",
+  "description": "RoomPlan capture for Scrim: walls, windows and doors as clean geometry, so the sun can be traced through the actual windows.",
+  "main": "index.js",
+  "private": true
+}

@@ -14,6 +14,8 @@ import { WebView } from "react-native-webview";
 import ScrimDepth from "./modules/scrim-depth";
 import ScrimScan from "./modules/scrim-scan";
 import ScrimMeter from "./modules/scrim-meter";
+import ScrimArSun from "./modules/scrim-arsun";
+import ScrimRoomPlan from "./modules/scrim-roomplan";
 
 // LiDAR features: present on iPhone 12 Pro and later Pro models. The page
 // reads these flags from window.__SCRIM_NATIVE__ to show its buttons.
@@ -27,6 +29,20 @@ const DEPTH_SUPPORTED = (() => {
 const SCAN_SUPPORTED = (() => {
   try {
     return Platform.OS === "ios" && Boolean(ScrimScan?.isSupported());
+  } catch {
+    return false;
+  }
+})();
+const ARSUN_SUPPORTED = (() => {
+  try {
+    return Platform.OS === "ios" && Boolean(ScrimArSun?.isSupported());
+  } catch {
+    return false;
+  }
+})();
+const ROOM_SUPPORTED = (() => {
+  try {
+    return Platform.OS === "ios" && Boolean(ScrimRoomPlan?.isSupported());
   } catch {
     return false;
   }
@@ -116,6 +132,26 @@ function Shell() {
       }
     }
 
+    if (msg.type === "arSunShow") {
+      try {
+        if (!ScrimArSun) throw new Error("The AR sun view needs an app update.");
+        await ScrimArSun.show(msg.payload || {});
+        resolve({ id: msg.id, ok: true });
+      } catch (err) {
+        resolve({ id: msg.id, ok: false, error: String(err?.message || err) });
+      }
+    }
+
+    if (msg.type === "roomScan") {
+      try {
+        if (!ScrimRoomPlan) throw new Error("Room capture needs an app update.");
+        const room = await ScrimRoomPlan.capture();
+        resolve({ id: msg.id, ok: true, room });
+      } catch (err) {
+        resolve({ id: msg.id, ok: false, error: String(err?.message || err) });
+      }
+    }
+
     if (msg.type === "captureScan") {
       try {
         if (!ScrimScan) throw new Error("Room scanning needs an app update.");
@@ -165,7 +201,7 @@ function Shell() {
           if (e.nativeEvent.statusCode >= 500) setFailed(true);
         }}
         onLoadEnd={() => setLoading(false)}
-        injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1, depth: ${DEPTH_SUPPORTED ? 1 : 0}, scan: ${SCAN_SUPPORTED ? 1 : 0}, meter: ${ScrimMeter ? 1 : 0} }; true;`}
+        injectedJavaScriptBeforeContentLoaded={`window.__SCRIM_NATIVE__ = { platform: "ios", shell: 1, depth: ${DEPTH_SUPPORTED ? 1 : 0}, scan: ${SCAN_SUPPORTED ? 1 : 0}, meter: ${ScrimMeter ? 1 : 0}, arsun: ${ARSUN_SUPPORTED ? 1 : 0}, room: ${ROOM_SUPPORTED ? 1 : 0} }; true;`}
         onMessage={onMessage}
       />
       {failed && (
