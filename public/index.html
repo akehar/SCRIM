@@ -616,9 +616,16 @@
             <button class="btn primary" id="scanDepthGo" type="button">&#9678; Take a depth shot</button>
           </div>
         </div>
+        <div class="card" id="scanRoomCard" style="display:none">
+          <h2>Room &amp; sun</h2>
+          <p class="hint" style="margin:0 0 10px">Scan the room once &mdash; walls and windows &mdash; and play the sun through it all day. Lives on the <b>Set</b> tab.</p>
+          <div class="actions" style="margin:0;grid-template-columns:1fr">
+            <a class="btn" href="/room" style="text-decoration:none;text-align:center">Open Room &amp; sun</a>
+          </div>
+        </div>
         <div class="card" id="scanWebCard">
-          <h2>Scanning on the web</h2>
-          <p class="hint" style="margin:0">LiDAR depth and room scanning live in the iPhone app. Here you can still import a Gaussian-splat scan on the <b>Set</b> tab and walk it with the sun path drawn through.</p>
+          <h2>Scanning needs the iPhone app</h2>
+          <p class="hint" style="margin:0">LiDAR depth shots and room scanning use the iPhone&rsquo;s depth sensor &mdash; they switch on automatically in the Scrim app on a Pro-model iPhone.</p>
         </div>
       </div>
     </section>
@@ -637,7 +644,7 @@
           <label class="btn" for="studioShot">Upload photo</label>
         </div>
         <div class="actions" style="margin:8px 0 0;grid-template-columns:1fr">
-          <button class="btn" id="studioLiveBtn" type="button">&#9673; Live relight &mdash; light the room as you look at it</button>
+          <button class="btn" id="proposeBoot" type="button">&#10022; Propose a setup &mdash; the gaffer rigs it for you</button>
         </div>
         <div class="actions" id="lidarRow" style="margin:8px 0 0;display:none;grid-template-columns:1fr">
           <button class="btn" id="lidarShot" type="button">&#9678; LiDAR depth shot &mdash; ground truth</button>
@@ -651,13 +658,15 @@
           <button class="holdbtn" id="holdOrig" type="button">◉ hold — original</button>
           <button class="holdbtn" id="fcBtn" type="button" style="right:auto;left:10px">▦ false color</button>
           <button class="holdbtn" id="clayBtn" type="button" style="right:auto;left:10px;bottom:48px">◇ clay</button>
-          <span class="holdbtn" id="liveBadge" style="display:none;right:auto;left:10px;bottom:auto;top:10px;background:var(--ochre);border-color:var(--ochre)">◉ LIVE</span>
-          <button class="holdbtn" id="liveStop" type="button" style="display:none;bottom:auto;top:10px">❚❚ freeze frame</button>
         </div>
         <p class="hint" id="sunFeed" style="margin:8px 2px 0"></p>
         <div class="card" style="margin-top:8px">
           <div class="hint" id="kmeter" style="margin:0 0 8px;color:var(--gold)"></div>
           <div class="hint" id="measureOut" style="display:none;margin:0 0 8px;font-family:var(--mono);font-size:11.5px"></div>
+          <div class="hint" id="rigNote" style="display:none;margin:0 0 10px;color:var(--gold)"></div>
+          <div class="actions" style="margin:0 0 10px;grid-template-columns:1fr">
+            <button class="btn" id="proposeInStudio" type="button">&#10022; Gaffer's proposal &mdash; rig this frame for me</button>
+          </div>
           <div class="lightsrow" id="lightsRow"></div>
           <div class="lightsrow" id="gripRow"></div>
           <div id="lightControls">
@@ -701,17 +710,6 @@
         <div class="actions" style="margin:0">
           <a class="btn primary" href="/room" style="text-decoration:none;text-align:center">Open Room &amp; sun</a>
         </div>
-      </div>
-      <div class="card">
-        <h2>3D scene &mdash; walk the set</h2>
-        <p class="hint" style="margin:0 0 10px">Import a Gaussian-splat scan and orbit it with the day&rsquo;s sun path drawn through the space. Place virtual lights and read real distances off the scan.</p>
-        <div class="actions" style="margin:0">
-          <a class="btn" href="/scan" style="text-decoration:none;text-align:center">Open the 3D scene viewer</a>
-        </div>
-      </div>
-      <div class="card" id="setWebNote">
-        <h2>On the iPhone</h2>
-        <p class="hint" style="margin:0">Room scanning and the AR sun path are built into the Scrim iPhone app &mdash; the phone&rsquo;s LiDAR rebuilds the space around you.</p>
       </div>
     </section>
 
@@ -926,25 +924,31 @@ function fmt(t) {
   const d = new Date(t);
   return Number.isNaN(d.getTime()) ? "n/a" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-function fmtClock(ms) {
-  const s = Math.max(0, Math.round(ms / 1000));
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
-  return (h ? h + ":" : "") + String(m).padStart(h ? 2 : 1, "0") + ":" + String(ss).padStart(2, "0");
-}
 function fmtDur(mins) {
   if (mins < 1) return "now";
   const h = Math.floor(mins / 60), m = Math.round(mins % 60);
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m} min`;
 }
 
+// Big numerals never overflow: with hours left show H:MM, inside the final
+// hour show M:SS — at most five glyphs at hero size.
+function fmtClockBig(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  return h
+    ? { t: h + ":" + String(m).padStart(2, "0"), u: "hrs : min" }
+    : { t: m + ":" + String(ss).padStart(2, "0"), u: "min : sec" };
+}
 function renderClock() {
   const g = sun?.nextGoldenHour;
   if (!g) { $("clock").innerHTML = `<div class="cword">No golden hour at this latitude right now.</div>`; return; }
   const start = new Date(g.start), end = new Date(g.end), now = Date.now();
   if (now >= start && now < end) {
-    $("clock").innerHTML = `<div class="cword">Golden hour, now</div><div class="cnum">${fmtClock(end - now)}</div><div class="cleft">left in the window</div>`;
+    const c = fmtClockBig(end - now);
+    $("clock").innerHTML = `<div class="cword">Golden hour, now</div><div class="cnum">${c.t}</div><div class="cleft">${c.u} left in the window</div>`;
   } else if (now < start) {
-    $("clock").innerHTML = `<div class="cword">Golden hour in</div><div class="cnum">${fmtClock(start - now)}</div>`;
+    const c = fmtClockBig(start - now);
+    $("clock").innerHTML = `<div class="cword">Golden hour in</div><div class="cnum">${c.t}</div><div class="cleft">${c.u} · ${fmt(start)}–${fmt(end)}</div>`;
   } else loadSun();
 }
 
@@ -1928,7 +1932,10 @@ function renderResults() {
         <button class="btn primary" id="lightIt" type="button">Light it</button>
         <button class="btn" id="checkWork" type="button">Check my work</button>
       </div>
-      <p class="hint">Light it renders the look (one press, one render). Check my work: rig the moves, re-shoot the same frame, and the gaffer grades the change.</p>
+      <div class="actions" style="grid-template-columns:1fr;margin:8px 0 0">
+        <button class="btn" id="rigFromPlan" type="button">&#10022; Rig it in the studio &mdash; place the lights, then render</button>
+      </div>
+      <p class="hint">Light it renders the look (one press, one render). Rig it in the studio: the gaffer places real fixtures on your frame as draggable lights — adjust them, then Make it real. Check my work: rig the moves, re-shoot the same frame, and the gaffer grades the change.</p>
       <p class="status" id="renderStatus"></p>
     </div>
 
@@ -1984,6 +1991,10 @@ function renderResults() {
 
   $("lightIt").addEventListener("click", relight);
   $("checkWork").addEventListener("click", armRecheck);
+  $("rigFromPlan").addEventListener("click", () => {
+    gotoScreen("screen-light");
+    proposeRig($("proposeBoot"));
+  });
   $("exportSheet").addEventListener("click", () => { track("call_sheet"); exportCallSheet(); });
   $("toStudio").addEventListener("click", () => { gotoScreen("screen-light"); studioLoad(state.frame); });
 
@@ -2331,6 +2342,9 @@ async function sendChat() {
       image,
       sun: sun?.now || null,
       diagnosis: state?.diagnosis || null,
+      // the gaffer can see the rig you're building, so "how do I fix this
+      // setup?" gets answers about YOUR pucks, not generalities
+      rig: studio.frame && studio.lights.length ? rigToBrief() : undefined,
       kit: kitList().length ? kitList() : undefined,
     });
     const j = await res.json();
@@ -2704,7 +2718,7 @@ function updateMeasure() {
     const lightDisp = m.lo + Math.min(1.15, l.z / 0.55) * m.span;
     const dLight = 1 / Math.max(lightDisp, 1e-6);
     const dz = dSubj - dLight;
-    const role = (LIGHT_ROLES[studio.sel] || "light").toUpperCase();
+    const role = (studio.lights[studio.sel]?.role || LIGHT_ROLES[studio.sel] || "light").toUpperCase();
     out += `<br>${role}: ${fmtM(Math.abs(mx))} ${mx < 0 ? "camera-left" : "camera-right"} · ${fmtM(Math.abs(my))} ${my < 0 ? "above" : "below"} · ${fmtM(Math.abs(dz))} ${dz >= 0 ? "nearer than subject" : "behind subject"}`;
   }
   el.innerHTML = out;
@@ -2757,8 +2771,8 @@ function studioSyncSliders() {
 }
 
 function studioRenderLights() {
-  $("lightsRow").innerHTML = studio.lights.map((_, i) =>
-    `<button class="look" type="button" data-li="${i}" aria-pressed="${studio.selType === "light" && i === studio.sel}" style="padding:6px 13px;min-height:34px;font-size:12.5px">${LIGHT_ROLES[i] || "Light"}</button>`).join("")
+  $("lightsRow").innerHTML = studio.lights.map((l, i) =>
+    `<button class="look" type="button" data-li="${i}" aria-pressed="${studio.selType === "light" && i === studio.sel}" style="padding:6px 13px;min-height:34px;font-size:12.5px">${l.role || LIGHT_ROLES[i] || "Light"}</button>`).join("")
     + (studio.lights.length < 3 ? `<button class="look" type="button" id="addLight" style="padding:6px 13px;min-height:34px;font-size:12.5px">+ Light</button>` : "")
     + (studio.lights.length > 1 && studio.selType === "light" ? `<button class="look" type="button" id="delLight" style="padding:6px 13px;min-height:34px;font-size:12.5px">− Remove</button>` : "");
   $("gripRow").innerHTML = studio.panels.map((p, i) =>
@@ -2837,7 +2851,7 @@ function updateSunFeed() {
   if (l) {
     const dx = l.x - se.x;
     const sep = Math.hypot(dx, l.y - se.y);
-    const role = LIGHT_ROLES[studio.sel] || "light";
+    const role = studio.lights[studio.sel]?.role || LIGHT_ROLES[studio.sel] || "light";
     const dk = kelvinOf(l) - se.kelvin;
     const rel = sep < 0.22 ? `${role} rides the sun axis, boosting the existing key`
       : sep > 0.62 ? `${role} opposes the sun — cross light / rim territory`
@@ -2898,7 +2912,7 @@ function studioRenderHandles() {
     h.className = "lhandle" + (studio.selType === "light" && i === studio.sel ? " sel" : "");
     h.style.left = l.x * 100 + "%";
     h.style.top = l.y * 100 + "%";
-    const role = LIGHT_ROLES[i] || "Light";
+    const role = l.role || LIGHT_ROLES[i] || "Light";
     h.innerHTML = `${esc(role[0])}<span class="ltag">${esc(role.toUpperCase())}</span>`;
     wireDrag(h, l, () => {
       studio.selType = "light"; studio.sel = i;
@@ -3123,6 +3137,7 @@ async function studioLoad(frame) {
     studio.panels = [];
     studio.sel = 0; studio.gsel = 0; studio.selType = "light";
     studio.ambient = 0.55;
+    $("rigNote").style.display = "none";
     $("studioBootStatus").textContent = "";
     $("studioEmpty").style.display = "none";
     $("studio").style.display = "block";
@@ -3138,119 +3153,8 @@ async function studioLoad(frame) {
   }
 }
 
-/* ---- Live relight: the camera feed is the canvas ----
-   Lighting rerenders every frame at display rate; the depth model refreshes
-   asynchronously underneath (the same decoupling that makes GPU relight
-   demos feel instant — dragging a light never waits for the model). */
-
-const live = { on: false, stream: null, video: null, raf: 0 };
-
-// neutral room-shaped depth (floor near, top far) for the instant live boot
-function placeholderDepth() {
-  const c = document.createElement("canvas");
-  c.width = 4; c.height = 128;
-  const g = c.getContext("2d");
-  const grad = g.createLinearGradient(0, 0, 0, 128);
-  grad.addColorStop(0, "#464646");
-  grad.addColorStop(1, "#b4b4b4");
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 4, 128);
-  return c.toDataURL("image/png");
-}
-
-async function studioLive() {
-  track("studio_live");
-  const btn = $("studioLiveBtn");
-  btn.disabled = true;
-  $("studioBootStatus").textContent = "Opening the camera…";
-  try {
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error("No camera available in this browser.");
-    live.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 960 } }, audio: false,
-    });
-    const v = document.createElement("video");
-    v.playsInline = true; v.muted = true; v.srcObject = live.stream;
-    await v.play();
-    if (!v.videoWidth) await new Promise((r) => { v.onloadedmetadata = r; });
-    live.video = v;
-    // Live mode must never wait on (or pay for) cloud depth: seed the boot
-    // with a neutral depth so the studio starts instantly, give the local
-    // model a fresh chance, and let the depth loop refine as it warms up.
-    sessionStorage.removeItem("scrim-local-depth-broken");
-    const frame = downscale(v, v.videoWidth, v.videoHeight, 960);
-    DEPTH_CACHE.set(frame.dataUrl, placeholderDepth());
-    await studioLoad(frame);
-    if (!studio.gl) throw new Error("The studio could not start.");
-    live.on = true;
-    $("liveBadge").style.display = "";
-    $("liveStop").style.display = "";
-    liveRender();
-    liveDepthLoop();
-  } catch (e) {
-    stopLive();
-    $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-function liveRender() {
-  if (!live.on || !studio.gl) return;
-  const gl = studio.gl;
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, studio.tex.photo);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, live.video);
-  glDraw();
-  live.raf = requestAnimationFrame(liveRender);
-}
-
-async function liveDepthLoop() {
-  const c = document.createElement("canvas");
-  const cx = c.getContext("2d");
-  while (live.on) {
-    const t0 = performance.now();
-    try {
-      // small input keeps the model fast; the relight shader upsamples fine
-      const s = Math.min(1, 420 / Math.max(live.video.videoWidth, live.video.videoHeight));
-      c.width = Math.round(live.video.videoWidth * s);
-      c.height = Math.round(live.video.videoHeight * s);
-      cx.drawImage(live.video, 0, 0, c.width, c.height);
-      const depthUrl = await localDepth({ dataUrl: c.toDataURL("image/jpeg", 0.7) }, () => {});
-      if (!live.on) break;
-      const img = await loadImg(depthUrl);
-      const gl = studio.gl;
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, studio.tex.depth);
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-      const hz = 1000 / (performance.now() - t0);
-      $("liveBadge").textContent = `◉ LIVE · depth ${hz < 1 ? hz.toFixed(1) : Math.round(hz)}×/s`;
-    } catch {
-      // model unavailable: hold the last depth and keep the light live
-      await new Promise((r) => setTimeout(r, 900));
-    }
-  }
-}
-
-function stopLive() {
-  live.on = false;
-  cancelAnimationFrame(live.raf);
-  live.stream?.getTracks().forEach((t) => t.stop());
-  live.stream = null;
-  $("liveBadge").style.display = "none";
-  $("liveStop").style.display = "none";
-}
-
-$("studioLiveBtn").addEventListener("click", studioLive);
-$("liveStop").addEventListener("click", async () => {
-  // freeze: this exact frame becomes a normal still session at full quality
-  const v = live.video;
-  const frame = v && v.videoWidth ? downscale(v, v.videoWidth, v.videoHeight) : null;
-  stopLive();
-  if (frame) await studioLoad(frame);
-});
-document.addEventListener("visibilitychange", () => { if (document.hidden && live.on) stopLive(); });
+// (Live relight is gone: the live depth model never looked real enough to
+// ship, so the studio keeps one honest path — a still frame, lit by hand.)
 
 // sliders drive the selected light live
 [["sInt", "intensity"], ["sWarm", "warmth"], ["sSize", "size"], ["sDist", "z"]].forEach(([id, key]) => {
@@ -3382,10 +3286,17 @@ $("arSunBtn").addEventListener("click", async () => {
 if (window.__SCRIM_NATIVE__?.depth) {
   $("lidarRow").style.display = "";
   $("scanDepthCard").style.display = "";
+  $("scanWebCard").style.display = "none";
 }
-// Room & sun is iPhone-app-only — on the web it does nothing, so it hides.
-if (window.__SCRIM_NATIVE__?.room) $("roomCard").style.display = "";
-if (window.__SCRIM_NATIVE__?.shell) $("setWebNote").style.display = "none";
+// Room & sun is iPhone-app-only: on the web the whole Set tab hides —
+// a tab with nothing real behind it is clutter, not a feature.
+if (window.__SCRIM_NATIVE__?.room) {
+  $("roomCard").style.display = "";
+  $("scanRoomCard").style.display = "";
+  $("scanWebCard").style.display = "none";
+} else {
+  document.querySelector('.tabbtn[data-screen="screen-set"]').style.display = "none";
+}
 $("scanDepthGo").addEventListener("click", () => {
   gotoScreen("screen-light");
   $("lidarShot").click();
@@ -3433,7 +3344,7 @@ $("saveLook").addEventListener("click", () => {
 function rigToBrief() {
   const posWord = (v, lo, hi) => (v < 0.35 ? lo : v > 0.65 ? hi : "centre");
   const lines = studio.lights.map((l, i) => {
-    const role = (LIGHT_ROLES[i] || "light").toLowerCase();
+    const role = (l.role || LIGHT_ROLES[i] || "light").toLowerCase();
     const fix = fixOf(l), mod = modOf(l);
     const strength = l.intensity > 1.2 ? "at high output" : l.intensity > 0.6 ? "at medium output" : "dimmed low";
     const dist = l.z > 0.9 ? "close to camera" : l.z > 0.5 ? "at subject distance" : "pushed back deep";
@@ -3483,6 +3394,79 @@ $("makeReal").addEventListener("click", async () => {
     btn.textContent = "Make it real";
   }
 });
+
+/* ---- the gaffer proposes a setup: photo → AI rig → your tweaks → render.
+   The model places real fixtures in frame coordinates; the studio loads them
+   straight into its pucks, so "customize before the image is generated" is
+   literally dragging the gaffer's lights around. ---- */
+
+function applyRig(r) {
+  if (!r || !Array.isArray(r.lights) || !r.lights.length) throw new Error("The gaffer sent no lights back — try again.");
+  const cl = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+  const order = { key: 0, fill: 1, rim: 2 };
+  studio.lights = r.lights.slice(0, 3)
+    .sort((a, b) => (order[a.role] ?? 3) - (order[b.role] ?? 3))
+    .map((l, i) => {
+      const base = defaultLight(i);
+      const fx = FIXTURES.find((f) => f.id === l.fixture) || fixOf(base);
+      const size = cl(l.size, 0, 1, base.size);
+      // the modifier whose apparent source size lands nearest the ask
+      const mod = fx.mods.reduce((best, m) => Math.abs(m.size - size) < Math.abs(best.size - size) ? m : best, fx.mods[0]);
+      return {
+        x: cl(l.x, 0.02, 0.98, base.x), y: cl(l.y, 0.02, 0.98, base.y), z: cl(l.z, 0.15, 1.4, base.z),
+        intensity: cl(l.intensity, 0, 2, base.intensity), warmth: cl(l.warmth, 0, 1, base.warmth),
+        size, fx: fx.id, mod: mod.id, aim: 0,
+        role: l.role === "rim" ? "Rim" : l.role === "fill" ? "Fill" : "Key",
+      };
+    });
+  studio.panels = [];
+  studio.ambient = cl(r.ambient, 0, 1.2, studio.ambient);
+  studio.shadow = cl(r.shadows, 0, 1, studio.shadow);
+  studio.sel = 0; studio.selType = "light";
+  studioRenderLights(); studioSyncSliders(); studioRenderHandles();
+  updateSunFeed();
+  requestDraw();
+  const note = [r.approach, r.note].filter((s) => typeof s === "string" && s.trim()).join(" — ");
+  const el = $("rigNote");
+  el.style.display = note ? "" : "none";
+  el.textContent = note ? `✦ ${note} Drag the pucks to taste, then Make it real.` : "";
+}
+
+let proposing = false;
+async function proposeRig(btn) {
+  if (proposing) return;
+  const frame = studio.frame || state?.frame;
+  if (!frame) {
+    $("studioBootStatus").innerHTML = `<span class="err">No frame yet — shoot a read in Camera or upload a photo first.</span>`;
+    return;
+  }
+  proposing = true;
+  const prev = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "The gaffer is rigging… (5–15 s)";
+  try {
+    if (studio.frame !== frame) await studioLoad(frame);
+    if (!studio.gl) throw new Error("The studio could not start on this frame.");
+    const res = await aiFetch("/rig", {
+      image: frame.dataUrl,
+      diagnosis: state?.frame === frame ? state?.diagnosis || null : null,
+      sun: sun?.now || null,
+    });
+    const j = await res.json();
+    if (!res.ok || j.rig?.error || j.error) throw new Error(j.rig?.error || j.error || `rig failed (${res.status})`);
+    applyRig(j.rig);
+    track("rig");
+  } catch (e) {
+    const out = $("studio").style.display === "none" ? $("studioBootStatus") : $("studioStatus");
+    out.innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
+  } finally {
+    proposing = false;
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+}
+$("proposeBoot").addEventListener("click", (e) => proposeRig(e.currentTarget));
+$("proposeInStudio").addEventListener("click", (e) => proposeRig(e.currentTarget));
 
 /* ---------- Plan: scene map + shot list ---------- */
 
@@ -3830,10 +3814,7 @@ $("fbSend").addEventListener("click", async () => {
 });
 
 /* ---------- instruments: enter and leave the studio ---------- */
-$("studioBack").addEventListener("click", () => {
-  if (live.on) stopLive();
-  gotoScreen("screen-shoot");
-});
+$("studioBack").addEventListener("click", () => gotoScreen("screen-shoot"));
 $("openStudio").addEventListener("click", () => { gotoScreen("screen-light"); track("studio_entry"); });
 
 /* ---------- boot ---------- */

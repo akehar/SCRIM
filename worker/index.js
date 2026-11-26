@@ -200,6 +200,42 @@ Reply with strict JSON, no markdown, exactly this shape:
   return parseJSONish(genText(j));
 }
 
+// The gaffer designs a Relight Studio setup for this frame: positions,
+// fixtures, intensities — JSON the studio can load straight into its pucks.
+async function rigPropose(env, data, mime, sunNow, diagnosis, brief) {
+  const read = diagnosis && !diagnosis.error
+    ? `Your earlier read of this frame: key from ${diagnosis.direction || "unknown"}, ${diagnosis.hardness || "?"} light, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none listed"}.`
+    : "";
+  const sunLine = sunNow
+    ? `Right now the sun is ${sunNow.altitudeDeg} degrees up, from the ${sunNow.direction}; the light is ${sunNow.quality}.`
+    : "";
+  const wants = brief ? `The director's brief: "${brief}".` : "No brief — make the gaffer's call for this frame.";
+  const prompt = `You are an experienced gaffer designing a movie-light setup for this exact frame.
+${sunLine}
+${read}
+${wants}
+Place up to 3 fixtures AS SEEN IN THE FRAME: x/y are where the light source sits relative to the picture (x 0 = frame left, 1 = frame right; y 0 = top, 1 = bottom; a light can sit near an edge). z is how far toward the camera it stands (0.15 = deep in the scene behind the subject, 0.75 = beside camera, 1.4 = right at camera). Think like a real gaffer: a motivated key, fill only if the shadows need opening, a rim only if separation needs it. Fewer, better lights.
+Reply with strict JSON, no markdown, exactly this shape:
+{
+  "approach": "one short sentence: the treatment",
+  "note": "one short sentence of direction, as said to the operator",
+  "ambient": 0.0-1.2,
+  "shadows": 0.0-1.0,
+  "lights": [
+    {"role": "key" | "fill" | "rim",
+     "x": 0.0-1.0, "y": 0.0-1.0, "z": 0.15-1.4,
+     "intensity": 0.0-2.0, "warmth": 0.0-1.0, "size": 0.0-1.0,
+     "fixture": "a300x" | "a600d" | "sky60" | "m18" | "tube" | "prac"}
+  ]
+}
+"ambient" is how much existing light to keep (0.55 typical). "warmth": 0 = cool skylight, 0.5 = neutral, 1 = warm tungsten. "size": 0 = hard point source, 1 = huge soft source. Fixtures: a300x = Aputure 300X (bi-color, versatile), a600d = Aputure 600d (daylight punch), sky60 = SkyPanel S60 (soft panel), m18 = HMI M18 (hard daylight), tube = Astera tube (soft sliver), prac = practical bulb (in-frame lamp).`;
+  const j = await gemini(env, env.VISION_MODEL || "gemini-3.5-flash", {
+    contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data } }, { text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json" },
+  });
+  return parseJSONish(genText(j));
+}
+
 async function renderLook(env, data, mime, brief, diagnosis, gear, kit) {
   const read = diagnosis && !diagnosis.error
     ? `A gaffer read this frame as: key from ${diagnosis.direction || "unknown"}, ${diagnosis.hardness || "?"} light, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none listed"}.`
@@ -525,16 +561,17 @@ export default {
       }
 
       if (p === "/chat") {
-        const { messages, image, sun: sunNow, diagnosis, kit } = body || {};
+        const { messages, image, sun: sunNow, diagnosis, kit, rig } = body || {};
         if (!Array.isArray(messages) || !messages.length) return json({ error: "Need messages." }, 400);
         const cx = [];
         if (sunNow) cx.push(`Right now the sun is ${sunNow.altitudeDeg} degrees up, from the ${sunNow.direction}; the light is ${sunNow.quality}.`);
         if (diagnosis && !diagnosis.error) cx.push(`Your latest read of the attached frame: ${diagnosis.hardness || "?"} light from ${diagnosis.direction || "?"}, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none"}.`);
+        if (typeof rig === "string" && rig.trim()) cx.push(`The user's current Relight Studio setup (the virtual rig they're building): ${rig.slice(0, 1200)}. When they ask about "this setup" or how to improve the lighting, they mean this rig — give concrete adjustments to it.`);
         if (Array.isArray(kit) && kit.length) cx.push(`The crew's kit: ${kit.slice(0, 40).join("; ")}. Prefer answers that use this gear.`);
         const system = `You are Scrim's gaffer: a veteran natural-light gaffer answering questions on location, by chat, on a phone.
 ${cx.join("\n")}
 Answer in plain, practical on-set language. Be specific (gear sizes, angles, times), stay on lighting/photography/filmmaking, and keep answers to a few short sentences unless asked to go deep. If a question needs the frame and none is attached, say so.
-Formatting: this renders in a phone chat. Use short paragraphs, "-" bullets for lists, **bold** for gear names, and nothing else — no tables, no code blocks, and NEVER ASCII-art diagrams or maps. If asked for a setup map, describe positions in words and mention that the Shoot tab's plan draws an overhead map.`;
+Formatting: this renders in a phone chat. Use short paragraphs, "-" bullets for lists, **bold** for gear names, and nothing else — no tables, no code blocks, and NEVER ASCII-art diagrams or maps. If asked for a setup map, describe positions in words and mention that the Camera tab's plan draws an overhead map.`;
         const history = messages.slice(-12).map((m, i, arr) => ({
           role: m.role === "user" ? "user" : "model",
           parts: [
@@ -564,6 +601,16 @@ Formatting: this renders in a phone chat. Use short paragraphs, "-" bullets for 
         const result = await plan(env, data, mime, sun, String(brief).slice(0, 500), diagnosis, gear, kit).catch((e) => ({ error: aiErr(e) }));
         logEvent(env, ctx, "plan", result?.error ? "error" : "ok", who);
         return json({ plan: result });
+      }
+
+      if (p === "/rig") {
+        const { image, diagnosis, sun: sunNow, brief } = body || {};
+        if (!image) return json({ error: "Need image (base64)." }, 400);
+        const { mime, data } = parseImage(image);
+        const rig = await rigPropose(env, data, mime, sunNow, diagnosis, typeof brief === "string" ? brief.slice(0, 500) : "")
+          .catch((e) => ({ error: aiErr(e) }));
+        logEvent(env, ctx, "rig", rig?.error ? "error" : "ok", who);
+        return json({ rig });
       }
 
       if (p === "/recheck") {
@@ -598,7 +645,9 @@ Formatting: this renders in a phone chat. Use short paragraphs, "-" bullets for 
         const { image, brief, diagnosis, gear, kit } = body || {};
         if (!image) return json({ error: "Need image (base64)." }, 400);
         const { mime, data } = parseImage(image);
-        const render = await renderLook(env, data, mime, typeof brief === "string" ? brief.slice(0, 500) : "auto", diagnosis, gear, kit)
+        // 2000 chars: the studio's rig brief is long and precise — truncating
+        // it was quietly degrading "Make it real" renders
+        const render = await renderLook(env, data, mime, typeof brief === "string" ? brief.slice(0, 2000) : "auto", diagnosis, gear, kit)
           .catch((e) => ({ error: aiErr(e) }));
         logEvent(env, ctx, "render", render && !render.error ? "ok" : "error", who);
         return json({
