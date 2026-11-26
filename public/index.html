@@ -166,6 +166,10 @@
   .clock .cleft { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; color: var(--muted); }
   #heroCard { background: none; border: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding-top: 4px; }
   #heroCard .sunline, #heroCard .weather, #heroCard .herenote { text-align: center; }
+  .dateline {
+    font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.22em;
+    color: rgba(244,239,230,0.7); text-transform: uppercase; text-align: center; padding: 4px 0 2px;
+  }
   .sunline { font-size: 16px; font-style: italic; margin-top: 5px; line-height: 1.4; }
   .weather { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 5px; }
   .herenote { font-family: var(--mono); font-size: 11px; color: var(--ochre); margin-top: 6px; display: none; }
@@ -456,6 +460,7 @@
         </div>
       </div>
       <div class="card" id="heroCard">
+        <div class="dateline" id="dateLine"></div>
         <div id="clock" class="clock"><span class="skeleton" style="display:block;width:70%"></span></div>
         <div class="sunline" id="sunNow"><span class="skeleton" style="display:block;width:50%"></span></div>
         <div class="weather" id="weatherLine"></div>
@@ -965,6 +970,9 @@ function cloudAtData(w, t) {
 function cloudAt(t) { return cloudAtData(weather, t); }
 
 function renderWeather() {
+  // fresh cloud data changes the whole story: the sky, the one-line read, the chips
+  renderSunLine();
+  renderSky();
   const g = sun?.nextGoldenHour;
   const nowC = cloudAt(Date.now());
   const ghC = g ? cloudAt(g.start) : null;
@@ -1049,14 +1057,38 @@ function renderSky() {
   const alt = sun?.now?.altitudeDeg;
   if (alt == null) return;
   $("sky").style.background = skyGradient(alt);
+  // the sky tells the truth about the weather too: heavy cloud greys it out
+  const cl = cloudAt(Date.now());
+  $("sky").style.filter = cl != null && cl >= 30
+    ? `saturate(${(1 - (cl / 100) * 0.62).toFixed(2)}) brightness(${(1 - (cl / 100) * 0.14).toFixed(2)})`
+    : "";
+}
+
+// the one-line read under the countdown, honest about cloud cover
+function renderSunLine() {
+  if (!sun) return;
+  const n = sun.now;
+  const cl = cloudAt(Date.now());
+  let qual = n.quality;
+  if (cl != null && n.altitudeDeg > 0) {
+    if (cl >= 75) qual = "but heavy overcast has it soft, even, and shadowless";
+    else if (cl >= 40) qual = `${n.quality} when it breaks through — broken cloud keeps softening it`;
+  }
+  $("sunNow").innerHTML = `Sun ${n.altitudeDeg}&deg; up, from the ${n.direction} &mdash; ${qual}.`;
+}
+
+function updateDateLine() {
+  const d = new Date();
+  $("dateLine").textContent =
+    d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) +
+    " · " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function renderSunCard() {
   if (!sun) return;
-  const n = sun.now;
   renderSky();
   renderClock();
-  $("sunNow").innerHTML = `Sun ${n.altitudeDeg}&deg; up, from the ${n.direction} &mdash; ${n.quality}.`;
+  renderSunLine();
   $("sunTimes").innerHTML = `
     <div><span>Morning golden hour</span><span>${fmt(sun.morningGoldenHour?.start)}&ndash;${fmt(sun.morningGoldenHour?.end)}</span></div>
     <div><span>Evening golden hour</span><span>${fmt(sun.eveningGoldenHour?.start)}&ndash;${fmt(sun.eveningGoldenHour?.end)}</span></div>
@@ -1120,7 +1152,8 @@ $("recenter").addEventListener("click", async () => {
   try { const l = await getLocation(); if (map) { map.setView([l.latitude, l.longitude], 14); userCentered = true; } }
   catch { $("mapHint").textContent = "No location fix — tap the coordinates pill up top to retry."; }
 });
-setInterval(() => { if (sun) { renderClock(); renderTimeline(); } }, 1000);
+updateDateLine();
+setInterval(() => { updateDateLine(); if (sun) { renderClock(); renderTimeline(); } }, 1000);
 setInterval(() => { if (sun) loadSun(); }, 5 * 60 * 1000);
 
 async function checkBackend() {
