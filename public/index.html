@@ -465,6 +465,9 @@
         <div class="sunline" id="sunNow"><span class="skeleton" style="display:block;width:50%"></span></div>
         <div class="weather" id="weatherLine"></div>
         <div class="herenote" id="hereNote"></div>
+        <div class="actions" id="meterSkyRow" style="display:none;margin:12px 0 0;grid-template-columns:1fr">
+          <button class="btn" id="meterSkyBtn" type="button">&#9673; Meter the sky &mdash; ground truth</button>
+        </div>
       </div>
       <div class="card" id="arSunCard" style="display:none">
         <h2 style="color:var(--ochre)">See it in the sky</h2>
@@ -974,11 +977,13 @@ function renderWeather() {
   renderSunLine();
   renderSky();
   const g = sun?.nextGoldenHour;
-  const nowC = cloudAt(Date.now());
+  const m = freshMeasure();
+  const nowC = cloudNow();
   const ghC = g ? cloudAt(g.start) : null;
   if (nowC == null && ghC == null) { $("weatherLine").textContent = ""; return; }
   const bits = [];
-  if (nowC != null) bits.push(`clouds now ${nowC}%`);
+  if (m) bits.push(`◉ metered ${Math.max(1, Math.round((Date.now() - m.t) / 60000))} min ago: ${m.word}`);
+  else if (nowC != null) bits.push(`clouds now ${nowC}%`);
   if (ghC != null && g) bits.push(`at golden hour ${ghC}%`);
   let read = "";
   if (ghC != null) {
@@ -1053,24 +1058,67 @@ function skyGradient(alt) {
   const n = g.length;
   return `linear-gradient(180deg, ${g.map((c, i) => `${c} ${Math.round((i / (n - 1)) * 100)}%`).join(", ")})`;
 }
+/* ---- measured sky: the camera outranks the forecast ----
+   The native meter solves real exposure (ISO · shutter · aperture → EV100).
+   Against the clear-sky EV for the current sun altitude, the deficit in
+   stops says what the sky is ACTUALLY doing right here, right now. */
+let skyMeasure = null; // { ev, stops, cloud, word, t }
+
+function clearSkyEV(alt) {
+  if (alt == null) return null;
+  if (alt <= -6) return 3;
+  if (alt <= 0) return 9.5 + alt * 1.1;                        // twilight falls ~1 EV/degree
+  return 9.5 + Math.pow(Math.min(1, alt / 40), 0.6) * 5.5;     // EV 9.5 at the horizon → 15 high
+}
+
+function skyFromEV(ev100) {
+  const alt = sun?.now?.altitudeDeg;
+  const clear = clearSkyEV(alt);
+  if (clear == null) return null;
+  const stops = Math.max(0, clear - ev100);
+  let cloud, word;
+  if (stops < 0.7) { cloud = 8; word = "clear sun"; }
+  else if (stops < 1.5) { cloud = 35; word = "thin haze"; }
+  else if (stops < 2.5) { cloud = 70; word = "bright overcast"; }
+  else if (stops < 3.5) { cloud = 92; word = "solid overcast"; }
+  else { cloud = 100; word = "heavy overcast — or deep shade"; }
+  return { ev: ev100, stops, cloud, word, t: Date.now() };
+}
+
+const MEASURE_FRESH_MS = 30 * 60000;
+function freshMeasure() {
+  return skyMeasure && Date.now() - skyMeasure.t < MEASURE_FRESH_MS ? skyMeasure : null;
+}
+// "now" cloud, everywhere it matters: a fresh camera reading wins; the
+// forecast is only the fallback guess
+function cloudNow() {
+  const m = freshMeasure();
+  return m ? m.cloud : cloudAt(Date.now());
+}
+
 function renderSky() {
   const alt = sun?.now?.altitudeDeg;
   if (alt == null) return;
   $("sky").style.background = skyGradient(alt);
   // the sky tells the truth about the weather too: heavy cloud greys it out
-  const cl = cloudAt(Date.now());
+  const cl = cloudNow();
   $("sky").style.filter = cl != null && cl >= 30
     ? `saturate(${(1 - (cl / 100) * 0.62).toFixed(2)}) brightness(${(1 - (cl / 100) * 0.14).toFixed(2)})`
     : "";
 }
 
-// the one-line read under the countdown, honest about cloud cover
+// the one-line read under the countdown: metered truth first, forecast second
 function renderSunLine() {
   if (!sun) return;
   const n = sun.now;
-  const cl = cloudAt(Date.now());
+  const m = freshMeasure();
+  const cl = cloudNow();
   let qual = n.quality;
-  if (cl != null && n.altitudeDeg > 0) {
+  if (m && n.altitudeDeg > 0) {
+    qual = m.stops < 0.7
+      ? `metered clear: ${n.quality}`
+      : `metered ${m.stops.toFixed(1)} stops under clear sun — ${m.word}`;
+  } else if (cl != null && n.altitudeDeg > 0) {
     if (cl >= 75) qual = "but heavy overcast has it soft, even, and shadowless";
     else if (cl >= 40) qual = `${n.quality} when it breaks through — broken cloud keeps softening it`;
   }
@@ -1664,7 +1712,7 @@ async function analyze(frame) {
   try {
     const l = await getLocation();
     $("status").textContent = "Asking the gaffer… (5–20 s)";
-    const res = await aiFetch("/analyze", { image: frame.dataUrl, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString(), cloudCover: cloudAt(Date.now()) });
+    const res = await aiFetch("/analyze", { image: frame.dataUrl, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString(), cloudCover: cloudNow() });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `request failed (${res.status})`);
     $("status").textContent = "";
@@ -2850,7 +2898,7 @@ function studioRenderLights() {
 function deriveSun(frame) {
   const alt = sun?.now?.altitudeDeg;
   if (alt == null || alt <= -6) return null;
-  const cloud = cloudAt(Date.now());
+  const cloud = cloudNow();
   let pos = null, src = null;
   const sf = state?.frame === frame ? state?.diagnosis?.diagram?.sunFrom : null;
   if (sf && clamp01(sf.x) != null) {
@@ -3280,6 +3328,30 @@ function nativeCall(type, timeoutMs = 25000, payload) {
 
 // AR sun path: the page owns the sun math, the shell owns the AR view.
 if (window.__SCRIM_NATIVE__?.arsun) $("arSunCard").style.display = "";
+
+// Meter the sky: the native meter's solved exposure, held against the
+// clear-sky EV for this minute's sun — the forecast corrected by a camera.
+if (window.__SCRIM_NATIVE__?.meter) $("meterSkyRow").style.display = "";
+$("meterSkyBtn").addEventListener("click", async () => {
+  const btn = $("meterSkyBtn");
+  if (!sun?.now) { alert("No sun data yet — waiting on location."); return; }
+  btn.disabled = true;
+  try {
+    const r = await nativeCall("meterShow", 5 * 60 * 1000);
+    if (!Number.isFinite(r.ev100)) throw new Error("no reading came back");
+    const m = skyFromEV(r.ev100);
+    if (!m) throw new Error("no sun data yet — tap the location pill and retry");
+    skyMeasure = m;
+    track("sky_meter", m.word);
+    renderWeather(); // redraws the sun line and the sky too
+    btn.textContent = `◉ ${m.word} — EV ${m.ev.toFixed(1)}`;
+    setTimeout(() => { if (btn.isConnected) btn.textContent = "◉ Meter the sky — ground truth"; }, 5000);
+  } catch (e) {
+    if (!/cancel/i.test(String(e.message || e))) alert(String(e.message || e));
+  } finally {
+    btn.disabled = false;
+  }
+});
 function arSunPayload() {
   const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const srT = sun.sunrise ? new Date(sun.sunrise).getTime() : null;
