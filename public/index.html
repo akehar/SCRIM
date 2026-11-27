@@ -239,6 +239,15 @@
   .hsteps li { margin: 6px 0; }
   .hnote { margin: 8px 0 0; font-size: 13.5px; color: var(--ochre); line-height: 1.45; }
 
+  /* ---- Make it real + takes ---- */
+  .realbtn { width: 100%; margin-top: 14px; min-height: 60px; font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+  .realbtn small { font-family: var(--serif); font-style: italic; font-size: 12.5px; letter-spacing: 0; text-transform: none; font-weight: 400; opacity: 0.8; }
+  .takestrip { display: flex; gap: 8px; overflow-x: auto; padding: 6px 0 2px; }
+  .take { position: relative; flex: 0 0 auto; width: 76px; height: 56px; padding: 0; border-radius: 10px; overflow: hidden; border: 2px solid var(--hair); background: #000; cursor: pointer; }
+  .take img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .take span { position: absolute; left: 4px; bottom: 3px; font-family: var(--mono); font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+  .take.sel { border-color: var(--ochre); }
+
   /* ---- plan: three steps, said once ---- */
   .plansteps { list-style: none; display: flex; gap: 8px; margin: 12px 0 0; padding: 0; }
   .plansteps li {
@@ -285,8 +294,16 @@
     position: absolute; left: 0; right: 0; bottom: 0;
     background: linear-gradient(transparent, rgba(0,0,0,0.74));
     color: #F4EFE6; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
-    padding: 20px 10px 9px; pointer-events: none; text-align: center;
+    padding: 22px 12px 9px; pointer-events: none; text-align: center;
   }
+  .vuscale { position: relative; height: 6px; border-radius: 3px; margin: 0 2px;
+    background: linear-gradient(90deg, #111 0%, #555 55%, #ddd 92%, #FF9D82 100%); opacity: 0.9; }
+  .vurange { position: absolute; top: 0; bottom: 0; background: rgba(232,163,61,0.55); border-radius: 3px; }
+  .vutick { position: absolute; top: -5px; width: 2px; height: 16px; margin-left: -1px; background: #F4EFE6; border-radius: 1px; box-shadow: 0 0 4px rgba(0,0,0,0.8); }
+  .vutick.hi { background: var(--ochre); }
+  .vumeter.clipping .vuscale { box-shadow: 0 0 0 1px #FF9D82; }
+  .vuends { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(244,239,230,0.55); margin: 4px 2px 4px; }
+  .vutext { font-variant-numeric: tabular-nums; }
   .vfbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
   .shutter {
     width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--ink);
@@ -793,7 +810,7 @@
         <button class="cmode" role="tab" data-cmode="read" aria-selected="true" type="button">Read</button>
         <button class="cmode" role="tab" data-cmode="meter" aria-selected="false" type="button">Meter</button>
       </div>
-      <p class="dialhint" id="dialHint">One shot: the read, the plan, and a studio you can light by hand</p>
+      <p class="dialhint" id="dialHint">One shot: the read, a rig you can shape, a photo of every take</p>
 
       <div id="cpane-read">
       <div class="actions">
@@ -807,7 +824,11 @@
           <video id="vf" autoplay playsinline muted></video>
           <canvas class="arstrip" id="arStrip" width="800" height="112" style="display:none"></canvas>
           <button class="arenable" id="arEnable" type="button">☀ Sun overlay</button>
-          <div class="vumeter" id="vuMeter">◉ light meter · warming up…</div>
+          <div class="vumeter" id="vuMeter">
+            <div class="vuscale" aria-hidden="true"><span class="vurange" id="vuRange"></span><span class="vutick" id="vuLo"></span><span class="vutick hi" id="vuHi"></span></div>
+            <div class="vuends" aria-hidden="true"><span>shadow</span><span>clip</span></div>
+            <div class="vutext" id="vuText">◉ light meter · warming up…</div>
+          </div>
         </div>
         <div class="vfbar">
           <div class="vfside"><select id="camSel" aria-label="Camera lens" hidden></select></div>
@@ -826,6 +847,59 @@
 
       <p class="status" id="status" role="status"></p>
       <div id="out"></div>
+
+      <!-- ONE mode: the read flows straight into a lit set you can shape,
+           and every "Make it real" becomes a numbered take -->
+      <div id="studioBlock" hidden>
+        <div class="card">
+          <h2 style="color:var(--ochre)">Light it</h2>
+          <p class="hint" id="rigNote" style="margin:0 0 8px;color:var(--gold)"></p>
+          <p class="status" id="studioBootStatus"></p>
+          <div id="studio" style="display:none">
+            <div class="stage" id="stage">
+              <canvas id="glc"></canvas>
+              <button class="holdbtn" id="holdOrig" type="button">◉ hold · original</button>
+              <button class="holdbtn" id="fcBtn" type="button" style="right:auto;left:10px">▦ false color</button>
+              <button class="holdbtn" id="clayBtn" type="button" style="right:auto;left:10px;bottom:48px">◇ clay</button>
+            </div>
+            <p class="hint" id="sunFeed" style="margin:8px 2px 0"></p>
+            <div class="hint" id="kmeter" style="margin:4px 2px 10px;color:var(--gold)"></div>
+            <div class="lightsrow" id="lightsRow"></div>
+            <div class="lightsrow" id="gripRow"></div>
+            <div id="lightControls">
+              <div style="display:flex;gap:8px;margin-bottom:6px">
+                <select id="fixSel" aria-label="Fixture" style="flex:1.4;min-width:0"></select>
+                <select id="modSel" aria-label="Modifier" style="flex:1;min-width:0"></select>
+              </div>
+              <div class="looks" id="aimRow" style="display:none;margin-bottom:8px"></div>
+              <div class="sliders">
+                <label><span>Intensity</span><input type="range" id="sInt" min="0" max="2" step="0.01"></label>
+                <label><span id="warmLabel">Warmth</span><input type="range" id="sWarm" min="0" max="1" step="0.01"></label>
+                <label><span>Size</span><input type="range" id="sSize" min="0" max="1" step="0.01"></label>
+                <label><span>Distance</span><input type="range" id="sDist" min="0.15" max="1.4" step="0.01"></label>
+              </div>
+            </div>
+            <div id="gripControls" class="sliders" style="display:none">
+              <label><span>Coverage</span><input type="range" id="gSize" min="0.08" max="0.6" step="0.01"></label>
+              <label><span>Strength</span><input type="range" id="gStr" min="0" max="1" step="0.01"></label>
+            </div>
+            <div class="sliders">
+              <label style="border-top:1px solid var(--line);padding-top:8px"><span>Existing light</span><input type="range" id="sAmb" min="0" max="1.2" step="0.01"></label>
+              <label><span>Shadows</span><input type="range" id="sShad" min="0" max="1" step="0.01"></label>
+            </div>
+            <button class="btn primary realbtn" id="makeReal" type="button">Make it real<small>A photo of this exact setup · about 20 s</small></button>
+            <p class="hint" style="margin:8px 0 0">Drag the lights on the frame and the preview answers instantly. Make it real turns the exact setup into a photo. Every render is kept as a numbered take, so you can compare as you iterate.</p>
+            <p class="status" id="studioStatus"></p>
+            <div id="realOut"></div>
+            <div class="takes" id="takes"></div>
+            <div class="actions" style="margin:10px 0 0;grid-template-columns:1fr">
+              <button class="btn" id="saveLook" type="button">Save the preview</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="notes"></div>
       </div>
 
       <div id="cpane-meter" hidden>
@@ -839,74 +913,6 @@
       </div>
 
     </section>
-
-    <!-- ============ RELIGHT STUDIO (instrument, reached from Camera) ============ -->
-    <section class="screen" id="screen-light">
-      <div class="backrow">
-        <button class="backbtn" id="studioBack" type="button" aria-label="Back to camera">‹</button>
-        <span class="backttl">Relight Studio</span>
-      </div>
-      <div class="card" id="studioEmpty">
-        <h2>Light it by hand</h2>
-        <p class="hint" style="margin:0 0 10px">The studio maps your frame in 3D, then you light it by hand: drag real fixtures, hang silks, cut with negative fill · live, on your phone. When it sings, make it real.</p>
-        <div class="actions" style="margin:0">
-          <button class="btn primary" id="studioUseLast" type="button">Use last read</button>
-          <label class="btn" for="studioShot">Upload photo</label>
-        </div>
-        <div class="actions" style="margin:8px 0 0;grid-template-columns:1fr">
-          <button class="btn" id="proposeBoot" type="button">&#10022; Propose a setup · the gaffer rigs it for you</button>
-        </div>
-        <input id="studioShot" type="file" accept="image/*" />
-        <p class="status" id="studioBootStatus"></p>
-      </div>
-      <div id="studio" style="display:none">
-        <div class="stage" id="stage">
-          <canvas id="glc"></canvas>
-          <button class="holdbtn" id="holdOrig" type="button">◉ hold · original</button>
-          <button class="holdbtn" id="fcBtn" type="button" style="right:auto;left:10px">▦ false color</button>
-          <button class="holdbtn" id="clayBtn" type="button" style="right:auto;left:10px;bottom:48px">◇ clay</button>
-        </div>
-        <p class="hint" id="sunFeed" style="margin:8px 2px 0"></p>
-        <div class="card" style="margin-top:8px">
-          <div class="hint" id="kmeter" style="margin:0 0 8px;color:var(--gold)"></div>
-          <div class="hint" id="rigNote" style="display:none;margin:0 0 10px;color:var(--gold)"></div>
-          <div class="actions" style="margin:0 0 10px;grid-template-columns:1fr">
-            <button class="btn" id="proposeInStudio" type="button">&#10022; Gaffer's proposal · rig this frame for me</button>
-          </div>
-          <div class="lightsrow" id="lightsRow"></div>
-          <div class="lightsrow" id="gripRow"></div>
-          <div id="lightControls">
-            <div style="display:flex;gap:8px;margin-bottom:6px">
-              <select id="fixSel" aria-label="Fixture" style="flex:1.4;min-width:0"></select>
-              <select id="modSel" aria-label="Modifier" style="flex:1;min-width:0"></select>
-            </div>
-            <div class="looks" id="aimRow" style="display:none;margin-bottom:8px"></div>
-            <div class="sliders">
-              <label><span>Intensity</span><input type="range" id="sInt" min="0" max="2" step="0.01"></label>
-              <label><span id="warmLabel">Warmth</span><input type="range" id="sWarm" min="0" max="1" step="0.01"></label>
-              <label><span>Size</span><input type="range" id="sSize" min="0" max="1" step="0.01"></label>
-              <label><span>Distance</span><input type="range" id="sDist" min="0.15" max="1.4" step="0.01"></label>
-            </div>
-          </div>
-          <div id="gripControls" class="sliders" style="display:none">
-            <label><span>Coverage</span><input type="range" id="gSize" min="0.08" max="0.6" step="0.01"></label>
-            <label><span>Strength</span><input type="range" id="gStr" min="0" max="1" step="0.01"></label>
-          </div>
-          <div class="sliders">
-            <label style="border-top:1px solid var(--line);padding-top:8px"><span>Existing light</span><input type="range" id="sAmb" min="0" max="1.2" step="0.01"></label>
-            <label><span>Shadows</span><input type="range" id="sShad" min="0" max="1" step="0.01"></label>
-          </div>
-          <div class="actions" style="margin:10px 0 0">
-            <button class="btn" id="saveLook" type="button">Save look</button>
-            <button class="btn primary" id="makeReal" type="button">Make it real</button>
-          </div>
-          <p class="hint">Drag a light on the frame. The preview is physics-on-a-phone; Make it real sends this exact setup to the render model.</p>
-          <p class="status" id="studioStatus"></p>
-          <div id="realOut"></div>
-        </div>
-      </div>
-    </section>
-
 
     <!-- ============ ASK: the floating gaffer ============ -->
     <section class="screen" id="screen-ask">
@@ -1765,51 +1771,74 @@ if (navigator.mediaDevices?.addEventListener) {
   navigator.mediaDevices.addEventListener("devicechange", () => { if (stream) syncLensList(); });
 }
 
-/* ---- the built-in light meter: live, in the viewfinder, reading the
-   actual frame. No exposure metadata exists in a browser, so it reads what
-   a gaffer actually squints at · the RATIO: how far the bright side sits
-   above the shadows, and whether either end is being lost. ---- */
-let meterTimer = null;
+/* ---- the built-in light meter: live, in the viewfinder, at video rate.
+   No exposure metadata exists in a browser, so it reads what a gaffer
+   squints at: where the shadows and highlights sit in STOPS, the ratio
+   between them, and whether either end is being lost. A 256-bin histogram
+   per frame (no sorting) keeps it cheap enough to run every frame. ---- */
+let meterRaf = 0;
 const meterCanvas = document.createElement("canvas");
+const meterEMA = { lo: null, hi: null };
+let meterTextAt = 0;
+const LIN = Array.from({ length: 256 }, (_, i) => Math.pow(Math.max(i, 2) / 255, 2.2)); // sRGB → linear
+const stopsOf = (v) => Math.max(-7, Math.min(0, Math.log2(LIN[v])));            // 0 = clip, −7 = black
+const pctOfStops = (st) => ((st + 7) / 7) * 100;
+
 function startFinderMeter() {
   stopFinderMeter();
-  meterCanvas.width = 64; meterCanvas.height = 48;
+  meterCanvas.width = 48; meterCanvas.height = 36;
   const g = meterCanvas.getContext("2d", { willReadFrequently: true });
   const v = $("vf");
-  meterTimer = setInterval(() => {
+  const hist = new Uint32Array(256);
+  const tick = (now) => {
+    meterRaf = requestAnimationFrame(tick);
     if (!stream || !v.videoWidth) return;
     try {
-      g.drawImage(v, 0, 0, 64, 48);
-      const d = g.getImageData(0, 0, 64, 48).data;
-      const lums = [];
-      for (let i = 0; i < d.length; i += 4) {
-        lums.push(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]);
+      g.drawImage(v, 0, 0, 48, 36);
+      const d = g.getImageData(0, 0, 48, 36).data;
+      hist.fill(0);
+      for (let i = 0; i < d.length; i += 4) hist[(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) | 0]++;
+      const n = d.length / 4;
+      const at = (p) => { let c = 0, t = n * p; for (let k = 0; k < 256; k++) { c += hist[k]; if (c >= t) return k; } return 255; };
+      let clip = 0, crush = 0;
+      for (let k = 250; k < 256; k++) clip += hist[k];
+      for (let k = 0; k <= 8; k++) crush += hist[k];
+      const lo = stopsOf(at(0.2)), hi = stopsOf(at(0.8));
+      // light smoothing: alive, but not jittery
+      meterEMA.lo = meterEMA.lo == null ? lo : meterEMA.lo + (lo - meterEMA.lo) * 0.4;
+      meterEMA.hi = meterEMA.hi == null ? hi : meterEMA.hi + (hi - meterEMA.hi) * 0.4;
+      const pl = pctOfStops(meterEMA.lo), ph = pctOfStops(meterEMA.hi);
+      $("vuLo").style.left = pl + "%";
+      $("vuHi").style.left = ph + "%";
+      $("vuRange").style.left = pl + "%";
+      $("vuRange").style.width = Math.max(0, ph - pl) + "%";
+      $("vuMeter").classList.toggle("clipping", clip / n > 0.02);
+      if (now - meterTextAt > 200) { // words update at a readable pace
+        meterTextAt = now;
+        const spread = Math.max(0, meterEMA.hi - meterEMA.lo);
+        const ratio = Math.pow(2, spread);
+        let word;
+        if (ratio < 2) word = "flat · add shape";
+        else if (ratio < 4) word = "soft · balanced";
+        else if (ratio < 9) word = "shaped · cinematic";
+        else if (ratio < 20) word = "punchy · mind the shadows";
+        else word = "harsh · fill or flag it";
+        const r = ratio < 10 ? ratio.toFixed(1) : String(Math.round(ratio));
+        $("vuText").innerHTML = `◉ ${spread.toFixed(1)} stops · ${r}:1 · ${word}`
+          + (clip / n > 0.02 ? ` · <span style="color:#FF9D82">clipping ${Math.round((clip / n) * 100)}%</span>` : "")
+          + (crush / n > 0.1 ? ` · crushed ${Math.round((crush / n) * 100)}%` : "");
       }
-      lums.sort((a, b) => a - b);
-      const n = lums.length;
-      const pct = (p) => lums[Math.min(n - 1, Math.floor(n * p))];
-      const lin = (l) => Math.pow(Math.max(l, 3) / 255, 2.2); // sRGB → linear light
-      const ratio = lin(pct(0.8)) / lin(pct(0.2));
-      const clip = lums.filter((l) => l >= 250).length / n;
-      const crush = lums.filter((l) => l <= 8).length / n;
-      let word;
-      if (ratio < 2) word = "flat · add shape";
-      else if (ratio < 4) word = "soft · balanced";
-      else if (ratio < 9) word = "shaped · cinematic";
-      else if (ratio < 20) word = "punchy · mind the shadows";
-      else word = "harsh · fill or flag it";
-      const r = ratio < 10 ? ratio.toFixed(1) : String(Math.round(ratio));
-      $("vuMeter").innerHTML = `◉ contrast ≈ ${r}:1 · ${word}`
-        + (clip > 0.02 ? ` · <span style="color:#FF9D82">clipping ${Math.round(clip * 100)}%</span>` : "")
-        + (crush > 0.1 ? ` · crushed ${Math.round(crush * 100)}%` : "");
     } catch { /* a dropped frame never kills the meter */ }
-  }, 600);
+  };
+  meterRaf = requestAnimationFrame(tick);
 }
 function stopFinderMeter() {
-  clearInterval(meterTimer);
-  meterTimer = null;
-  $("vuMeter").textContent = "◉ light meter · warming up…";
+  cancelAnimationFrame(meterRaf);
+  meterRaf = 0;
+  meterEMA.lo = meterEMA.hi = null;
+  if ($("vuText")) $("vuText").textContent = "◉ light meter · warming up…";
 }
+document.addEventListener("visibilitychange", () => { if (document.hidden) cancelAnimationFrame(meterRaf); else if (stream) startFinderMeter(); });
 
 $("openCam").addEventListener("click", async () => {
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -2049,6 +2078,8 @@ $("exportCsv").addEventListener("click", () => {
 
 async function analyze(frame) {
   $("out").innerHTML = "";
+  $("notes").innerHTML = "";
+  $("studioBlock").hidden = true;
   state = null;
   $("status").textContent = "Reading the frame…";
   try {
@@ -2062,6 +2093,7 @@ async function analyze(frame) {
     state = { frame, diagnosis: j.diagnosis || {} };
     if (!state.diagnosis.error) saveLogEntry(frame, state.diagnosis);
     renderResults();
+    startStudio(frame);
   } catch (err) {
     $("status").innerHTML = `<span class="err">${esc(err.message || err)}</span>`;
   }
@@ -2321,6 +2353,7 @@ function renderResults() {
   const probs = (d.problems || []).map((p) => `<li>${esc(p)}</li>`).join("");
   const verdict = verdictFor(d);
 
+  // 1 · what the light is doing   2 · the look you want
   $("out").innerHTML = `
     <div class="card">
       <h2>The read</h2>
@@ -2332,11 +2365,12 @@ function renderResults() {
     </div>
 
     <div class="card" id="briefCard">
-      <h2>Brief the gaffer</h2>
+      <h2>The look</h2>
+      <p class="hint" style="margin:0 0 8px">Pick a look and the gaffer re-rigs the lights below.</p>
       <div class="looks">
         ${LOOKS.map((l) => `<button class="look" type="button" data-look="${l.id}" aria-pressed="${l.id === "auto"}">${l.name}<span class="sub">${l.sub}</span></button>`).join("")}
       </div>
-      <input id="customBrief" type="text" placeholder="…or type your own and press return" autocomplete="off" enterkeyhint="go" />
+      <input id="customBrief" type="text" placeholder="…or describe your own and press return" autocomplete="off" enterkeyhint="go" />
       <div class="listhead" style="margin-top:12px">What the crew has</div>
       <div class="looks" id="gearRow" style="margin-top:6px">
         <button class="look" type="button" data-gear="none" style="padding:6px 12px;min-height:32px;font-size:12.5px">No kit</button>
@@ -2346,53 +2380,47 @@ function renderResults() {
         <button class="look" type="button" id="editKit" style="padding:6px 12px;min-height:32px;font-size:12.5px;color:var(--muted)">✎ Edit</button>
       </div>
       <p class="status" id="planStatus"></p>
-    </div>
+    </div>`;
 
+  // 4 · the paperwork for the crew, under the studio
+  $("notes").innerHTML = `
     <div class="card" id="planCard">
-      <h2>The plan · <span id="planName" style="color:var(--gold);text-transform:none;letter-spacing:0">Gaffer's call</span></h2>
+      <h2>Gaffer's notes · <span id="planName" style="color:var(--gold);text-transform:none;letter-spacing:0">Gaffer's call</span></h2>
       <div id="planBody"></div>
-      <div class="actions" style="margin:12px 0 0">
-        <button class="btn primary" id="lightIt" type="button">Light it</button>
-        <button class="btn" id="checkWork" type="button">Check my work</button>
-      </div>
-      <div class="actions" style="grid-template-columns:1fr;margin:8px 0 0">
-        <button class="btn" id="rigFromPlan" type="button">&#10022; Rig it in the studio · place the lights, then render</button>
-      </div>
-      <p class="hint">Light it renders the look (one press, one render). Rig it in the studio: the gaffer places real fixtures on your frame as draggable lights · adjust them, then Make it real. Check my work: rig the moves, re-shoot the same frame, and the gaffer grades the change.</p>
-      <p class="status" id="renderStatus"></p>
-    </div>
-
-    <div id="recheckOut"></div>
-
-    <div class="card">
-      <h2>Your frame</h2>
-      <div class="tabs" role="tablist">
+      <div class="tabs" role="tablist" style="margin-top:14px">
         <button class="tab" role="tab" aria-selected="true" data-pane="pane-diagram" type="button">Lighting diagram</button>
         <button class="tab" role="tab" aria-selected="false" data-pane="pane-overhead" type="button" id="overheadTab" style="display:none">Overhead</button>
-        <button class="tab" role="tab" aria-selected="false" data-pane="pane-compare" type="button" id="compareTab" disabled style="opacity:0.5">Before / after</button>
       </div>
       <div id="pane-diagram" role="tabpanel"></div>
       <div id="pane-overhead" role="tabpanel" hidden></div>
-      <div id="pane-compare" role="tabpanel" hidden></div>
-      <div class="actions" style="grid-template-columns:1fr;margin:12px 0 0">
+      <div class="actions" style="margin:12px 0 0">
         <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
+        <button class="btn" id="checkWork" type="button">Check my work</button>
       </div>
-    </div>`;
+      <p class="hint">Check my work: rig the moves for real, shoot the same framing again, and the gaffer grades the change.</p>
+    </div>
+    <div id="recheckOut"></div>`;
 
   updatePlanUI();
 
+  // a look re-rigs the studio AND rewrites the notes, from the same brief
+  const pickLook = (brief, name, lookId) => {
+    fetchPlan(brief, name, lookId);
+    proposeRig(brief, name);
+  };
   document.querySelectorAll(".look[data-look]").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".look[data-look]").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
     $("customBrief").value = "";
     const look = LOOKS.find((l) => l.id === b.dataset.look);
-    if (look.id === "auto") fetchPlan("auto", "Gaffer's call", null);
-    else fetchPlan(look.brief, look.name, look.id);
+    track("look", look.id);
+    if (look.id === "auto") pickLook("auto", "Gaffer's call", null);
+    else pickLook(look.brief, look.name, look.id);
   }));
   $("customBrief").addEventListener("input", () => {
     if ($("customBrief").value.trim()) document.querySelectorAll(".look[data-look]").forEach((x) => x.setAttribute("aria-pressed", "false"));
   });
   $("customBrief").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && $("customBrief").value.trim()) { e.preventDefault(); fetchPlan($("customBrief").value.trim(), "Your brief"); }
+    if (e.key === "Enter" && $("customBrief").value.trim()) { e.preventDefault(); pickLook($("customBrief").value.trim(), "Your brief", null); }
   });
 
   $("editKit").addEventListener("click", openKitSheet);
@@ -2411,67 +2439,15 @@ function renderResults() {
     });
   });
 
-  $("lightIt").addEventListener("click", relight);
   $("checkWork").addEventListener("click", armRecheck);
-  $("rigFromPlan").addEventListener("click", () => {
-    gotoScreen("screen-light");
-    proposeRig($("proposeBoot"));
-  });
   $("exportSheet").addEventListener("click", () => { track("call_sheet"); exportCallSheet(); });
 
-  // scope to the frame viewer: the Plan screen has its own tabs/panels
-  document.querySelectorAll("#out .tab[data-pane]").forEach((t) => t.addEventListener("click", () => {
-    if (t.disabled) return;
-    document.querySelectorAll("#out .tab[data-pane]").forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
-    document.querySelectorAll("#out [role=tabpanel]").forEach((p) => { p.hidden = p.id !== t.dataset.pane; });
+  document.querySelectorAll("#notes .tab[data-pane]").forEach((t) => t.addEventListener("click", () => {
+    document.querySelectorAll("#notes .tab[data-pane]").forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
+    document.querySelectorAll("#notes [role=tabpanel]").forEach((p) => { p.hidden = p.id !== t.dataset.pane; });
   }));
 
   $("out").scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
-/* ---------- the relight ---------- */
-
-async function relight() {
-  if (!state) return;
-  const myFrame = state.frame; // a new read mid-render rebuilds the DOM; stale responses must drop
-  const brief = currentBrief();
-  const btn = $("lightIt");
-  btn.disabled = true;
-  btn.textContent = "Lighting… (10–30 s)";
-  $("renderStatus").textContent = "";
-  try {
-    const res = await aiFetch("/render", { image: myFrame.dataUrl, brief, gear: currentGear(), kit: currentGear() === "kit" ? kitList() : undefined, diagnosis: state.diagnosis });
-    const j = await res.json();
-    if (!res.ok || j.error) throw new Error(j.error || `render failed (${res.status})`);
-    if (state?.frame !== myFrame || !$("pane-compare")) return; // superseded by a newer read
-    $("pane-compare").innerHTML = `
-      <div class="compare" id="cmp" style="--pos:50%">
-        <img src="${myFrame.dataUrl}" alt="original">
-        <div class="after"><img src="${j.render}" alt="relit"></div>
-        <div class="handle"></div>
-      </div>
-      <div class="taglabels"><span>Now</span><span>Relit</span></div>
-      <p class="hint">Drag to compare. Directional preview · it shows what the move would do.</p>
-      <div class="actions" style="grid-template-columns:1fr;margin:10px 0 0">
-        <button class="btn" id="saveRender" type="button">Save render</button>
-      </div>`;
-    $("saveRender").addEventListener("click", () => { track("save_render"); saveRender(j.render); });
-    const tab = $("compareTab");
-    tab.disabled = false; tab.style.opacity = ""; tab.click();
-    const cmp = $("cmp");
-    const move = (x) => {
-      const r = cmp.getBoundingClientRect();
-      cmp.style.setProperty("--pos", `${Math.max(0, Math.min(100, ((x - r.left) / r.width) * 100))}%`);
-    };
-    cmp.addEventListener("pointerdown", (e) => { cmp.setPointerCapture(e.pointerId); move(e.clientX); });
-    cmp.addEventListener("pointermove", (e) => { if (e.buttons) move(e.clientX); });
-    btn.textContent = "Light it again";
-  } catch (err) {
-    if ($("renderStatus")) $("renderStatus").innerHTML = `<span class="err">${esc(err.message || err)}</span>`;
-    if (btn.isConnected) btn.textContent = "Light it";
-  } finally {
-    if (btn.isConnected) btn.disabled = false;
-  }
 }
 
 /* ---------- check my work ---------- */
@@ -3214,21 +3190,25 @@ function updateSunFeed() {
       : "";
     return;
   }
-  let txt = `☀ Sun ${se.kelvin.toLocaleString()}K`
-    + (se.cloud != null ? ` · ${Math.round(se.cloud)}% cloud` : "")
-    + (se.src === "compass" ? " · placed by compass" : " · placed from the read");
+  // only the compass knows it's the actual sun; from a read it is simply
+  // the scene's main existing light (a window, a lantern, the sun…)
+  const isSun = se.src === "compass";
+  const what = isSun ? "the sun" : "the existing light";
+  let txt = (isSun ? `☀ Sun ${se.kelvin.toLocaleString()}K` : `◐ Existing light ≈ ${se.kelvin.toLocaleString()}K`)
+    + (isSun && se.cloud != null ? ` · ${Math.round(se.cloud)}% cloud` : "")
+    + (isSun ? " · placed by compass" : " · placed from the read");
   const l = studio.selType === "light" && studio.lights[studio.sel];
   if (l) {
     const dx = l.x - se.x;
     const sep = Math.hypot(dx, l.y - se.y);
     const role = studio.lights[studio.sel]?.role || LIGHT_ROLES[studio.sel] || "light";
     const dk = kelvinOf(l) - se.kelvin;
-    const rel = sep < 0.22 ? `${role} rides the sun axis, boosting the existing key`
-      : sep > 0.62 ? `${role} opposes the sun · cross light / rim territory`
-      : `${role} works ${dx < 0 ? "camera-left" : "camera-right"} of the sun as modeling light`;
-    const tone = Math.abs(dk) < 400 ? "matched to the sun"
-      : dk > 0 ? `${Math.abs(dk).toLocaleString()}K warmer than the sun (reads golden)`
-      : `${Math.abs(dk).toLocaleString()}K cooler than the sun (reads clinical)`;
+    const rel = sep < 0.22 ? `${role} rides the same axis as ${what}, reinforcing it`
+      : sep > 0.62 ? `${role} opposes ${what}: cross light or rim territory`
+      : `${role} works ${dx < 0 ? "camera-left" : "camera-right"} of ${what} as modeling light`;
+    const tone = Math.abs(dk) < 400 ? `matched to ${what}`
+      : dk > 0 ? `${Math.abs(dk).toLocaleString()}K warmer than ${what} (reads golden)`
+      : `${Math.abs(dk).toLocaleString()}K cooler than ${what} (reads clinical)`;
     txt += `. ${rel}, ${tone}.`;
   }
   el.innerHTML = txt;
@@ -3236,7 +3216,7 @@ function updateSunFeed() {
 
 function updateKMeter() {
   const parts = [];
-  if (studio.sunEl) parts.push(`sun math ${studio.sunEl.kelvin.toLocaleString()}K`);
+  if (studio.sunEl) parts.push(`${studio.sunEl.src === "compass" ? "sun math" : "existing light"} ${studio.sunEl.kelvin.toLocaleString()}K`);
   if (studio.sceneK) parts.push(`scene reads ${studio.sceneK.toLocaleString()}K`);
   if (studio.sunEl && studio.sceneK) {
     const d = studio.sceneK - studio.sunEl.kelvin;
@@ -3299,7 +3279,7 @@ function studioRenderHandles() {
     h.className = "shandle";
     h.style.left = Math.min(96, Math.max(4, se.x * 100)) + "%";
     h.style.top = Math.min(94, Math.max(6, se.y * 100)) + "%";
-    h.innerHTML = `<span class="sdisc"></span><span class="slabel">SUN ${se.kelvin.toLocaleString()}K</span>`;
+    h.innerHTML = `<span class="sdisc"></span><span class="slabel">${se.src === "compass" ? "SUN" : "NOW"} ${se.kelvin.toLocaleString()}K</span>`;
     wireDrag(h, se, () => {});
     stage.appendChild(h);
   }
@@ -3466,11 +3446,24 @@ function loadImg(src) {
   });
 }
 
+// a neutral room-shaped depth (floor near, top far): used when on-device
+// depth isn't available, so the studio never waits on (or pays for) the cloud
+function placeholderDepth() {
+  const c = document.createElement("canvas");
+  c.width = 4; c.height = 128;
+  const g = c.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, 0, 128);
+  grad.addColorStop(0, "#464646");
+  grad.addColorStop(1, "#b4b4b4");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 4, 128);
+  return c.toDataURL("image/png");
+}
+
 async function studioLoad(frame) {
   if (!frame) return;
   track("studio_open");
   studio.frame = frame;
-  $("studioEmpty").style.display = "block";
   $("studio").style.display = "none";
   $("studioBootStatus").textContent = "Building the set…";
   try {
@@ -3483,16 +3476,12 @@ async function studioLoad(frame) {
         // model download strand the user; 90 s covers a first download on 4G
         depthUrl = await Promise.race([
           localDepth(frame, setStatus),
-          new Promise((_, rej) => setTimeout(() => rej(new Error("on-device depth timed out")), 90000)),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("on-device depth timed out")), 45000)),
         ]);
       } catch (e) {
-        console.warn("on-device depth unavailable, using cloud:", e?.message || e);
+        console.warn("on-device depth unavailable, using a neutral set:", e?.message || e);
         sessionStorage.setItem("scrim-local-depth-broken", "1");
-        setStatus("Mapping depth in the cloud… (10–30 s)");
-        const res = await aiFetch("/depth", { image: frame.dataUrl });
-        const j = await res.json();
-        if (!res.ok || j.error || !j.depth) throw new Error(j.error || `depth failed (${res.status})`);
-        depthUrl = j.depth;
+        depthUrl = placeholderDepth();
       }
       DEPTH_CACHE.set(frame.dataUrl, depthUrl);
       return depthUrl;
@@ -3506,9 +3495,7 @@ async function studioLoad(frame) {
     studio.panels = [];
     studio.sel = 0; studio.gsel = 0; studio.selType = "light";
     studio.ambient = 0.55;
-    $("rigNote").style.display = "none";
     $("studioBootStatus").textContent = "";
-    $("studioEmpty").style.display = "none";
     $("studio").style.display = "block";
     $("realOut").innerHTML = "";
     studio.sunEl = deriveSun(frame);
@@ -3576,18 +3563,6 @@ $("fcBtn").addEventListener("click", () => {
 });
 ["pointerdown", "touchstart"].forEach((ev) => $("holdOrig").addEventListener(ev, (e) => { e.preventDefault(); studio.holding = true; requestDraw(); }));
 ["pointerup", "pointercancel", "pointerleave", "touchend"].forEach((ev) => $("holdOrig").addEventListener(ev, () => { studio.holding = false; requestDraw(); }));
-
-$("studioUseLast").addEventListener("click", () => {
-  if (state?.frame) studioLoad(state.frame);
-  else $("studioBootStatus").innerHTML = `<span class="err">No read yet · shoot or upload a frame first.</span>`;
-});
-$("studioShot").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  e.target.value = "";
-  if (!file) return;
-  try { studioLoad(await fileToFrame(file)); }
-  catch (err) { $("studioBootStatus").innerHTML = `<span class="err">${esc(err.message || err)}</span>`; }
-});
 
 /* ---- native bridge (iOS shell): request/response over postMessage ---- */
 
@@ -3664,68 +3639,197 @@ $("saveLook").addEventListener("click", () => {
   }, "image/png");
 });
 
-// Translate the virtual rig into a gaffer's brief and hand it to the render model.
+/* ---- the rig, in physics: what the render model is told ----
+   Words like "soft" or "from the left" leave the model guessing. Real
+   quantities don't: angle off the lens axis, distance, the source's size AS
+   SEEN FROM THE SUBJECT (which alone sets shadow-edge softness), contrast in
+   stops, and inverse-square falloff onto the background. */
+
+// apparent source size in metres for each fixture + modifier
+const MOD_METERS = {
+  "a300x.refl": 0.2, "a300x.dome": 0.6, "a300x.lant": 0.65,
+  "a600d.refl": 0.2, "a600d.dome": 1.5, "a600d.frag": 0.06,
+  "sky60.panel": 0.65, "sky60.grid": 0.65, "sky60.chim": 1.0,
+  "m18.fres": 0.2, "m18.chim": 1.2,
+  "tube.bare": 1.2, "prac.bulb": 0.1, "free.any": 0.5,
+};
+const BG_BEHIND_M = 1.5; // assumed subject-to-background distance
+
+function rigPhysics(l) {
+  const fx = fixOf(l), mod = modOf(l);
+  const base = MOD_METERS[`${fx.id}.${mod.id}`] ?? 0.5;
+  const srcM = Math.min(3, Math.max(0.03, base * (0.3 + l.size) / (0.3 + mod.size)));
+  // frame-space puck → metres around a subject ~2.5 m from camera
+  const hx = (l.x - 0.5) * 3.0;     // + camera-right
+  const vy = (0.45 - l.y) * 2.2;    // + above eye level
+  const dz = (l.z - 0.5) * 2.6;     // + toward camera
+  const dist = Math.max(0.5, Math.hypot(hx, vy, dz));
+  const az = Math.atan2(hx, dz) * 180 / Math.PI;   // 0 from the lens, ±180 from behind
+  const el = Math.atan2(vy, Math.hypot(hx, dz)) * 180 / Math.PI;
+  const ang = 2 * Math.atan(srcM / (2 * dist)) * 180 / Math.PI;
+  const illum = (l.intensity * fx.punch) / (dist * dist);
+  return { fx, mod, srcM, dist, az, el, ang, illum };
+}
+
+const fmtLen = (m) => m < 1 ? `${Math.round(m * 100)} cm` : `${m.toFixed(1)} m`;
+
+function describeDirection(az, el) {
+  const side = az < 0 ? "camera-left" : "camera-right";
+  const a = Math.abs(az);
+  let h;
+  if (a < 15) h = "from beside the lens, nearly frontal";
+  else if (a < 70) h = `${Math.round(a)}° ${side} of the lens axis`;
+  else if (a < 110) h = `from the side, ${side} (about ${Math.round(a)}° off the lens axis)`;
+  else h = `from BEHIND the subject, ${side} (${Math.round(180 - a)}° off the back axis): a back light that edges the hair and shoulders`;
+  const v = Math.abs(el) < 8 ? "at eye level" : el > 0 ? `${Math.round(el)}° above eye level` : `${Math.round(-el)}° below eye level, lighting from beneath`;
+  return `${h}, ${v}`;
+}
+
+function describeSoftness(ang, srcM, behind) {
+  // a back light never makes a nose shadow or a catchlight: it draws edges
+  if (behind) {
+    if (ang < 8) return `a SMALL HARD source (${fmtLen(srcM)} across, ${Math.round(ang)}° as seen from the subject): a thin, crisp, bright edge along the hair and shoulders, no light on the front of the face`;
+    if (ang < 25) return `a MEDIUM source (${fmtLen(srcM)} across, ${Math.round(ang)}° from the subject): a soft-edged rim of light on the hair and shoulders`;
+    return `a LARGE SOFT source (${fmtLen(srcM)} across, ${Math.round(ang)}° from the subject): a broad glowing wrap around the edges of the silhouette`;
+  }
+  if (ang < 8) return `a SMALL HARD source (${fmtLen(srcM)} across, ${Math.round(ang)}° wide as seen from the subject): crisp shadow edges, a defined nose shadow, small bright speculars, a pinpoint catchlight`;
+  if (ang < 25) return `a MEDIUM source (${fmtLen(srcM)} across, ${Math.round(ang)}° from the subject): shadow edges soften over a few centimetres, moderate speculars`;
+  return `a LARGE SOFT source (${fmtLen(srcM)} across, ${Math.round(ang)}° from the subject): light wraps around the face, shadow edges blend gradually, broad dim speculars, a large soft catchlight`;
+}
+
+// Translate the virtual rig into the render brief.
 function rigToBrief() {
   const posWord = (v, lo, hi) => (v < 0.35 ? lo : v > 0.65 ? hi : "centre");
+  const phys = studio.lights.map(rigPhysics);
+  const keyIdx = Math.max(0, studio.lights.findIndex((l) => (l.role || "").toLowerCase() === "key"));
+  const keyE = phys[keyIdx]?.illum || Math.max(...phys.map((p) => p.illum), 1e-6);
   const lines = studio.lights.map((l, i) => {
-    const role = (l.role || LIGHT_ROLES[i] || "light").toLowerCase();
-    const fix = fixOf(l), mod = modOf(l);
-    const strength = l.intensity > 1.2 ? "at high output" : l.intensity > 0.6 ? "at medium output" : "dimmed low";
-    const dist = l.z > 0.9 ? "close to camera" : l.z > 0.5 ? "at subject distance" : "pushed back deep";
-    const aim = l.aim === 1 ? ", aimed at the subject only and flagged off the background" : l.aim === 2 ? ", washing the background only, flagged off the subject" : "";
-    return `${role}: an ${fix.name} with ${mod.name.toLowerCase()} at ${kelvinOf(l)}K, ${strength}, from frame ${posWord(l.x, "left", "right")}, ${posWord(l.y, "high", "low")}, ${dist}${aim}`;
+    const p = phys[i];
+    const role = (l.role || LIGHT_ROLES[i] || "light").toUpperCase();
+    const stops = Math.log2(keyE / Math.max(p.illum, 1e-6));
+    const level = i === keyIdx ? "the KEY: the brightest light on the subject"
+      : stops >= 0.2 ? `${stops.toFixed(1)} stops under the key (key-to-${role.toLowerCase()} ratio ${Math.round(2 ** stops)}:1)`
+      : stops <= -0.2 ? `${(-stops).toFixed(1)} stops BRIGHTER than the key`
+      : "about as bright as the key";
+    const bgStops = 2 * Math.log2((p.dist + BG_BEHIND_M) / p.dist);
+    const aim = l.aim === 1 ? " Flagged so it lands on the subject only." : l.aim === 2 ? " Flagged so it lands on the background only." : "";
+    return `- ${role}: ${p.fx.name} with ${p.mod.name}, ${kelvinOf(l)}K. Placed ${describeDirection(p.az, p.el)}, about ${fmtLen(p.dist)} from the subject. It is ${describeSoftness(p.ang, p.srcM, Math.abs(p.az) >= 110)}. Level: ${level}. Inverse square: a wall ${fmtLen(BG_BEHIND_M)} behind the subject receives about ${bgStops.toFixed(1)} stops less from this light.${aim}`;
   });
-  const amb = studio.ambient < 0.3 ? "Let the existing ambient light fall almost to black."
-    : studio.ambient < 0.7 ? "Keep the existing ambient light present but clearly secondary."
-    : "Keep the existing ambient light dominant; the added lights are accents.";
-  const gripLines = studio.panels.map((p) => `${GRIP_TYPES[p.type].brief} the frame-${posWord(p.x, "left", "right")} area`);
+  const amb = studio.ambient;
+  const ambLine = amb >= 0.95
+    ? "Existing light: keep the scene's current light as it is; the added lights shape on top of it."
+    : amb <= 0.05 ? "Existing light: remove it almost completely; the added lights do all the work."
+    : `Existing light: bring the scene's current light down about ${Math.log2(1 / amb).toFixed(1)} stops, so the added lights dominate.`;
+  const gripLines = studio.panels.map((p) => {
+    const where = `the frame-${posWord(p.x, "left", "right")} side`;
+    if (p.type === "silk") return `a 4x4 china silk between the lights and ${where}: enlarges the apparent source there to about 1.2 m, softening shadow edges, at a cost of about half a stop`;
+    if (p.type === "muslin") return `a 4x4 muslin between the lights and ${where}: very soft, slightly warm, about one stop of loss`;
+    return `negative fill on ${where}: absorbs bounce so the shadows there sit about one stop deeper`;
+  });
   const gear = [...new Set(studio.lights.map((l) => `${fixOf(l).name} + ${modOf(l).name}`).concat(studio.panels.map((p) => GRIP_TYPES[p.type].name)))].join("; ");
-  return `Relight with this exact controlled lighting setup, mimicking how these real fixtures render light: ${lines.join(". ")}.${gripLines.length ? ` Grip effects (the rigged fabric is off-camera and must never appear in the image): ${gripLines.join("; ")}.` : ""} ${amb} Reproduce each fixture's characteristic quality: source size sets shadow-edge softness, the stated Kelvin sets its colour. (Gear list, all off-camera: ${gear}.)`;
+  return [
+    "Lighting setup in physical terms (camera about 2.5 m from the subject):",
+    ...lines,
+    ambLine,
+    gripLines.length ? `Grip: ${gripLines.join("; ")}.` : "",
+    `Gear, all OFF-CAMERA and never visible in the picture: ${gear}.`,
+  ].filter(Boolean).join("\n");
+}
+
+/* ---- Make it real: every render is a numbered take ---- */
+
+let takes = [];
+let takeSel = -1;
+
+function rigLabel() {
+  const k = studio.lights[0];
+  if (!k) return "";
+  const p = rigPhysics(k);
+  const side = Math.abs(p.az) < 15 ? "front" : p.az < 0 ? "left" : "right";
+  return `${studio.lights.length} light${studio.lights.length > 1 ? "s" : ""} · key ${fixOf(k).name}, ${modOf(k).name}, ${side}`;
+}
+
+function showTake(i) {
+  takeSel = i;
+  const t = takes[i];
+  if (!t) { $("realOut").innerHTML = ""; return; }
+  $("realOut").innerHTML = `
+    <div class="taglabels" style="margin-top:14px"><span>Original</span><span>Take ${t.n}</span></div>
+    <div class="compare" id="realCmp" style="--pos:50%;margin-top:4px">
+      <img src="${studio.frame.dataUrl}" alt="original frame">
+      <div class="after"><img src="${t.src}" alt="take ${t.n}"></div>
+      <div class="handle"></div>
+    </div>
+    <p class="hint" style="margin:6px 0 0">${esc(t.label)}${t.warning ? ` · <span style="color:var(--err)">${esc(t.warning)}</span>` : ""}</p>
+    <div class="actions" style="grid-template-columns:1fr;margin:8px 0 0">
+      <button class="btn" id="saveReal" type="button">Save take ${t.n}</button>
+    </div>`;
+  $("saveReal").addEventListener("click", () => { track("save_render"); saveRender(t.src); });
+  const cmp = $("realCmp");
+  const move = (x) => {
+    const r = cmp.getBoundingClientRect();
+    cmp.style.setProperty("--pos", `${Math.max(0, Math.min(100, ((x - r.left) / r.width) * 100))}%`);
+  };
+  cmp.addEventListener("pointerdown", (e) => { cmp.setPointerCapture(e.pointerId); move(e.clientX); });
+  cmp.addEventListener("pointermove", (e) => { if (e.buttons) move(e.clientX); });
+  renderTakes();
+}
+
+function renderTakes() {
+  $("takes").innerHTML = takes.length
+    ? `<div class="listhead" style="margin-top:14px">Takes</div><div class="takestrip">${takes.map((t, i) => `
+        <button class="take${i === takeSel ? " sel" : ""}" type="button" data-take="${i}" aria-label="Take ${t.n}">
+          <img src="${t.src}" alt=""><span>${t.n}</span>
+        </button>`).join("")}</div>`
+    : "";
+  document.querySelectorAll("[data-take]").forEach((b) => b.addEventListener("click", () => showTake(Number(b.dataset.take))));
+}
+
+// the preview, exactly as the user sees it, minus the analysis overlays
+function previewGuide() {
+  const keep = { fc: studio.fc, clayPin: studio.clayPin, clayAuto: studio.clayAuto, holding: studio.holding };
+  Object.assign(studio, { fc: false, clayPin: false, clayAuto: false, holding: false });
+  glDraw();
+  const url = $("glc").toDataURL("image/jpeg", 0.82);
+  Object.assign(studio, keep);
+  requestDraw();
+  return url;
 }
 
 $("makeReal").addEventListener("click", async () => {
   if (!studio.frame) return;
+  const frame = studio.frame;
   const btn = $("makeReal");
   btn.disabled = true;
-  btn.textContent = "Rendering… (10–30 s)";
+  btn.innerHTML = `Rendering take ${takes.length + 1}…<small>checking it stays true to your frame</small>`;
   $("studioStatus").textContent = "";
   try {
-    const res = await aiFetch("/render", { image: studio.frame.dataUrl, brief: rigToBrief(), gear: "full", diagnosis: state?.diagnosis || null });
+    const res = await aiFetch("/render", {
+      image: frame.dataUrl,
+      guide: previewGuide(),
+      brief: rigToBrief(),
+      gear: "full",
+      diagnosis: state?.frame === frame ? state?.diagnosis || null : null,
+    });
     const j = await res.json();
     if (!res.ok || j.error) throw new Error(j.error || `render failed (${res.status})`);
-    $("realOut").innerHTML = `
-      <div class="taglabels" style="margin-top:12px"><span>Your preview</span><span>Made real</span></div>
-      <div class="compare" id="realCmp" style="--pos:50%;margin-top:4px">
-        <img src="${$("glc").toDataURL("image/jpeg", 0.9)}" alt="preview">
-        <div class="after"><img src="${j.render}" alt="photoreal"></div>
-        <div class="handle"></div>
-      </div>
-      <div class="actions" style="grid-template-columns:1fr;margin:8px 0 0">
-        <button class="btn" id="saveReal" type="button">Save render</button>
-      </div>`;
-    $("saveReal").addEventListener("click", () => saveRender(j.render));
-    const cmp = $("realCmp");
-    const move = (x) => {
-      const r = cmp.getBoundingClientRect();
-      cmp.style.setProperty("--pos", `${Math.max(0, Math.min(100, ((x - r.left) / r.width) * 100))}%`);
-    };
-    cmp.addEventListener("pointerdown", (e) => { cmp.setPointerCapture(e.pointerId); move(e.clientX); });
-    cmp.addEventListener("pointermove", (e) => { if (e.buttons) move(e.clientX); });
+    if (studio.frame !== frame) return; // a new frame took over mid-render
+    takes.push({ n: takes.length + 1, src: j.render, label: rigLabel(), warning: j.warning || null });
+    track("take", j.retried ? "retried" : "clean");
+    showTake(takes.length - 1);
   } catch (e) {
     $("studioStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
   } finally {
     btn.disabled = false;
-    btn.textContent = "Make it real";
+    btn.innerHTML = `Make it real<small>A photo of this exact setup · about 20 s</small>`;
   }
 });
 
-/* ---- the gaffer proposes a setup: photo → AI rig → your tweaks → render.
-   The model places real fixtures in frame coordinates; the studio loads them
-   straight into its pucks, so "customize before the image is generated" is
-   literally dragging the gaffer's lights around. ---- */
+/* ---- the gaffer proposes the rig: the read flows straight into lights
+   on your frame, which you then shape by hand ---- */
 
-function applyRig(r) {
-  if (!r || !Array.isArray(r.lights) || !r.lights.length) throw new Error("The gaffer sent no lights back · try again.");
+function applyRig(r, name) {
+  if (!r || !Array.isArray(r.lights) || !r.lights.length) throw new Error("The gaffer sent no lights back · try the look again.");
   const cl = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
   const order = { key: 0, fill: 1, rim: 2 };
   studio.lights = r.lights.slice(0, 3)
@@ -3750,47 +3854,42 @@ function applyRig(r) {
   studioRenderLights(); studioSyncSliders(); studioRenderHandles();
   updateSunFeed();
   requestDraw();
-  const note = [r.approach, r.note].filter((s) => typeof s === "string" && s.trim()).join(" · ");
-  const el = $("rigNote");
-  el.style.display = note ? "" : "none";
-  el.textContent = note ? `✦ ${note} Drag the pucks to taste, then Make it real.` : "";
+  const note = [r.approach, r.note].filter((s) => typeof s === "string" && s.trim()).join(" ");
+  $("rigNote").textContent = `✦ ${name}${note ? ": " + note : ""} Drag the lights to taste, then Make it real.`;
 }
 
-let proposing = false;
-async function proposeRig(btn) {
-  if (proposing) return;
-  const frame = studio.frame || state?.frame;
-  if (!frame) {
-    $("studioBootStatus").innerHTML = `<span class="err">No frame yet · shoot a read in Camera or upload a photo first.</span>`;
-    return;
-  }
-  proposing = true;
-  const prev = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "The gaffer is rigging… (5–15 s)";
+let rigSeq = 0;
+async function proposeRig(brief = "auto", name = "Gaffer's call") {
+  const frame = studio.frame;
+  if (!frame || !studio.gl) return;
+  const my = ++rigSeq;
+  $("rigNote").textContent = `✦ The gaffer is rigging ${name === "Gaffer's call" ? "the frame" : `"${name}"`}… (5–15 s)`;
   try {
-    if (studio.frame !== frame) await studioLoad(frame);
-    if (!studio.gl) throw new Error("The studio could not start on this frame.");
     const res = await aiFetch("/rig", {
       image: frame.dataUrl,
       diagnosis: state?.frame === frame ? state?.diagnosis || null : null,
       sun: sun?.now || null,
+      brief: brief === "auto" ? "" : brief,
     });
     const j = await res.json();
+    if (my !== rigSeq || studio.frame !== frame) return; // superseded
     if (!res.ok || j.rig?.error || j.error) throw new Error(j.rig?.error || j.error || `rig failed (${res.status})`);
-    applyRig(j.rig);
+    applyRig(j.rig, name);
     track("rig");
   } catch (e) {
-    const out = $("studio").style.display === "none" ? $("studioBootStatus") : $("studioStatus");
-    out.innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
-  } finally {
-    proposing = false;
-    btn.disabled = false;
-    btn.textContent = prev;
+    if (my === rigSeq) $("rigNote").innerHTML = `<span class="err">${esc(e.message || e)}</span> The light below is a starting point you can drag.`;
   }
 }
-$("proposeBoot").addEventListener("click", (e) => proposeRig(e.currentTarget));
-$("proposeInStudio").addEventListener("click", (e) => proposeRig(e.currentTarget));
+
+// the read hands its frame to the studio, which arrives already lit
+async function startStudio(frame) {
+  takes = []; takeSel = -1;
+  $("realOut").innerHTML = ""; $("takes").innerHTML = ""; $("rigNote").textContent = "";
+  $("studioBlock").hidden = false;
+  await studioLoad(frame);
+  if (studio.frame === frame && studio.gl) proposeRig("auto", "Gaffer's call");
+}
+
 
 /* ---------- Plan: scene map + shot list ---------- */
 
@@ -4186,7 +4285,6 @@ $("fbSend").addEventListener("click", async () => {
 });
 
 /* ---------- instruments: enter and leave the studio ---------- */
-$("studioBack").addEventListener("click", () => gotoScreen("screen-shoot"));
 
 /* ---------- setup help: live checks + the steps for THIS device ----------
    The lesson from real testing: a website needs two permissions, the

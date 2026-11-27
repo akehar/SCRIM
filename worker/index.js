@@ -236,26 +236,90 @@ Reply with strict JSON, no markdown, exactly this shape:
   return parseJSONish(genText(j));
 }
 
-async function renderLook(env, data, mime, brief, diagnosis, gear, kit) {
+// The relight prompt. Physics first (so the light lands where the rig says),
+// then hard rules (so nothing in the frame is added, moved or reshaped).
+// `guide` is the studio's live preview of this exact rig, used as a light map.
+function relightPrompt(brief, diagnosis, gear, kit, hasGuide, correction) {
   const read = diagnosis && !diagnosis.error
-    ? `A gaffer read this frame as: key from ${diagnosis.direction || "unknown"}, ${diagnosis.hardness || "?"} light, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast. Problems: ${(diagnosis.problems || []).join("; ") || "none listed"}.`
+    ? `A gaffer read the original as: key from ${diagnosis.direction || "unknown"}, ${diagnosis.hardness || "?"} light, ${diagnosis.colorTemp || "?"}, ${diagnosis.contrast || "?"} contrast.`
     : "";
   const wants = brief && brief !== "auto"
-    ? `The director's brief: ${brief}.`
-    : `No brief was given — make the gaffer's call yourself: pick the single treatment that best fixes the problems above and keep it believable for this location and time of day.`;
-  const prompt = `Relight this exact photograph. This is a LIGHTING change, not a color grade: the geometry of the light must change, not just the tones.
+    ? `THE LIGHTING TO CREATE:\n${brief}`
+    : `No brief was given: make the gaffer's call yourself, picking the single treatment that best fixes the light, believable for this location and time of day.`;
+  return `Relight this exact photograph for a film crew. Output the SAME photograph, re-lit, as if the shot had been lit this way on the day. This is a LIGHTING change, not a colour grade or a filter.
+${hasGuide ? "IMAGE 1 is the original frame. IMAGE 2 is a rough physics preview of the new lighting on this frame's depth. Use Image 2 ONLY as a map of where light lands, which side is brighter, how fast it falls off and where shadows sit. Never copy its blur, banding or colours; all detail and texture come from Image 1." : "The image is the original frame."}
 ${read}
 ${wants}
-${gearLine(gear, kit)} Every effect must be achievable with that gear.
-What must change: the direction, apparent size, and quality of the light on the subject. Reshape shadow EDGES (a bigger apparent source means a softer penumbra), open or deepen shadow AREAS, tame or add speculars and catchlights, and keep every effect motivated by a plausible physical source — sun angle, bounce, silk, flag, or foliage.
-What must NOT change: subject identity and pose, framing, composition, lens perspective, background content, and scene geometry. Photorealistic, like the scene was reshot under the new lighting — not stylised, not a filter.
-CRITICAL: every piece of lighting equipment is OFF-CAMERA, outside the frame. Do NOT paint any gear into the image — no lights, stands, frames, silks, fabric, panels, reflectors, or bounce boards may appear. When the brief names gear (silk, muslin, flag, negative fill), it names OFF-CAMERA rigging: render only its effect on the light. "Negative fill" means the shadow side goes DEEPER and less filled — never a black object, black panel, or dark fabric anywhere in the picture. Show ONLY the resulting light falling on the existing scene.`;
+${gearLine(gear, kit)}
+
+PHYSICS TO OBEY:
+- Direction: every highlight, shadow and catchlight must agree with where each source sits.
+- Inverse-square falloff: brightness drops with the square of distance, so surfaces near a source are brighter and the background darkens by the stated amount.
+- Source size sets shadow edges: a source that is large as seen from the subject gives soft, wrapping penumbras and broad dim speculars; a small one gives crisp shadow edges, small bright speculars and pinpoint catchlights.
+- Colour: each source tints what it lights by its Kelvin. Where sources mix, colour mixes across the surface.
+- Diffusion (silk, muslin) enlarges the apparent source and costs output. Negative fill removes bounce so the shadow side goes deeper.
+- Exposure stays believable: no new clipping on skin.
+
+ABSOLUTE RULES:
+1. Every new light, stand, softbox, panel, frame, silk, reflector and flag is OFF-CAMERA. None of them may appear anywhere in the output, not even partly at an edge.
+2. Do not add, remove, move, resize or reshape any object. Any lamp, lantern or fixture ALREADY visible in Image 1 stays exactly as it is: same position, size and shape. It may glow brighter or dimmer, nothing more. Never turn it into a different fixture.
+3. "Negative fill" never means a black object in frame; it only means deeper shadows.
+4. Same framing, lens, perspective, people, faces, expressions, pose, wardrobe, props and background. Only the light changes.${correction ? `\n\nCORRECTION: ${correction}` : ""}`;
+}
+
+async function renderLook(env, data, mime, brief, diagnosis, gear, kit, guide, correction) {
+  const parts = [{ inlineData: { mimeType: mime, data } }];
+  if (guide) parts.push({ inlineData: { mimeType: guide.mime, data: guide.data } });
+  parts.push({ text: relightPrompt(brief, diagnosis, gear, kit, Boolean(guide), correction) });
   const j = await gemini(env, env.IMAGE_MODEL || "gemini-3.1-flash-lite-image", {
-    contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data } }, { text: prompt }] }],
+    contents: [{ role: "user", parts }],
     generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
   });
   const img = genImage(j);
   return img ? { mimeType: img.inlineData.mimeType, data: img.inlineData.data } : null;
+}
+
+// A second pair of eyes: did the render paint in gear or change the scene?
+// Lighting differences are expected and ignored.
+async function verifyRender(env, beforeData, beforeMime, afterData, afterMime) {
+  const prompt = `IMAGE 1 is an original photo. IMAGE 2 is the same photo after a LIGHTING change. Ignore all differences in brightness, colour, contrast and shadows: those are intended.
+Check only for these defects in IMAGE 2:
+- addedGear: any lighting equipment, light stand, softbox, panel, umbrella, lantern, reflector, frame, silk, flag or fabric that is not in IMAGE 1, OR an existing lamp or fixture that changed shape, size or position.
+- changedObjects: any person, face, pose, prop or background object that appeared, disappeared, moved or changed shape.
+Reply with strict JSON only: {"addedGear": true|false, "changedObjects": true|false, "what": "a few words naming the defect, or empty"}`;
+  const j = await gemini(env, env.VISION_MODEL || "gemini-3.5-flash", {
+    contents: [{
+      role: "user",
+      parts: [
+        { inlineData: { mimeType: beforeMime, data: beforeData } },
+        { inlineData: { mimeType: afterMime, data: afterData } },
+        { text: prompt },
+      ],
+    }],
+    generationConfig: { responseMimeType: "application/json" },
+  });
+  return parseJSONish(genText(j));
+}
+
+// Render, check, and re-render once if the check finds painted-in gear or a
+// changed scene. Returns the best render plus what happened.
+async function renderChecked(env, data, mime, brief, diagnosis, gear, kit, guide) {
+  let out = await renderLook(env, data, mime, brief, diagnosis, gear, kit, guide, "");
+  if (!out) return { render: null };
+  const flagged = (v) => v && (v.addedGear === true || v.changedObjects === true);
+  const v1 = await verifyRender(env, data, mime, out.data, out.mimeType).catch(() => null);
+  if (!flagged(v1)) return { render: out, retried: false };
+  const correction = v1.addedGear
+    ? `A previous attempt wrongly ${v1.what ? `showed "${v1.what}"` : "painted lighting equipment into the frame or reshaped an existing fixture"}. Remove every trace of it. No equipment may be visible, and fixtures already in the original stay exactly as they are.`
+    : `A previous attempt changed the scene${v1.what ? ` ("${v1.what}")` : ""}. Keep every person and object exactly as in the original.`;
+  const retry = await renderLook(env, data, mime, brief, diagnosis, gear, kit, guide, correction).catch(() => null);
+  if (!retry) return { render: out, retried: true, warning: "This take may show a lighting artefact; try Make it real again." };
+  const v2 = await verifyRender(env, data, mime, retry.data, retry.mimeType).catch(() => null);
+  return {
+    render: retry,
+    retried: true,
+    warning: flagged(v2) ? "This take may still show a lighting artefact; try Make it real again." : null,
+  };
 }
 
 async function recheckRead(env, beforeData, beforeMime, afterData, afterMime, diagnosis) {
@@ -512,7 +576,7 @@ export default {
             ok: true,
             // bump per release: open /health in a browser to see which build
             // is actually live, ending every "did the deploy take?" mystery
-            build: "2026-11-28 find-the-sun + setup help",
+            build: "2026-11-28 one mode + physics renders + live meter",
             gemini: Boolean(env.GEMINI_API_KEY),
             locked: Boolean(env.ACCESS_CODE) || clerkOn(env),
             clerk: clerkOn(env) ? env.CLERK_PUBLISHABLE_KEY : null,
@@ -645,17 +709,21 @@ Formatting: this renders in a phone chat. Use short paragraphs, "-" bullets for 
       }
 
       if (p === "/render") {
-        const { image, brief, diagnosis, gear, kit } = body || {};
+        const { image, brief, diagnosis, gear, kit, guide } = body || {};
         if (!image) return json({ error: "Need image (base64)." }, 400);
         const { mime, data } = parseImage(image);
-        // 2000 chars: the studio's rig brief is long and precise — truncating
-        // it was quietly degrading "Make it real" renders
-        const render = await renderLook(env, data, mime, typeof brief === "string" ? brief.slice(0, 2000) : "auto", diagnosis, gear, kit)
+        const guideImg = typeof guide === "string" && guide.startsWith("data:") ? parseImage(guide) : null;
+        // 4000 chars: the studio's physics brief is long and precise; cutting
+        // it short quietly degrades renders
+        const result = await renderChecked(env, data, mime, typeof brief === "string" ? brief.slice(0, 4000) : "auto", diagnosis, gear, kit, guideImg)
           .catch((e) => ({ error: aiErr(e) }));
-        logEvent(env, ctx, "render", render && !render.error ? "ok" : "error", who);
+        const r = result?.render;
+        logEvent(env, ctx, "render", result?.error || !r ? "error" : result.retried ? "retried" : "ok", who);
         return json({
-          render: render && !render.error ? `data:${render.mimeType};base64,${render.data}` : null,
-          error: render?.error || (render ? null : "model returned no image"),
+          render: r ? `data:${r.mimeType};base64,${r.data}` : null,
+          retried: Boolean(result?.retried),
+          warning: result?.warning || null,
+          error: result?.error || (r ? null : "model returned no image"),
         });
       }
 
