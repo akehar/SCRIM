@@ -401,6 +401,36 @@
   .logmeta { min-width: 0; font-size: 15px; }
   .logmeta small { display: block; color: var(--muted); font-family: var(--mono); font-size: 10.5px; margin-top: 1px; }
 
+  /* ---- intro: a sunrise, three lines, a credit ---- */
+  #intro {
+    position: fixed; inset: 0; z-index: 100; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 0;
+    text-align: center; padding: 32px 30px calc(30px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, #07091A 0%, #1B1E3C 42%, #4A3140 72%, #8A4A33 92%, #C9792F 100%);
+    transition: opacity 0.6s ease;
+  }
+  #intro.bye { opacity: 0; pointer-events: none; }
+  .introRise { opacity: 0; animation: introUp 0.9s ease-out forwards; }
+  @keyframes introUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  #intro .iSunG { animation: iSunRise 2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both; }
+  @keyframes iSunRise { from { transform: translateY(34px); } to { transform: translateY(0); } }
+  #intro .iRing { stroke-dasharray: 100; stroke-dashoffset: 100; animation: iDraw 1.4s ease-in-out 0.15s forwards; }
+  @keyframes iDraw { to { stroke-dashoffset: 0; } }
+  #intro .iBar { transform-box: fill-box; transform-origin: center; animation: iBarIn 0.7s ease-out backwards; }
+  @keyframes iBarIn { from { opacity: 0; transform: scaleX(0); } }
+  .introWord { font-family: var(--serif); font-size: 54px; font-weight: 500; letter-spacing: 0.06em; color: #FBF6EC; margin-top: 18px; animation-delay: 0.9s; }
+  .introTag { font-family: var(--serif); font-style: italic; font-size: 17px; color: rgba(244,239,230,0.9); margin-top: 6px; animation-delay: 1.15s; }
+  .introLines { display: flex; flex-direction: column; gap: 9px; margin-top: 26px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(244,239,230,0.75); }
+  .introLines span:nth-child(1) { animation-delay: 1.45s; }
+  .introLines span:nth-child(2) { animation-delay: 1.7s; }
+  .introLines span:nth-child(3) { animation-delay: 1.95s; }
+  #introGo { margin-top: 32px; min-width: 220px; animation-delay: 2.3s; }
+  .introCredit { margin-top: 22px; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; color: rgba(244,239,230,0.6); text-transform: uppercase; animation-delay: 2.55s; }
+  @media (prefers-reduced-motion: reduce) {
+    #intro .introRise { animation: none; opacity: 1; }
+    #intro .iSunG, #intro .iRing, #intro .iBar { animation: none; stroke-dashoffset: 0; transform: none; }
+  }
+
   .skeleton { height: 13px; border-radius: 4px; background: var(--press); animation: pulse 1.2s ease-in-out infinite; margin: 7px 0; }
   @keyframes pulse { 50% { opacity: 0.4; } }
   @media (prefers-reduced-motion: reduce) {
@@ -413,6 +443,31 @@
 </head>
 <body class="pro">
   <div id="sky" aria-hidden="true"></div>
+
+  <div id="intro" role="dialog" aria-label="Welcome to Scrim">
+    <svg width="130" height="130" viewBox="0 0 120 120" aria-hidden="true">
+      <circle class="iRing" cx="60" cy="60" r="52" fill="none" stroke="#F4EFE6" stroke-width="2.5" pathLength="100" transform="rotate(-90 60 60)"/>
+      <defs><clipPath id="iSunTop"><rect x="8" y="8" width="104" height="52"/></clipPath></defs>
+      <g class="iSunG"><circle cx="60" cy="60" r="26" fill="#E8A33D" clip-path="url(#iSunTop)"/></g>
+      <line x1="18" y1="60" x2="102" y2="60" stroke="#F4EFE6" stroke-width="2.5" stroke-linecap="round"/>
+      <g>
+        <rect class="iBar" style="animation-delay:1s" x="36" y="66" width="48" height="4.5" rx="2.25" fill="#E8A33D" opacity="0.75"/>
+        <rect class="iBar" style="animation-delay:1.15s" x="40" y="75" width="40" height="4.5" rx="2.25" fill="#E8A33D" opacity="0.5"/>
+        <rect class="iBar" style="animation-delay:1.3s" x="45" y="84" width="30" height="4.5" rx="2.25" fill="#E8A33D" opacity="0.3"/>
+        <rect class="iBar" style="animation-delay:1.45s" x="51" y="93" width="18" height="4.5" rx="2.25" fill="#E8A33D" opacity="0.15"/>
+      </g>
+    </svg>
+    <div class="introWord introRise">Scrim</div>
+    <div class="introTag introRise">Shape the light you already have.</div>
+    <div class="introLines">
+      <span class="introRise">Reads the light in your frame</span>
+      <span class="introRise">Plans the fix like a gaffer</span>
+      <span class="introRise">Shows you the look before you rig</span>
+    </div>
+    <button class="btn primary introRise" id="introGo" type="button">Step on set</button>
+    <div class="introCredit introRise">Vibe coded by Amit Kehar &mdash; cinematographer</div>
+  </div>
+
   <header>
     <svg class="emblem" id="emblem" viewBox="0 0 120 120" aria-hidden="true">
       <circle id="emRing" cx="60" cy="60" r="52" fill="none" stroke="#F4EFE6" stroke-width="2.5" pathLength="100" transform="rotate(-90 60 60)"/>
@@ -848,8 +903,12 @@ function acquirePosition({ highAccuracy = false, totalMs = 20000 } = {}) {
 }
 
 function geoErrorMessage(e) {
-  if (e && e.code === 1) return "Location is blocked for this site in the browser. iPhone Chrome: tap ⋯ → Page Info → Permissions → allow Location. Then tap the pill up top to retry.";
-  return "No location fix after 20 seconds. Toggle Airplane Mode or reopen the tab, then tap the pill to retry. Or set your location manually below.";
+  if (e && e.code === 1) {
+    return /iPhone|iPad|Android/i.test(navigator.userAgent)
+      ? "Location is blocked for this site. iPhone Chrome: ⋯ → Page Info → Permissions → Location. Safari: AA in the address bar → Website Settings. Then tap the pill up top to retry — or just type your city below."
+      : "Location is blocked in the browser. Click the tune/lock icon at the left of the address bar → Site settings → Location → Allow, then reload — or just type your city below.";
+  }
+  return "No location fix after 20 seconds. Tap the pill up top to retry — or just type your city below.";
 }
 
 async function getLocation(force = false) {
@@ -1096,26 +1155,46 @@ async function loadSun(forceLoc = false) {
     $("locPill").textContent = "no location — tap to retry";
     $("clock").innerHTML = `<span class="err" style="font-size:14px;font-weight:400">${esc(e.message || e)}</span>`;
     $("sunNow").innerHTML = `
-      <div class="hint">Or set your location manually — long-press a spot in Google Maps and copy its coordinates:</div>
+      <div class="hint" style="text-align:left">No permission needed this way — type the nearest city:</div>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <input id="manualLoc" type="text" inputmode="decimal" placeholder="41.550, -8.420" style="flex:1;margin-top:0">
-        <button class="ghost" id="useManual" type="button">Use</button>
-      </div>`;
-    $("useManual").addEventListener("click", applyManualLocation);
-    $("manualLoc").addEventListener("keydown", (ev) => { if (ev.key === "Enter") applyManualLocation(); });
+        <input id="cityQ" type="text" placeholder="City — e.g. Brooklyn" style="flex:1;margin-top:0" autocomplete="off" enterkeyhint="search">
+        <button class="ghost" id="citySearch" type="button">Find</button>
+      </div>
+      <div id="cityOut" class="times" style="margin-top:8px;text-align:left"></div>`;
+    $("citySearch").addEventListener("click", searchCity);
+    $("cityQ").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); searchCity(); } });
   }
 }
 
-function applyManualLocation() {
-  const m = $("manualLoc").value.trim().match(/^(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)$/);
-  if (!m) { $("manualLoc").style.borderColor = "var(--err)"; return; }
-  const lat = Number(m[1]), lng = Number(m[2]);
-  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) { $("manualLoc").style.borderColor = "var(--err)"; return; }
-  localStorage.setItem("scrim-manual-loc", JSON.stringify([lat, lng]));
-  loc = { latitude: lat, longitude: lng, accuracy: null, manual: true };
-  $("locPill").textContent = pillText(loc);
-  fetchSun(loc).catch(() => {});
-  loadWeather(loc);
+// City-name fallback: free Open-Meteo geocoding, same provider as the
+// weather — works even when browser location is denied or unavailable.
+async function searchCity() {
+  const q = $("cityQ").value.trim();
+  if (!q) return;
+  $("cityOut").innerHTML = `<div class="skeleton" style="width:60%"></div>`;
+  try {
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en&format=json`);
+    const j = await r.json();
+    const hits = j.results || [];
+    if (!hits.length) {
+      $("cityOut").innerHTML = `<div class="hint">Nothing found — try the nearest bigger town.</div>`;
+      return;
+    }
+    $("cityOut").innerHTML = hits.map((h, i) =>
+      `<div class="winrow" data-city="${i}" style="cursor:pointer"><span>${esc([h.name, h.admin1, h.country_code].filter(Boolean).join(", "))}</span><span>use →</span></div>`).join("");
+    document.querySelectorAll("[data-city]").forEach((row) => row.addEventListener("click", () => {
+      const h = hits[Number(row.dataset.city)];
+      localStorage.setItem("scrim-manual-loc", JSON.stringify([h.latitude, h.longitude]));
+      loc = { latitude: h.latitude, longitude: h.longitude, accuracy: null, manual: true };
+      $("locPill").textContent = pillText(loc);
+      track("city_set");
+      fetchSun(loc).catch(() => {});
+      loadWeather(loc);
+      if (map) { map.setView([h.latitude, h.longitude], 12); userCentered = true; }
+    }));
+  } catch {
+    $("cityOut").innerHTML = `<div class="hint err">Search failed — check the connection and try again.</div>`;
+  }
 }
 
 $("locPill").addEventListener("click", () => loadSun(true));
@@ -3816,6 +3895,19 @@ $("fbSend").addEventListener("click", async () => {
 
 /* ---------- instruments: enter and leave the studio ---------- */
 $("studioBack").addEventListener("click", () => gotoScreen("screen-shoot"));
+
+/* ---------- intro: once per device, then straight on set ---------- */
+(() => {
+  const intro = $("intro");
+  if (localStorage.getItem("scrim-intro-done")) { intro.remove(); return; }
+  intro.style.display = "flex";
+  $("introGo").addEventListener("click", () => {
+    localStorage.setItem("scrim-intro-done", "1");
+    track("intro_done");
+    intro.classList.add("bye");
+    setTimeout(() => intro.remove(), 650);
+  });
+})();
 
 /* ---------- boot ---------- */
 track("app_open");
