@@ -220,6 +220,12 @@
     background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.35);
     border-radius: 999px; padding: 5px 10px; cursor: pointer;
   }
+  .vumeter {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.74));
+    color: #F4EFE6; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+    padding: 20px 10px 9px; pointer-events: none; text-align: center;
+  }
   .vfbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
   .shutter {
     width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--ink);
@@ -471,11 +477,6 @@
         <div class="sunline" id="sunNow"><span class="skeleton" style="display:block;width:50%"></span></div>
         <div class="weather" id="weatherLine"></div>
         <div class="herenote" id="hereNote"></div>
-        <div class="actions" id="meterSkyRow" style="display:none;margin:12px 0 0;grid-template-columns:1fr">
-          <button class="btn" id="meterSkyBtn" type="button">&#9673; Meter the sky &mdash; ground truth</button>
-          <p class="hint" style="margin:6px 0 0;text-align:center">Point at your scene in the open &mdash; not straight at the sky.</p>
-          <p class="status" id="skyMeterOut" style="text-align:center;margin-top:4px"></p>
-        </div>
       </div>
       <div class="card" id="arSunCard" style="display:none">
         <h2 style="color:var(--ochre)">See it in the sky</h2>
@@ -575,7 +576,6 @@
       <div class="camdial" role="tablist">
         <button class="cmode" role="tab" data-cmode="read" aria-selected="true" type="button">Read</button>
         <button class="cmode" role="tab" data-cmode="meter" aria-selected="false" type="button">Meter</button>
-        <button class="cmode" role="tab" data-cmode="scan" aria-selected="false" type="button">Scan</button>
       </div>
       <p class="dialhint" id="dialHint">One shot: the read, the plan, and a studio you can light by hand</p>
 
@@ -591,6 +591,7 @@
           <video id="vf" autoplay playsinline muted></video>
           <canvas class="arstrip" id="arStrip" width="800" height="112" style="display:none"></canvas>
           <button class="arenable" id="arEnable" type="button">☀ Sun overlay</button>
+          <div class="vumeter" id="vuMeter">◉ light meter — warming up…</div>
         </div>
         <div class="vfbar">
           <div class="vfside"><select id="camSel" aria-label="Camera lens" hidden></select></div>
@@ -621,19 +622,6 @@
         </div>
       </div>
 
-      <div id="cpane-scan" hidden>
-        <div class="card" id="scanRoomCard" style="display:none">
-          <h2>Room &amp; sun</h2>
-          <p class="hint" style="margin:0 0 10px">Scan the room once &mdash; walls and windows &mdash; and play the sun through it all day. Lives on the <b>Set</b> tab.</p>
-          <div class="actions" style="margin:0;grid-template-columns:1fr">
-            <a class="btn" href="/room" style="text-decoration:none;text-align:center">Open Room &amp; sun</a>
-          </div>
-        </div>
-        <div class="card" id="scanWebCard">
-          <h2>Scanning needs the iPhone app</h2>
-          <p class="hint" style="margin:0">Room scanning uses the iPhone&rsquo;s LiDAR &mdash; it switches on automatically in the Scrim app on a Pro-model iPhone, as does depth capture on every camera shot.</p>
-        </div>
-      </div>
     </section>
 
     <!-- ============ RELIGHT STUDIO (instrument, reached from Camera) ============ -->
@@ -665,7 +653,6 @@
         <p class="hint" id="sunFeed" style="margin:8px 2px 0"></p>
         <div class="card" style="margin-top:8px">
           <div class="hint" id="kmeter" style="margin:0 0 8px;color:var(--gold)"></div>
-          <div class="hint" id="measureOut" style="display:none;margin:0 0 8px;font-family:var(--mono);font-size:11.5px"></div>
           <div class="hint" id="rigNote" style="display:none;margin:0 0 10px;color:var(--gold)"></div>
           <div class="actions" style="margin:0 0 10px;grid-template-columns:1fr">
             <button class="btn" id="proposeInStudio" type="button">&#10022; Gaffer's proposal &mdash; rig this frame for me</button>
@@ -705,17 +692,6 @@
     </section>
 
 
-    <!-- ============ SET: the space itself ============ -->
-    <section class="screen" id="screen-set">
-      <div class="card" id="roomCard" style="display:none">
-        <h2 style="color:var(--ochre)">Room &amp; sun &mdash; light through the actual windows</h2>
-        <p class="hint" style="margin:0 0 10px">Scan a room once (&sim;30 s): Scrim rebuilds its walls and windows, then traces where sunlight pools on the floor at any hour &mdash; with real meters.</p>
-        <div class="actions" style="margin:0">
-          <a class="btn primary" href="/room" style="text-decoration:none;text-align:center">Open Room &amp; sun</a>
-        </div>
-      </div>
-    </section>
-
     <!-- ============ ASK: the floating gaffer ============ -->
     <section class="screen" id="screen-ask">
       <div style="padding:10px 0 8px;border-bottom:1px solid var(--hair);display:flex;align-items:baseline;gap:10px">
@@ -745,8 +721,6 @@
       <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><line x1="12" y1="2.5" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21.5"/><line x1="2.5" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21.5" y2="12"/><line x1="5.3" y1="5.3" x2="7" y2="7"/><line x1="17" y1="17" x2="18.7" y2="18.7"/><line x1="5.3" y1="18.7" x2="7" y2="17"/><line x1="17" y1="7" x2="18.7" y2="5.3"/></svg></span>Light</button>
     <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-shoot" type="button">
       <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9 a2 2 0 0 1 2 -2 h2 l1.6 -2.4 h6.8 L17 7 h2 a2 2 0 0 1 2 2 v9 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 Z"/><circle cx="12" cy="13" r="3.8"/></svg></span>Camera</button>
-    <button class="tabbtn" role="tab" aria-selected="false" data-screen="screen-set" type="button">
-      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 L21 7.5 V16.5 L12 21.5 L3 16.5 V7.5 Z"/><path d="M3 7.5 L12 12.5 L21 7.5"/><path d="M12 12.5 V21.5"/></svg></span>Set</button>
   </nav>
 
 
@@ -801,11 +775,10 @@ $("askClose").addEventListener("click", () => gotoScreen(askReturn));
 const DIAL_HINTS = {
   read: "One shot: the read, the plan, and a studio you can light by hand",
   meter: "EV · f-stop · ISO — a light meter in your pocket",
-  scan: "Scan the room once — then play the sun through it all day",
 };
 document.querySelectorAll(".cmode").forEach((b) => b.addEventListener("click", () => {
   document.querySelectorAll(".cmode").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
-  ["read", "meter", "scan"].forEach((m) => { $("cpane-" + m).hidden = m !== b.dataset.cmode; });
+  ["read", "meter"].forEach((m) => { $("cpane-" + m).hidden = m !== b.dataset.cmode; });
   $("dialHint").textContent = DIAL_HINTS[b.dataset.cmode];
   track("cam_mode", b.dataset.cmode);
 }));
@@ -972,13 +945,11 @@ function renderWeather() {
   renderSunLine();
   renderSky();
   const g = sun?.nextGoldenHour;
-  const m = freshMeasure();
-  const nowC = cloudNow();
+  const nowC = cloudAt(Date.now());
   const ghC = g ? cloudAt(g.start) : null;
   if (nowC == null && ghC == null) { $("weatherLine").textContent = ""; return; }
   const bits = [];
-  if (m) bits.push(`◉ metered ${Math.max(1, Math.round((Date.now() - m.t) / 60000))} min ago: ${m.word}`);
-  else if (nowC != null) bits.push(`clouds now ${nowC}%`);
+  if (nowC != null) bits.push(`clouds now ${nowC}%`);
   if (ghC != null && g) bits.push(`at golden hour ${ghC}%`);
   let read = "";
   if (ghC != null) {
@@ -1053,72 +1024,24 @@ function skyGradient(alt) {
   const n = g.length;
   return `linear-gradient(180deg, ${g.map((c, i) => `${c} ${Math.round((i / (n - 1)) * 100)}%`).join(", ")})`;
 }
-/* ---- measured sky: the camera outranks the forecast ----
-   The native meter solves real exposure (ISO · shutter · aperture → EV100).
-   Against the clear-sky EV for the current sun altitude, the deficit in
-   stops says what the sky is ACTUALLY doing right here, right now. */
-let skyMeasure = null; // { ev, stops, cloud, word, t }
-
-// Anchored to sunny 16: once the sun is ~20° up, a clear front-lit scene
-// meters EV 15 at ISO 100 and stays there. (The first curve here sagged a
-// stop too low at mid altitudes, so real overcast read as "clear".)
-function clearSkyEV(alt) {
-  if (alt == null) return null;
-  if (alt <= -6) return 2;
-  if (alt <= 0) return 9 + alt;                         // twilight: ~1 EV per degree
-  if (alt <= 5) return 9 + (alt / 5) * 3;               // golden hour: EV 9 → 12
-  if (alt <= 20) return 12 + ((alt - 5) / 15) * 2.5;    // climbing out: EV 12 → 14.5
-  return 15;                                            // sunny-16 territory
-}
-
-function skyFromEV(ev100) {
-  const alt = sun?.now?.altitudeDeg;
-  const clear = clearSkyEV(alt);
-  if (clear == null) return null;
-  const stops = Math.max(0, clear - ev100);
-  let cloud, word;
-  if (stops < 0.7) { cloud = 8; word = "clear sun"; }
-  else if (stops < 1.5) { cloud = 35; word = "thin haze"; }
-  else if (stops < 2.5) { cloud = 70; word = "bright overcast"; }
-  else if (stops < 3.5) { cloud = 92; word = "solid overcast"; }
-  else { cloud = 100; word = "heavy overcast — or deep shade"; }
-  return { ev: ev100, clear, stops, cloud, word, t: Date.now() };
-}
-
-const MEASURE_FRESH_MS = 30 * 60000;
-function freshMeasure() {
-  return skyMeasure && Date.now() - skyMeasure.t < MEASURE_FRESH_MS ? skyMeasure : null;
-}
-// "now" cloud, everywhere it matters: a fresh camera reading wins; the
-// forecast is only the fallback guess
-function cloudNow() {
-  const m = freshMeasure();
-  return m ? m.cloud : cloudAt(Date.now());
-}
-
 function renderSky() {
   const alt = sun?.now?.altitudeDeg;
   if (alt == null) return;
   $("sky").style.background = skyGradient(alt);
   // the sky tells the truth about the weather too: heavy cloud greys it out
-  const cl = cloudNow();
+  const cl = cloudAt(Date.now());
   $("sky").style.filter = cl != null && cl >= 30
     ? `saturate(${(1 - (cl / 100) * 0.62).toFixed(2)}) brightness(${(1 - (cl / 100) * 0.14).toFixed(2)})`
     : "";
 }
 
-// the one-line read under the countdown: metered truth first, forecast second
+// the one-line read under the countdown, honest about cloud cover
 function renderSunLine() {
   if (!sun) return;
   const n = sun.now;
-  const m = freshMeasure();
-  const cl = cloudNow();
+  const cl = cloudAt(Date.now());
   let qual = n.quality;
-  if (m && n.altitudeDeg > 0) {
-    qual = m.stops < 0.7
-      ? `metered clear: ${n.quality}`
-      : `metered ${m.stops.toFixed(1)} stops under clear sun — ${m.word}`;
-  } else if (cl != null && n.altitudeDeg > 0) {
+  if (cl != null && n.altitudeDeg > 0) {
     if (cl >= 75) qual = "but heavy overcast has it soft, even, and shadowless";
     else if (cl >= 40) qual = `${n.quality} when it breaks through — broken cloud keeps softening it`;
   }
@@ -1471,37 +1394,53 @@ if (navigator.mediaDevices?.addEventListener) {
   navigator.mediaDevices.addEventListener("devicechange", () => { if (stream) syncLensList(); });
 }
 
-// ONE capture, everything after it: on a LiDAR iPhone the camera button
-// itself takes the native depth shot — photo, true depth, and real meters in
-// a single press — and that same frame flows into the read, the plan, and
-// the studio. No separate "LiDAR mode" to find.
-const FRAME_METRIC = new Map(); // frame dataUrl -> raw LiDAR metric block
-function stashMetric(frame, r) {
-  if (!r.metricMeters) return;
-  const w = r.metricWidth, h = r.metricHeight;
-  const bytes = Uint8Array.from(atob(r.metricMeters), (c) => c.charCodeAt(0));
-  if (Number.isInteger(w) && w > 0 && Number.isInteger(h) && h > 0 && bytes.length === w * h * 4) {
-    FRAME_METRIC.set(frame.dataUrl, { samples: new DataView(bytes.buffer), w, h, mppW: r.mppW || 1, mppH: r.mppH || 1 });
-  }
+/* ---- the built-in light meter: live, in the viewfinder, reading the
+   actual frame. No exposure metadata exists in a browser, so it reads what
+   a gaffer actually squints at — the RATIO: how far the bright side sits
+   above the shadows, and whether either end is being lost. ---- */
+let meterTimer = null;
+const meterCanvas = document.createElement("canvas");
+function startFinderMeter() {
+  stopFinderMeter();
+  meterCanvas.width = 64; meterCanvas.height = 48;
+  const g = meterCanvas.getContext("2d", { willReadFrequently: true });
+  const v = $("vf");
+  meterTimer = setInterval(() => {
+    if (!stream || !v.videoWidth) return;
+    try {
+      g.drawImage(v, 0, 0, 64, 48);
+      const d = g.getImageData(0, 0, 64, 48).data;
+      const lums = [];
+      for (let i = 0; i < d.length; i += 4) {
+        lums.push(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]);
+      }
+      lums.sort((a, b) => a - b);
+      const n = lums.length;
+      const pct = (p) => lums[Math.min(n - 1, Math.floor(n * p))];
+      const lin = (l) => Math.pow(Math.max(l, 3) / 255, 2.2); // sRGB → linear light
+      const ratio = lin(pct(0.8)) / lin(pct(0.2));
+      const clip = lums.filter((l) => l >= 250).length / n;
+      const crush = lums.filter((l) => l <= 8).length / n;
+      let word;
+      if (ratio < 2) word = "flat — add shape";
+      else if (ratio < 4) word = "soft · balanced";
+      else if (ratio < 9) word = "shaped · cinematic";
+      else if (ratio < 20) word = "punchy — mind the shadows";
+      else word = "harsh — fill or flag it";
+      const r = ratio < 10 ? ratio.toFixed(1) : String(Math.round(ratio));
+      $("vuMeter").innerHTML = `◉ contrast ≈ ${r}:1 — ${word}`
+        + (clip > 0.02 ? ` · <span style="color:#FF9D82">clipping ${Math.round(clip * 100)}%</span>` : "")
+        + (crush > 0.1 ? ` · crushed ${Math.round(crush * 100)}%` : "");
+    } catch { /* a dropped frame never kills the meter */ }
+  }, 600);
 }
-
-async function depthRead() {
-  $("status").textContent = "One shot — photo + LiDAR depth…";
-  try {
-    const r = await nativeCall("captureDepthShot");
-    const img = await loadImg(r.photo);
-    const frame = downscale(img, img.width, img.height);
-    DEPTH_CACHE.set(frame.dataUrl, r.depth);
-    stashMetric(frame, r);
-    track("lidar_shot");
-    handleFrame(frame);
-  } catch (e) {
-    $("status").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
-  }
+function stopFinderMeter() {
+  clearInterval(meterTimer);
+  meterTimer = null;
+  $("vuMeter").textContent = "◉ light meter — warming up…";
 }
 
 $("openCam").addEventListener("click", async () => {
-  if (window.__SCRIM_NATIVE__?.depth) return depthRead();
   if (!navigator.mediaDevices?.getUserMedia) {
     $("status").innerHTML = `<span class="err">Live view needs a modern browser over HTTPS — use Upload photo.</span>`;
     return;
@@ -1509,6 +1448,7 @@ $("openCam").addEventListener("click", async () => {
   try {
     $("finder").classList.add("open");
     await startStream();
+    startFinderMeter();
   } catch (e) {
     $("finder").classList.remove("open");
     $("status").innerHTML = `<span class="err">Camera unavailable (${esc(e.name || e.message)}). Upload a photo instead.</span>`;
@@ -1523,6 +1463,7 @@ $("camSel").addEventListener("change", async (e) => {
 $("closeCam").addEventListener("click", () => {
   if (stream) stream.getTracks().forEach((t) => t.stop());
   stream = null;
+  stopFinderMeter();
   $("finder").classList.remove("open");
 });
 
@@ -1742,7 +1683,7 @@ async function analyze(frame) {
   try {
     const l = await getLocation();
     $("status").textContent = "Asking the gaffer… (5–20 s)";
-    const res = await aiFetch("/analyze", { image: frame.dataUrl, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString(), cloudCover: cloudNow() });
+    const res = await aiFetch("/analyze", { image: frame.dataUrl, latitude: l.latitude, longitude: l.longitude, timestamp: new Date().toISOString(), cloudCover: cloudAt(Date.now()) });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `request failed (${res.status})`);
     $("status").textContent = "";
@@ -2779,58 +2720,7 @@ function glDraw() {
 function requestDraw() {
   if (studio.dirty) return;
   studio.dirty = true;
-  requestAnimationFrame(() => { studio.dirty = false; glDraw(); updateMeasure(); });
-}
-
-/* ---- metric readout: only when the frame came from a LiDAR depth shot ---- */
-
-function metersAt(u, v) {
-  const m = studio.metric;
-  if (!m) return null;
-  const x = Math.max(0, Math.min(m.w - 1, Math.floor(u * m.w)));
-  const y = Math.max(0, Math.min(m.h - 1, Math.floor(v * m.h)));
-  const meters = m.samples.getFloat32((y * m.w + x) * 4, true);
-  return Number.isFinite(meters) && meters > 0 ? meters : null;
-}
-
-const fmtM = (v) => Math.abs(v) >= 10 ? `${v.toFixed(0)} m` : `${v.toFixed(1)} m`;
-
-function updateMeasure() {
-  const el = $("measureOut");
-  const m = studio.metric;
-  if (!m || !studio.frame) { el.style.display = "none"; return; }
-  el.style.display = "";
-
-  // subject: centre frame; background: far percentile over a sample grid
-  const subjU = 0.5, subjV = 0.42;
-  const dSubj = metersAt(subjU, subjV);
-  if (m.bg == null) {
-    const ds = [];
-    for (let gy = 1; gy < 10; gy++) for (let gx = 1; gx < 10; gx++) {
-      const d = metersAt(gx / 10, gy / 10);
-      if (d) ds.push(d);
-    }
-    ds.sort((a, b) => a - b);
-    m.bg = ds.length ? ds[Math.floor(ds.length * 0.9)] : null;
-  }
-  let out = "";
-  if (dSubj && m.bg) {
-    out = `<span style="color:var(--gold)">◎ LiDAR</span> subject ${fmtM(dSubj)} · background ${fmtM(m.bg)} · separation ${fmtM(Math.max(0, m.bg - dSubj))}`;
-  }
-
-  const l = studio.selType === "light" && studio.lights[studio.sel];
-  if (l && dSubj) {
-    // lateral offsets in real metres at the subject's distance;
-    // depth from the light's scene-z through the same disparity mapping
-    const mx = (l.x - subjU) * dSubj * m.mppW;
-    const my = (l.y - subjV) * dSubj * m.mppH;
-    const lightDisp = m.lo + Math.min(1.15, l.z / 0.55) * m.span;
-    const dLight = 1 / Math.max(lightDisp, 1e-6);
-    const dz = dSubj - dLight;
-    const role = (studio.lights[studio.sel]?.role || LIGHT_ROLES[studio.sel] || "light").toUpperCase();
-    out += `<br>${role}: ${fmtM(Math.abs(mx))} ${mx < 0 ? "camera-left" : "camera-right"} · ${fmtM(Math.abs(my))} ${my < 0 ? "above" : "below"} · ${fmtM(Math.abs(dz))} ${dz >= 0 ? "nearer than subject" : "behind subject"}`;
-  }
-  el.innerHTML = out;
+  requestAnimationFrame(() => { studio.dirty = false; glDraw(); });
 }
 
 /* ---- studio UI ---- */
@@ -2926,7 +2816,7 @@ function studioRenderLights() {
 function deriveSun(frame) {
   const alt = sun?.now?.altitudeDeg;
   if (alt == null || alt <= -6) return null;
-  const cloud = cloudNow();
+  const cloud = cloudAt(Date.now());
   let pos = null, src = null;
   const sf = state?.frame === frame ? state?.diagnosis?.diagram?.sunFrom : null;
   if (sf && clamp01(sf.x) != null) {
@@ -3209,7 +3099,6 @@ async function studioLoad(frame) {
   if (!frame) return;
   track("studio_open");
   studio.frame = frame;
-  studio.metric = null; // set again by the LiDAR path after load
   $("studioEmpty").style.display = "block";
   $("studio").style.display = "none";
   $("studioBootStatus").textContent = "Building the set…";
@@ -3256,10 +3145,6 @@ async function studioLoad(frame) {
     sceneKelvin(frame.dataUrl).then((k) => { studio.sceneK = k; updateKMeter(); });
     studioRenderLights(); studioSyncSliders(); studioRenderHandles();
     updateSunFeed(); updateKMeter();
-    // ground truth rides with the frame: a depth-shot capture stashed its
-    // raw LiDAR meters keyed by this exact image
-    const pm = FRAME_METRIC.get(frame.dataUrl);
-    if (pm) studio.metric = { ...pm, bg: null };
     requestDraw();
   } catch (e) {
     $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
@@ -3361,31 +3246,9 @@ function nativeCall(type, timeoutMs = 25000, payload) {
 // AR sun path: the page owns the sun math, the shell owns the AR view.
 if (window.__SCRIM_NATIVE__?.arsun) $("arSunCard").style.display = "";
 
-// Meter the sky: the native meter's solved exposure, held against the
-// clear-sky EV for this minute's sun — the forecast corrected by a camera.
-if (window.__SCRIM_NATIVE__?.meter) $("meterSkyRow").style.display = "";
-$("meterSkyBtn").addEventListener("click", async () => {
-  const btn = $("meterSkyBtn");
-  if (!sun?.now) { alert("No sun data yet — waiting on location."); return; }
-  btn.disabled = true;
-  try {
-    const r = await nativeCall("meterShow", 5 * 60 * 1000);
-    if (!Number.isFinite(r.ev100)) throw new Error("no reading came back");
-    const m = skyFromEV(r.ev100);
-    if (!m) throw new Error("no sun data yet — tap the location pill and retry");
-    skyMeasure = m;
-    track("sky_meter", m.word);
-    renderWeather(); // redraws the sun line and the sky too
-    // show the working, so a wrong verdict can be argued with
-    $("skyMeterOut").textContent = `EV ${m.ev.toFixed(1)} vs EV ${m.clear.toFixed(1)} clear-sky → ${m.stops.toFixed(1)} stops under → ${m.word}`;
-    btn.textContent = `◉ ${m.word}`;
-    setTimeout(() => { if (btn.isConnected) btn.textContent = "◉ Meter the sky — ground truth"; }, 5000);
-  } catch (e) {
-    if (!/cancel/i.test(String(e.message || e))) $("skyMeterOut").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
-  } finally {
-    btn.disabled = false;
-  }
-});
+// ("Meter the sky" is gone: comparing one reflected reading against a
+// theoretical clear-sky EV guessed wrong too often. The light meter now
+// lives IN the viewfinder, reading the actual frame, live.)
 function arSunPayload() {
   const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const srT = sun.sunrise ? new Date(sun.sunrise).getTime() : null;
@@ -3422,22 +3285,6 @@ $("arSunBtn").addEventListener("click", async () => {
 
 // LiDAR depth shot: the phone measures the room, so the studio's 3D set is
 // ground truth instead of an AI guess. Pro-model iPhones inside the app only.
-if (window.__SCRIM_NATIVE__?.depth) {
-  // LiDAR phones: the camera button is the depth shot — say so
-  $("openCam").textContent = "◉ Shoot — photo + depth";
-}
-// Room & sun is iPhone-app-only: on the web the whole Set tab hides —
-// a tab with nothing real behind it is clutter, not a feature.
-if (window.__SCRIM_NATIVE__?.room) {
-  $("roomCard").style.display = "";
-  $("scanRoomCard").style.display = "";
-  $("scanWebCard").style.display = "none";
-} else {
-  document.querySelector('.tabbtn[data-screen="screen-set"]').style.display = "none";
-}
-// (The separate "LiDAR depth shot" button is gone: the depth capture IS the
-// camera button now — depthRead() above — so ground truth arrives with every
-// read instead of living in a mode nobody found.)
 
 $("saveLook").addEventListener("click", () => {
   glDraw(); // ensure the buffer is fresh
