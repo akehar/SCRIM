@@ -372,6 +372,12 @@
   /* chat lives in the Ask tab */
 
   #map { background: #15141C; filter: saturate(0.8) brightness(0.9); }
+  .shotpin {
+    width: 26px; height: 26px; border-radius: 50%; background: var(--ochre); color: #171106;
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid rgba(255,255,255,0.88); box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
   .leaflet-container { font-family: var(--mono); }
   .shotrow { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--hair); font-size: 14.5px; }
   .shotrow:last-child { border-bottom: none; }
@@ -467,6 +473,8 @@
         <div class="herenote" id="hereNote"></div>
         <div class="actions" id="meterSkyRow" style="display:none;margin:12px 0 0;grid-template-columns:1fr">
           <button class="btn" id="meterSkyBtn" type="button">&#9673; Meter the sky &mdash; ground truth</button>
+          <p class="hint" style="margin:6px 0 0;text-align:center">Point at your scene in the open &mdash; not straight at the sky.</p>
+          <p class="status" id="skyMeterOut" style="text-align:center;margin-top:4px"></p>
         </div>
       </div>
       <div class="card" id="arSunCard" style="display:none">
@@ -518,10 +526,12 @@
       <div class="card" style="border-bottom:none;padding-bottom:6px">
         <h2 style="color:var(--ochre)">Plan the day</h2>
         <div class="looks projrow"></div>
+        <p class="hint" style="margin:8px 0 0">Name the project (&#9998;) &mdash; the day plan, call sheets, and light sheet all carry it, so a DP or scout can hand files to the crew by look.</p>
       </div>
       <div class="card" style="padding:0;overflow:hidden;position:relative">
         <div id="map" style="height:280px;border-radius:18px"></div>
         <button class="ghost" id="recenter" type="button" style="position:absolute;right:8px;top:8px;z-index:500">◎ me</button>
+        <button class="ghost" id="fitShots" type="button" style="position:absolute;right:8px;top:48px;z-index:500">⤢ all</button>
       </div>
       <p class="hint" id="mapHint" style="margin:8px 2px 0">Tap the map to scout a spot — amber pins are scenes you've already read.</p>
       <div class="card" id="pinCard" style="display:none">
@@ -540,7 +550,10 @@
         </div>
         <div id="ppane-shots" role="tabpanel">
           <div id="shotList"><p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p></div>
-          <div class="actions" style="margin:10px 0 0">
+          <div class="actions" style="grid-template-columns:1fr;margin:10px 0 0">
+            <button class="btn primary" id="routeShots" type="button">&#10230; Route the day in Google Maps</button>
+          </div>
+          <div class="actions" style="margin:8px 0 0">
             <button class="btn" id="exportPlan" type="button">Share day plan</button>
             <button class="btn" id="clearShots" type="button">Clear shots</button>
           </div>
@@ -564,7 +577,7 @@
         <button class="cmode" role="tab" data-cmode="meter" aria-selected="false" type="button">Meter</button>
         <button class="cmode" role="tab" data-cmode="scan" aria-selected="false" type="button">Scan</button>
       </div>
-      <p class="dialhint" id="dialHint">AI reads the light in your frame, then plans the fix</p>
+      <p class="dialhint" id="dialHint">One shot: the read, the plan, and a studio you can light by hand</p>
 
       <div id="cpane-read">
       <div class="actions">
@@ -573,14 +586,6 @@
       </div>
       <input id="shot" type="file" accept="image/*" />
       <p class="hint">Phone camera, or a pro camera over USB. Frames go to the server for analysis only — nothing renders until you ask.</p>
-      <div class="card">
-        <h2 style="color:var(--ochre)">Relight Studio</h2>
-        <p class="hint" style="margin:0 0 10px">Light your frame by hand — drag real fixtures, hang silks, cut with negative fill, live. Then make it real.</p>
-        <div class="actions" style="margin:0;grid-template-columns:1fr">
-          <button class="btn" id="openStudio" type="button">◐ Open the studio</button>
-        </div>
-      </div>
-
       <div class="card" id="finder">
         <div class="vfwrap">
           <video id="vf" autoplay playsinline muted></video>
@@ -617,13 +622,6 @@
       </div>
 
       <div id="cpane-scan" hidden>
-        <div class="card" id="scanDepthCard" style="display:none">
-          <h2 style="color:var(--ochre)">LiDAR depth shot</h2>
-          <p class="hint" style="margin:0 0 10px">The phone measures the room — your Relight set becomes ground truth, with real meters between lights, subject, and background.</p>
-          <div class="actions" style="margin:0;grid-template-columns:1fr">
-            <button class="btn primary" id="scanDepthGo" type="button">&#9678; Take a depth shot</button>
-          </div>
-        </div>
         <div class="card" id="scanRoomCard" style="display:none">
           <h2>Room &amp; sun</h2>
           <p class="hint" style="margin:0 0 10px">Scan the room once &mdash; walls and windows &mdash; and play the sun through it all day. Lives on the <b>Set</b> tab.</p>
@@ -633,7 +631,7 @@
         </div>
         <div class="card" id="scanWebCard">
           <h2>Scanning needs the iPhone app</h2>
-          <p class="hint" style="margin:0">LiDAR depth shots and room scanning use the iPhone&rsquo;s depth sensor &mdash; they switch on automatically in the Scrim app on a Pro-model iPhone.</p>
+          <p class="hint" style="margin:0">Room scanning uses the iPhone&rsquo;s LiDAR &mdash; it switches on automatically in the Scrim app on a Pro-model iPhone, as does depth capture on every camera shot.</p>
         </div>
       </div>
     </section>
@@ -653,9 +651,6 @@
         </div>
         <div class="actions" style="margin:8px 0 0;grid-template-columns:1fr">
           <button class="btn" id="proposeBoot" type="button">&#10022; Propose a setup &mdash; the gaffer rigs it for you</button>
-        </div>
-        <div class="actions" id="lidarRow" style="margin:8px 0 0;display:none;grid-template-columns:1fr">
-          <button class="btn" id="lidarShot" type="button">&#9678; LiDAR depth shot &mdash; ground truth</button>
         </div>
         <input id="studioShot" type="file" accept="image/*" />
         <p class="status" id="studioBootStatus"></p>
@@ -804,9 +799,9 @@ $("askClose").addEventListener("click", () => gotoScreen(askReturn));
 
 /* ---- Camera mode dial: READ · METER · SCAN ---- */
 const DIAL_HINTS = {
-  read: "AI reads the light in your frame, then plans the fix",
+  read: "One shot: the read, the plan, and a studio you can light by hand",
   meter: "EV · f-stop · ISO — a light meter in your pocket",
-  scan: "LiDAR measures the space — depth shots and rooms",
+  scan: "Scan the room once — then play the sun through it all day",
 };
 document.querySelectorAll(".cmode").forEach((b) => b.addEventListener("click", () => {
   document.querySelectorAll(".cmode").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
@@ -1064,11 +1059,16 @@ function skyGradient(alt) {
    stops says what the sky is ACTUALLY doing right here, right now. */
 let skyMeasure = null; // { ev, stops, cloud, word, t }
 
+// Anchored to sunny 16: once the sun is ~20° up, a clear front-lit scene
+// meters EV 15 at ISO 100 and stays there. (The first curve here sagged a
+// stop too low at mid altitudes, so real overcast read as "clear".)
 function clearSkyEV(alt) {
   if (alt == null) return null;
-  if (alt <= -6) return 3;
-  if (alt <= 0) return 9.5 + alt * 1.1;                        // twilight falls ~1 EV/degree
-  return 9.5 + Math.pow(Math.min(1, alt / 40), 0.6) * 5.5;     // EV 9.5 at the horizon → 15 high
+  if (alt <= -6) return 2;
+  if (alt <= 0) return 9 + alt;                         // twilight: ~1 EV per degree
+  if (alt <= 5) return 9 + (alt / 5) * 3;               // golden hour: EV 9 → 12
+  if (alt <= 20) return 12 + ((alt - 5) / 15) * 2.5;    // climbing out: EV 12 → 14.5
+  return 15;                                            // sunny-16 territory
 }
 
 function skyFromEV(ev100) {
@@ -1082,7 +1082,7 @@ function skyFromEV(ev100) {
   else if (stops < 2.5) { cloud = 70; word = "bright overcast"; }
   else if (stops < 3.5) { cloud = 92; word = "solid overcast"; }
   else { cloud = 100; word = "heavy overcast — or deep shade"; }
-  return { ev: ev100, stops, cloud, word, t: Date.now() };
+  return { ev: ev100, clear, stops, cloud, word, t: Date.now() };
 }
 
 const MEASURE_FRESH_MS = 30 * 60000;
@@ -1471,7 +1471,37 @@ if (navigator.mediaDevices?.addEventListener) {
   navigator.mediaDevices.addEventListener("devicechange", () => { if (stream) syncLensList(); });
 }
 
+// ONE capture, everything after it: on a LiDAR iPhone the camera button
+// itself takes the native depth shot — photo, true depth, and real meters in
+// a single press — and that same frame flows into the read, the plan, and
+// the studio. No separate "LiDAR mode" to find.
+const FRAME_METRIC = new Map(); // frame dataUrl -> raw LiDAR metric block
+function stashMetric(frame, r) {
+  if (!r.metricMeters) return;
+  const w = r.metricWidth, h = r.metricHeight;
+  const bytes = Uint8Array.from(atob(r.metricMeters), (c) => c.charCodeAt(0));
+  if (Number.isInteger(w) && w > 0 && Number.isInteger(h) && h > 0 && bytes.length === w * h * 4) {
+    FRAME_METRIC.set(frame.dataUrl, { samples: new DataView(bytes.buffer), w, h, mppW: r.mppW || 1, mppH: r.mppH || 1 });
+  }
+}
+
+async function depthRead() {
+  $("status").textContent = "One shot — photo + LiDAR depth…";
+  try {
+    const r = await nativeCall("captureDepthShot");
+    const img = await loadImg(r.photo);
+    const frame = downscale(img, img.width, img.height);
+    DEPTH_CACHE.set(frame.dataUrl, r.depth);
+    stashMetric(frame, r);
+    track("lidar_shot");
+    handleFrame(frame);
+  } catch (e) {
+    $("status").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
+  }
+}
+
 $("openCam").addEventListener("click", async () => {
+  if (window.__SCRIM_NATIVE__?.depth) return depthRead();
   if (!navigator.mediaDevices?.getUserMedia) {
     $("status").innerHTML = `<span class="err">Live view needs a modern browser over HTTPS — use Upload photo.</span>`;
     return;
@@ -2032,9 +2062,8 @@ function renderResults() {
       <div id="pane-diagram" role="tabpanel"></div>
       <div id="pane-overhead" role="tabpanel" hidden></div>
       <div id="pane-compare" role="tabpanel" hidden></div>
-      <div class="actions" style="margin:12px 0 0">
+      <div class="actions" style="grid-template-columns:1fr;margin:12px 0 0">
         <button class="btn" id="exportSheet" type="button">Share the call sheet</button>
-        <button class="btn pro-only" id="toStudio" type="button">Open in Relight Studio ◐</button>
       </div>
     </div>`;
 
@@ -2077,7 +2106,6 @@ function renderResults() {
     proposeRig($("proposeBoot"));
   });
   $("exportSheet").addEventListener("click", () => { track("call_sheet"); exportCallSheet(); });
-  $("toStudio").addEventListener("click", () => { gotoScreen("screen-light"); studioLoad(state.frame); });
 
   // scope to the frame viewer: the Plan screen has its own tabs/panels
   document.querySelectorAll("#out .tab[data-pane]").forEach((t) => t.addEventListener("click", () => {
@@ -3228,6 +3256,10 @@ async function studioLoad(frame) {
     sceneKelvin(frame.dataUrl).then((k) => { studio.sceneK = k; updateKMeter(); });
     studioRenderLights(); studioSyncSliders(); studioRenderHandles();
     updateSunFeed(); updateKMeter();
+    // ground truth rides with the frame: a depth-shot capture stashed its
+    // raw LiDAR meters keyed by this exact image
+    const pm = FRAME_METRIC.get(frame.dataUrl);
+    if (pm) studio.metric = { ...pm, bg: null };
     requestDraw();
   } catch (e) {
     $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
@@ -3344,10 +3376,12 @@ $("meterSkyBtn").addEventListener("click", async () => {
     skyMeasure = m;
     track("sky_meter", m.word);
     renderWeather(); // redraws the sun line and the sky too
-    btn.textContent = `◉ ${m.word} — EV ${m.ev.toFixed(1)}`;
+    // show the working, so a wrong verdict can be argued with
+    $("skyMeterOut").textContent = `EV ${m.ev.toFixed(1)} vs EV ${m.clear.toFixed(1)} clear-sky → ${m.stops.toFixed(1)} stops under → ${m.word}`;
+    btn.textContent = `◉ ${m.word}`;
     setTimeout(() => { if (btn.isConnected) btn.textContent = "◉ Meter the sky — ground truth"; }, 5000);
   } catch (e) {
-    if (!/cancel/i.test(String(e.message || e))) alert(String(e.message || e));
+    if (!/cancel/i.test(String(e.message || e))) $("skyMeterOut").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
   } finally {
     btn.disabled = false;
   }
@@ -3389,9 +3423,8 @@ $("arSunBtn").addEventListener("click", async () => {
 // LiDAR depth shot: the phone measures the room, so the studio's 3D set is
 // ground truth instead of an AI guess. Pro-model iPhones inside the app only.
 if (window.__SCRIM_NATIVE__?.depth) {
-  $("lidarRow").style.display = "";
-  $("scanDepthCard").style.display = "";
-  $("scanWebCard").style.display = "none";
+  // LiDAR phones: the camera button is the depth shot — say so
+  $("openCam").textContent = "◉ Shoot — photo + depth";
 }
 // Room & sun is iPhone-app-only: on the web the whole Set tab hides —
 // a tab with nothing real behind it is clutter, not a feature.
@@ -3402,41 +3435,9 @@ if (window.__SCRIM_NATIVE__?.room) {
 } else {
   document.querySelector('.tabbtn[data-screen="screen-set"]').style.display = "none";
 }
-$("scanDepthGo").addEventListener("click", () => {
-  gotoScreen("screen-light");
-  $("lidarShot").click();
-});
-$("lidarShot").addEventListener("click", async () => {
-  const btn = $("lidarShot");
-  btn.disabled = true;
-  $("studioBootStatus").textContent = "Hold the phone on your frame — reading the room with LiDAR…";
-  try {
-    const r = await nativeCall("captureDepthShot");
-    const img = await loadImg(r.photo);
-    const frame = downscale(img, img.width, img.height);
-    DEPTH_CACHE.set(frame.dataUrl, r.depth);
-    track("lidar_shot");
-    await studioLoad(frame);
-    // Metric distances come from raw LiDAR values, independent of the
-    // display map's clipping, quantization, and browser color conversion.
-    if (r.metricMeters && studio.frame === frame) {
-      const w = r.metricWidth, h = r.metricHeight;
-      const bytes = Uint8Array.from(atob(r.metricMeters), c => c.charCodeAt(0));
-      if (Number.isInteger(w) && w > 0 && Number.isInteger(h) && h > 0 && bytes.length === w * h * 4) {
-        studio.metric = {
-          samples: new DataView(bytes.buffer), w, h,
-          mppW: r.mppW || 1, mppH: r.mppH || 1,
-          bg: null,
-        };
-        updateMeasure();
-      }
-    }
-  } catch (e) {
-    $("studioBootStatus").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
-  } finally {
-    btn.disabled = false;
-  }
-});
+// (The separate "LiDAR depth shot" button is gone: the depth capture IS the
+// camera button now — depthRead() above — so ground truth arrives with every
+// read instead of living in a mode nobody found.)
 
 $("saveLook").addEventListener("click", () => {
   glDraw(); // ensure the buffer is fresh
@@ -3635,11 +3636,58 @@ function refreshPins() {
   pinLayer.forEach((m) => map.removeLayer(m));
   pinLayer = [];
   logForProject().filter((e) => e.lat != null).forEach((e) => {
-    const m = L.circleMarker([e.lat, e.lng], { radius: 8, color: "#A6452D", weight: 2, fillColor: "#A6452D", fillOpacity: 0.75 }).addTo(map);
+    const m = L.circleMarker([e.lat, e.lng], { radius: 8, color: "#E8A33D", weight: 2, fillColor: "#E8A33D", fillOpacity: 0.75 }).addTo(map);
     m.on("click", () => selectPin({ lat: e.lat, lng: e.lng, label: e.sum || "Scene", scout: false }));
     pinLayer.push(m);
   });
+  refreshShotPins();
 }
+
+// Planned shots get NUMBERED pins in shooting order (ordered by their light
+// windows), so the day reads on the map: 1, then 2, then 3.
+let shotLayer = [];
+function refreshShotPins() {
+  if (!map || typeof L === "undefined") return;
+  shotLayer.forEach((m) => map.removeLayer(m));
+  shotLayer = [];
+  sortedShots().forEach((sh, i) => {
+    const m = L.marker([sh.lat, sh.lng], {
+      icon: L.divIcon({ className: "", html: `<div class="shotpin">${i + 1}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
+      zIndexOffset: 500,
+    }).addTo(map);
+    m.on("click", () => selectPin({ lat: sh.lat, lng: sh.lng, label: sh.label, scout: false }));
+    shotLayer.push(m);
+  });
+}
+
+$("fitShots").addEventListener("click", () => {
+  if (!map) return;
+  const pts = sortedShots().map((s) => [Number(s.lat), Number(s.lng)])
+    .concat(logForProject().filter((e) => e.lat != null).map((e) => [e.lat, e.lng]));
+  if (loc) pts.push([loc.latitude, loc.longitude]);
+  if (pts.length) map.fitBounds(pts, { padding: [36, 36], maxZoom: 16 });
+  else $("mapHint").textContent = "Nothing to frame yet — read a frame or add a shot first.";
+});
+
+// The optimal route IS the shot order (shots sort by their light windows):
+// hand it to Google Maps as a multi-stop drive from wherever you stand.
+$("routeShots").addEventListener("click", () => {
+  const shots = sortedShots();
+  if (!shots.length) {
+    $("mapHint").textContent = "No shots yet — tap the map, pick a look, Add to shot list.";
+    return;
+  }
+  const pts = shots.map((s) => `${Number(s.lat).toFixed(6)},${Number(s.lng).toFixed(6)}`);
+  if (loc) pts.unshift(`${loc.latitude.toFixed(6)},${loc.longitude.toFixed(6)}`);
+  track("route_day", String(shots.length));
+  const a = document.createElement("a");
+  a.href = "https://www.google.com/maps/dir/" + pts.join("/");
+  a.target = "_blank";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
 
 async function selectPin(p) {
   pinSel = { ...p, windows: [], winSel: 0, lookId: "golden", data: null };
@@ -3735,6 +3783,7 @@ function renderShots() {
     saveShots(all);
     renderShots();
   }));
+  if (map) refreshShotPins();
 }
 $("clearShots").addEventListener("click", () => {
   const n = sortedShots().length;
@@ -3920,7 +3969,6 @@ $("fbSend").addEventListener("click", async () => {
 
 /* ---------- instruments: enter and leave the studio ---------- */
 $("studioBack").addEventListener("click", () => gotoScreen("screen-shoot"));
-$("openStudio").addEventListener("click", () => { gotoScreen("screen-light"); track("studio_entry"); });
 
 /* ---------- boot ---------- */
 track("app_open");
