@@ -486,7 +486,7 @@ ${card("feedback", FEEDBACK.length, "")}
 
 // ---------- the worker ----------
 
-const PAGE_REWRITES = { "/scan": "/scan.html", "/meter": "/meter.html", "/room": "/room.html" };
+const PAGE_REWRITES = { "/scan": "/scan.html", "/meter": "/meter.html", "/room": "/room.html", "/diag": "/diag.html" };
 
 export default {
   async fetch(request, env, ctx) {
@@ -512,7 +512,7 @@ export default {
             ok: true,
             // bump per release: open /health in a browser to see which build
             // is actually live, ending every "did the deploy take?" mystery
-            build: "2026-11-27 auto-deploy from main",
+            build: "2026-11-28 diagnostics",
             gemini: Boolean(env.GEMINI_API_KEY),
             locked: Boolean(env.ACCESS_CODE) || clerkOn(env),
             clerk: clerkOn(env) ? env.CLERK_PUBLISHABLE_KEY : null,

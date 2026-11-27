@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0D0C12">
+<title>Scrim diagnostics</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/vendor/fonts/fonts.css">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #F4EFE6; --ochre: #E8A33D; --muted: #A59E90; --hair: rgba(244,239,230,0.16);
+    --ok: #A9C88F; --bad: #FF8E70;
+    --serif: "Newsreader", Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; max-width: 560px; min-height: 100dvh; color: var(--ink); font-family: var(--serif);
+    background: linear-gradient(180deg, #07091A 0%, #16142A 60%, #241A28 100%) fixed #0D0C12;
+    padding: calc(14px + env(safe-area-inset-top)) 18px calc(30px + env(safe-area-inset-bottom));
+  }
+  header { display: flex; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--hair); padding-bottom: 10px; }
+  header a { color: var(--ink); text-decoration: none; font-family: var(--mono); font-size: 12px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 500; flex: 1; }
+  .card {
+    margin-top: 12px; padding: 14px 16px; border: 1px solid var(--hair); border-radius: 18px;
+    background: rgba(13,11,18,0.5);
+  }
+  h2 { margin: 0 0 8px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ochre); }
+  .row { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(244,239,230,0.07); }
+  .row span:first-child { color: var(--muted); flex: 0 0 auto; }
+  .row span:last-child { text-align: right; word-break: break-word; }
+  button {
+    width: 100%; min-height: 48px; margin-top: 10px; border-radius: 14px; cursor: pointer;
+    font-family: var(--mono); font-size: 12.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    border: 1.5px solid var(--ink); background: transparent; color: var(--ink);
+  }
+  button.primary { background: var(--ochre); border-color: var(--ochre); color: #171106; }
+  button:disabled { opacity: 0.45; }
+  .verdict { margin-top: 10px; font-size: 15px; line-height: 1.45; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  .hint { font-size: 13.5px; color: var(--muted); line-height: 1.45; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&larr; SCRIM</a>
+  <h1>Diagnostics</h1>
+</header>
+<p class="hint">Tap the three tests in order, then Send report. It takes about 20 seconds and shows exactly why location or the compass is failing on this phone.</p>
+
+<div class="card">
+  <h2>This device</h2>
+  <div id="env"></div>
+</div>
+
+<div class="card">
+  <h2>1 · Location</h2>
+  <div id="locOut"><p class="hint">Not tested yet. If your phone asks to share your location, tap Allow.</p></div>
+  <button class="primary" id="locBtn" type="button">Test location</button>
+</div>
+
+<div class="card">
+  <h2>2 · Compass</h2>
+  <div id="cmpOut"><p class="hint">Not tested yet. If your phone asks for motion and orientation access, tap Allow, then hold the phone flat and turn slowly.</p></div>
+  <button class="primary" id="cmpBtn" type="button">Test compass</button>
+</div>
+
+<div class="card">
+  <h2>3 · Server</h2>
+  <div id="srvOut"><p class="hint">Not tested yet.</p></div>
+  <button class="primary" id="srvBtn" type="button">Test server</button>
+</div>
+
+<div class="card">
+  <h2>Report</h2>
+  <p class="hint">Sends these results to the Scrim admin dashboard. No photos and no exact location are sent; only whether location worked and how accurate it was.</p>
+  <button class="primary" id="sendBtn" type="button">Send report</button>
+  <button id="copyBtn" type="button">Copy report</button>
+  <p class="hint" id="sendOut"></p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const report = { env: {}, location: "not tested", compass: "not tested", server: "not tested" };
+
+  const ua = navigator.userAgent;
+  const iOS = /iPhone|iPad/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+  const chrome = /CriOS/i.test(ua) || (/Chrome/i.test(ua) && !/Edg|OPR/i.test(ua));
+  const firefox = /Firefox|FxiOS/i.test(ua);
+  const inApp = Boolean(window.ReactNativeWebView || window.__SCRIM_NATIVE__);
+  const browser = inApp ? "Scrim iPhone app" : chrome ? "Chrome" : firefox ? "Firefox" : /Safari/i.test(ua) ? "Safari" : "other";
+  const device = iOS ? "iPhone/iPad" : /Android/i.test(ua) ? "Android" : /Macintosh/i.test(ua) ? "Mac" : "computer";
+
+  const rows = (pairs) => pairs.map(([k, v, cls]) =>
+    `<div class="row"><span>${esc(k)}</span><span class="${cls || ""}">${esc(v)}</span></div>`).join("");
+
+  // where the switch lives, per browser, for a denial that never prompted
+  function fixSteps() {
+    if (inApp) return "iPhone Settings → Apps → Scrim → Location → While Using the App. If Scrim is missing there, Settings → Privacy & Security → Location Services must be on.";
+    if (iOS && browser === "Safari") return "1) iPhone Settings → Privacy & Security → Location Services: ON, and Safari Websites → While Using the App. 2) iPhone Settings → Apps → Safari → Location → Ask or Allow (not Deny). 3) Reload this page and tap Allow.";
+    if (iOS && browser === "Chrome") return "1) iPhone Settings → Privacy & Security → Location Services: ON, and Chrome → While Using the App. 2) In Chrome: ⋯ → Settings → Content Settings / Site Settings → Location → allow this site. 3) Reload and tap Allow.";
+    if (device === "Mac" && browser === "Safari") return "Safari menu → Settings → Websites → Location → set this site to Allow. Also System Settings → Privacy & Security → Location Services: Safari on.";
+    if (browser === "Chrome") return "Click the icon left of the address bar → Site settings → Location → Allow, then reload. On a Mac also check System Settings → Privacy & Security → Location Services → Chrome.";
+    return "Allow location for this site in the browser's site settings, and for the browser in the phone's Location Services settings.";
+  }
+
+  async function envCheck() {
+    let perm = "not supported";
+    try {
+      if (navigator.permissions?.query) perm = (await navigator.permissions.query({ name: "geolocation" })).state;
+    } catch { perm = "query failed"; }
+    report.env = {
+      device, browser, inApp,
+      secure: window.isSecureContext,
+      geolocationAPI: Boolean(navigator.geolocation),
+      geoPermission: perm,
+      orientationAPI: typeof DeviceOrientationEvent !== "undefined",
+      orientationNeedsTap: typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function",
+      online: navigator.onLine,
+      ua: ua.slice(0, 160),
+      time: new Date().toString(),
+    };
+    $("env").innerHTML = rows([
+      ["device", device],
+      ["browser", browser],
+      ["secure page (https)", window.isSecureContext ? "yes" : "NO", window.isSecureContext ? "ok" : "bad"],
+      ["location API", navigator.geolocation ? "present" : "MISSING", navigator.geolocation ? "ok" : "bad"],
+      ["location permission", perm, perm === "granted" ? "ok" : perm === "denied" ? "bad" : ""],
+      ["compass API", report.env.orientationAPI ? "present" : "missing", report.env.orientationAPI ? "ok" : "bad"],
+      ["online", navigator.onLine ? "yes" : "NO", navigator.onLine ? "ok" : "bad"],
+    ]);
+  }
+
+  $("locBtn").addEventListener("click", () => {
+    const btn = $("locBtn");
+    if (!navigator.geolocation) { $("locOut").innerHTML = `<div class="verdict bad">This browser has no location support at all.</div>`; report.location = "no API"; return; }
+    btn.disabled = true;
+    $("locOut").innerHTML = `<p class="hint">Asking for your location… (up to 20 s)</p>`;
+    const t0 = performance.now();
+    navigator.geolocation.getCurrentPosition((p) => {
+      const ms = Math.round(performance.now() - t0);
+      const acc = Math.round(p.coords.accuracy);
+      report.location = `OK in ${ms} ms, accuracy ±${acc} m`;
+      $("locOut").innerHTML = rows([["result", "working", "ok"], ["time", ms + " ms"], ["accuracy", "±" + acc + " m"]])
+        + `<div class="verdict ok">Location works on this device. ${acc > 3000 ? "Accuracy is coarse; turn on Precise Location for this browser in iPhone Settings for best sun timing." : "Scrim's sun math will be accurate here."}</div>`;
+      btn.disabled = false;
+      envCheck();
+    }, (e) => {
+      const ms = Math.round(performance.now() - t0);
+      const name = { 1: "PERMISSION_DENIED", 2: "POSITION_UNAVAILABLE", 3: "TIMEOUT" }[e.code] || "UNKNOWN";
+      let why;
+      if (e.code === 1 && ms < 400) why = `Denied instantly (${ms} ms), so no permission box was shown. The block is in your phone or browser settings, not the website. Fix: ${fixSteps()}`;
+      else if (e.code === 1) why = `The permission box appeared and was declined, or a saved "Don't Allow" answered for you. Fix: ${fixSteps()}`;
+      else if (e.code === 2) why = "The phone could not get a position. Check that Location Services is on, step outside or near a window, and try again.";
+      else if (e.code === 3) why = "No position within 20 seconds. Move near a window or outdoors and try again; turning Wi-Fi on helps a lot indoors.";
+      else why = "Unexpected error.";
+      report.location = `FAILED ${name} after ${ms} ms: ${e.message || ""}`;
+      $("locOut").innerHTML = rows([["result", name, "bad"], ["time", ms + " ms"], ["message", e.message || "(none)"]])
+        + `<div class="verdict bad">${esc(why)}</div>`;
+      btn.disabled = false;
+      envCheck();
+    }, { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 });
+  });
+
+  $("cmpBtn").addEventListener("click", async () => {
+    const btn = $("cmpBtn");
+    btn.disabled = true;
+    let perm = "not needed";
+    try {
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+        perm = await DeviceOrientationEvent.requestPermission();
+      }
+    } catch (e) { perm = "error: " + (e.message || e); }
+    $("cmpOut").innerHTML = `<p class="hint">Listening for 4 seconds — turn the phone slowly…</p>`;
+    let n = 0, last = null;
+    const onEv = (ev) => {
+      n++;
+      last = {
+        heading: typeof ev.webkitCompassHeading === "number" ? Math.round(ev.webkitCompassHeading) : null,
+        accuracy: typeof ev.webkitCompassAccuracy === "number" ? Math.round(ev.webkitCompassAccuracy) : null,
+        alpha: ev.alpha == null ? null : Math.round(ev.alpha),
+        absolute: Boolean(ev.absolute || ev.type === "deviceorientationabsolute"),
+      };
+    };
+    window.addEventListener("deviceorientation", onEv, true);
+    window.addEventListener("deviceorientationabsolute", onEv, true);
+    await new Promise((r) => setTimeout(r, 4000));
+    window.removeEventListener("deviceorientation", onEv, true);
+    window.removeEventListener("deviceorientationabsolute", onEv, true);
+    const heading = last?.heading ?? (last?.absolute && last.alpha != null ? (360 - last.alpha) % 360 : null);
+    let verdict, cls;
+    if ((device === "Mac" || device === "computer") && heading == null) { verdict = "Computers have no compass, so this is expected. Run this test on your phone."; cls = ""; }
+    else if (/denied/i.test(perm)) { verdict = `Motion access was denied. ${inApp ? "Delete and reinstall the app, or check iPhone Settings → Apps → Scrim." : "On iPhone, close this tab completely, reopen the page, and tap Allow when asked. If it never asks: iPhone Settings → Apps → Safari → Motion & Orientation Access: ON."}`; cls = "bad"; }
+    else if (!n) { verdict = device === "Mac" || device === "computer" ? "No compass events. Computers have no compass, which is expected. Use a phone." : "No compass events arrived. On iPhone Safari check Settings → Apps → Safari → Motion & Orientation Access: ON, then reload."; cls = "bad"; }
+    else if (heading == null) { verdict = "Motion events arrive, but without a true north heading. Tilt the phone flat; on Android, Chrome is the most reliable browser for this."; cls = "bad"; }
+    else { verdict = `Compass works: facing ${Math.round(heading)}°${last.accuracy != null && last.accuracy > 25 ? ` (accuracy ±${last.accuracy}°, wave the phone in a figure-8 to calibrate)` : ""}.`; cls = "ok"; }
+    report.compass = `permission=${perm}, events=${n}, heading=${heading == null ? "none" : Math.round(heading)}, acc=${last?.accuracy ?? "n/a"}`;
+    $("cmpOut").innerHTML = rows([["permission", perm], ["events in 4 s", String(n)], ["heading", heading == null ? "none" : Math.round(heading) + "°"]])
+      + `<div class="verdict ${cls}">${esc(verdict)}</div>`;
+    btn.disabled = false;
+  });
+
+  $("srvBtn").addEventListener("click", async () => {
+    const btn = $("srvBtn");
+    btn.disabled = true;
+    const out = [];
+    try {
+      const h = await (await fetch("/health", { cache: "no-store" })).json();
+      out.push(["build", h.build || "(none)", h.build ? "ok" : "bad"], ["AI key", h.gemini ? "set" : "MISSING", h.gemini ? "ok" : "bad"]);
+      report.server = `build=${h.build || "none"}, gemini=${h.gemini}`;
+    } catch (e) { out.push(["health", "FAILED", "bad"]); report.server = "health failed: " + (e.message || e); }
+    try {
+      const s = await fetch("/sun?lat=40.7&lng=-74", { cache: "no-store" });
+      out.push(["sun math", s.ok ? "ok" : "HTTP " + s.status, s.ok ? "ok" : "bad"]);
+      report.server += `, sun=${s.status}`;
+    } catch { out.push(["sun math", "FAILED", "bad"]); report.server += ", sun=failed"; }
+    try {
+      const w = await fetch("https://api.open-meteo.com/v1/forecast?latitude=40.7&longitude=-74&hourly=cloud_cover&forecast_days=1", { cache: "no-store" });
+      out.push(["weather service", w.ok ? "ok" : "HTTP " + w.status, w.ok ? "ok" : "bad"]);
+      report.server += `, weather=${w.status}`;
+    } catch { out.push(["weather service", "FAILED", "bad"]); report.server += ", weather=failed"; }
+    $("srvOut").innerHTML = rows(out);
+    btn.disabled = false;
+  });
+
+  function reportText() {
+    const e = report.env;
+    return [
+      `SCRIM DIAGNOSTICS · ${e.time}`,
+      `device: ${e.device} · browser: ${e.browser} · in app: ${e.inApp}`,
+      `https: ${e.secure} · location API: ${e.geolocationAPI} · permission: ${e.geoPermission}`,
+      `compass API: ${e.orientationAPI} · needs tap: ${e.orientationNeedsTap} · online: ${e.online}`,
+      `LOCATION: ${report.location}`,
+      `COMPASS: ${report.compass}`,
+      `SERVER: ${report.server}`,
+      `ua: ${e.ua}`,
+    ].join("\n");
+  }
+
+  $("sendBtn").addEventListener("click", async () => {
+    $("sendBtn").disabled = true;
+    try {
+      const r = await fetch("/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "DIAGNOSTICS", text: reportText() }),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      $("sendOut").innerHTML = `<span class="ok">Sent. It's in the admin dashboard under Feedback.</span>`;
+    } catch (e) {
+      $("sendOut").innerHTML = `<span class="bad">Couldn't send (${esc(e.message || e)}). Use Copy report instead.</span>`;
+    } finally {
+      $("sendBtn").disabled = false;
+    }
+  });
+
+  $("copyBtn").addEventListener("click", async () => {
+    const t = reportText();
+    try { await navigator.clipboard.writeText(t); $("sendOut").innerHTML = `<span class="ok">Copied. Paste it into the chat.</span>`; }
+    catch { $("sendOut").innerHTML = `<pre style="white-space:pre-wrap;font-size:11px;user-select:all">${esc(t)}</pre>`; }
+  });
+
+  envCheck();
+})();
+</script>
+</body>
+</html>

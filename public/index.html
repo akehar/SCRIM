@@ -1197,7 +1197,8 @@ async function loadSun(forceLoc = false) {
   } catch (e) {
     clearInterval(ticker);
     $("locPill").textContent = "no location · tap to retry";
-    $("clock").innerHTML = `<span class="err" style="font-size:14px;font-weight:400">${esc(e.message || e)}</span>`;
+    $("clock").innerHTML = `<span class="err" style="font-size:14px;font-weight:400">${esc(e.message || e)}</span>`
+      + `<div style="margin-top:8px"><a href="/diag" style="font-family:var(--mono);font-size:12px;letter-spacing:0.08em;color:var(--ochre)">RUN DIAGNOSTICS →</a></div>`;
     $("sunNow").innerHTML = `
       <div class="hint" style="text-align:left">No permission needed this way · type the nearest city:</div>
       <div style="display:flex;gap:8px;margin-top:8px">
@@ -1339,7 +1340,15 @@ function handleOrientation(e) {
 }
 
 function renderCompass() {
-  if (!sun || heading == null) return;
+  if (heading == null) return;
+  if (!sun) {
+    // no location yet: the compass still works as a compass, so show the
+    // heading instead of sitting dead until the sun math arrives
+    const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    $("needle").style.transform = `rotate(${-heading}deg)`;
+    $("compassTxt").innerHTML = `Facing ${Math.round(heading)}° ${dirs[Math.round(heading / 45) % 8]}<small style="display:block;color:var(--muted);font-family:var(--mono);font-size:11px;margin-top:2px">needle points north · set a location to track the sun</small>`;
+    return;
+  }
   const rel = ((sun.now.azimuthDeg - heading) % 360 + 360) % 360;
   $("needle").style.transform = `rotate(${rel}deg)`;
   const signed = rel > 180 ? rel - 360 : rel;

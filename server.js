@@ -660,6 +660,7 @@ ${card("feedback", FEEDBACK.length, "")}
 app.get("/scan", (_req, res) => res.sendFile("scan.html", { root: "public" }));
 app.get("/meter", (_req, res) => res.sendFile("meter.html", { root: "public" }));
 app.get("/room", (_req, res) => res.sendFile("room.html", { root: "public" }));
+app.get("/diag", (_req, res) => res.sendFile("diag.html", { root: "public" }));
 
 app.get("/sun", (req, res) => {
   const lat = Number(req.query.lat);
