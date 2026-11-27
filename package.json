@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "build": "echo 'static app + worker: nothing to build'",
     "cf": "wrangler dev",
     "cf:deploy": "wrangler deploy"
   },
