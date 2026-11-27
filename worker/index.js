@@ -510,6 +510,9 @@ export default {
         if (p === "/health") {
           return json({
             ok: true,
+            // bump per release: open /health in a browser to see which build
+            // is actually live, ending every "did the deploy take?" mystery
+            build: "2026-11-27 intro+city-search",
             gemini: Boolean(env.GEMINI_API_KEY),
             locked: Boolean(env.ACCESS_CODE) || clerkOn(env),
             clerk: clerkOn(env) ? env.CLERK_PUBLISHABLE_KEY : null,
