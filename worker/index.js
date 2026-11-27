@@ -512,7 +512,7 @@ export default {
             ok: true,
             // bump per release: open /health in a browser to see which build
             // is actually live, ending every "did the deploy take?" mystery
-            build: "2026-11-28 diagnostics",
+            build: "2026-11-28 find-the-sun + setup help",
             gemini: Boolean(env.GEMINI_API_KEY),
             locked: Boolean(env.ACCESS_CODE) || clerkOn(env),
             clerk: clerkOn(env) ? env.CLERK_PUBLISHABLE_KEY : null,
