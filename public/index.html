@@ -11,9 +11,9 @@
 <script src="/vendor/leaflet.js" defer></script>
 <script src="/vendor/gsap.min.js" defer></script>
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-<title>Scrim — shape the light you already have</title>
+<title>Scrim · shape the light you already have</title>
 <style>
-  /* ————— Scrim · Live Sky ————— */
+  /* ----- Scrim · Live Sky ----- */
   :root {
     color-scheme: dark;
     --paper: #0D0C12;            /* the ground: near-black night */
@@ -107,7 +107,7 @@
   .tabbtn[aria-selected="true"] { color: var(--ochre); }
   .tabbtn:active { background: var(--press); }
 
-  /* Ask: the floating gaffer — one button, every screen */
+  /* Ask: the floating gaffer · one button, every screen */
   #askFab {
     position: fixed; right: 18px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 60;
     width: 54px; height: 54px; border-radius: 50%; border: none; cursor: pointer;
@@ -296,7 +296,7 @@
   }
   .taglabels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 5px; text-transform: uppercase; letter-spacing: 0.06em; }
 
-  /* on-photo elements keep photographic gold — paper tokens stop at the frame edge */
+  /* on-photo elements keep photographic gold · paper tokens stop at the frame edge */
   .dmark { position: absolute; transform: translate(-50%, -50%); touch-action: none; cursor: grab; z-index: 3; }
   .dmark .dinner { display: flex; align-items: center; animation: dfloat 3.2s ease-in-out infinite; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.45)); }
   .dmark.drag .dinner { animation-play-state: paused; }
@@ -465,7 +465,7 @@
       <span class="introRise">Shows you the look before you rig</span>
     </div>
     <button class="btn primary introRise" id="introGo" type="button">Step on set</button>
-    <div class="introCredit introRise">Vibe coded by Amit Kehar &mdash; cinematographer</div>
+    <div class="introCredit introRise">Vibe coded by Amit Kehar · cinematographer</div>
   </div>
 
   <header>
@@ -490,7 +490,7 @@
   <div id="fbSheet" style="position:fixed;inset:0;z-index:70;background:var(--paper);display:none;flex-direction:column;padding:calc(14px + env(safe-area-inset-top)) 22px calc(14px + env(safe-area-inset-bottom))">
     <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1.5px solid var(--ink);padding-bottom:10px">
       <span style="font-family:var(--serif);font-size:22px;font-weight:500">Tell me everything</span>
-      <span style="font-family:var(--serif);font-style:italic;font-size:13px;color:var(--muted);flex:1">Bugs, wishes, confusion — all of it.</span>
+      <span style="font-family:var(--serif);font-style:italic;font-size:13px;color:var(--muted);flex:1">Bugs, wishes, confusion · all of it.</span>
       <button class="chatclose" id="fbClose" type="button" style="font-family:var(--mono);background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
     </div>
     <input id="fbName" type="text" placeholder="Your name (optional)" autocomplete="off" style="margin-top:14px">
@@ -508,7 +508,7 @@
       <button type="button" id="kitClose" style="font-family:var(--mono);background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
     </div>
     <div id="kitGroups" style="flex:1;overflow-y:auto;padding:6px 0"></div>
-    <textarea id="kitCustom" placeholder="Anything else, one per line — e.g. '2x Astera Helios', 'book light rig'" style="height:64px;margin-top:8px;font-family:var(--mono);padding:10px 12px;resize:vertical"></textarea>
+    <textarea id="kitCustom" placeholder="Anything else, one per line · e.g. '2x Astera Helios', 'book light rig'" style="height:64px;margin-top:8px;font-family:var(--mono);padding:10px 12px;resize:vertical"></textarea>
     <div class="actions" style="grid-template-columns:1fr;margin-top:10px">
       <button class="btn primary" id="kitSave" type="button">Save kit</button>
     </div>
@@ -535,7 +535,7 @@
       </div>
       <div class="card" id="arSunCard" style="display:none">
         <h2 style="color:var(--ochre)">See it in the sky</h2>
-        <p class="hint" style="margin:0 0 10px">Point the phone at your location and today&rsquo;s whole sun path hangs in the air &mdash; sunrise to sunset, golden hours marked, anchored to the real world.</p>
+        <p class="hint" style="margin:0 0 10px">Point the phone at your location and today&rsquo;s whole sun path hangs in the air · sunrise to sunset, golden hours marked, anchored to the real world.</p>
         <div class="actions" style="margin:0;grid-template-columns:1fr">
           <button class="btn primary" id="arSunBtn" type="button">&#9673; AR sun path</button>
         </div>
@@ -569,7 +569,7 @@
           </svg>
           <div style="flex:1;min-width:0">
             <div class="compasstext" id="compassTxt" style="font-size:15.5px">Waking the compass…</div>
-            <p class="hint" id="compassHint" style="margin-top:5px">Point your phone anywhere — the needle tracks the sun.</p>
+            <p class="hint" id="compassHint" style="margin-top:5px">Point your phone anywhere · the needle tracks the sun.</p>
           </div>
         </div>
       </div>
@@ -578,18 +578,18 @@
         <div class="looks" id="whenLooks" style="gap:6px"></div>
         <div id="whenWindows" class="times" style="margin-top:8px"></div>
       </div>
-      <!-- ——— Plan the day (absorbed from the old Plan tab) ——— -->
+      <!-- ----- Plan the day (absorbed from the old Plan tab) ----- -->
       <div class="card" style="border-bottom:none;padding-bottom:6px">
         <h2 style="color:var(--ochre)">Plan the day</h2>
         <div class="looks projrow"></div>
-        <p class="hint" style="margin:8px 0 0">Name the project (&#9998;) &mdash; the day plan, call sheets, and light sheet all carry it, so a DP or scout can hand files to the crew by look.</p>
+        <p class="hint" style="margin:8px 0 0">Name the project (&#9998;) · the day plan, call sheets, and light sheet all carry it, so a DP or scout can hand files to the crew by look.</p>
       </div>
       <div class="card" style="padding:0;overflow:hidden;position:relative">
         <div id="map" style="height:280px;border-radius:18px"></div>
         <button class="ghost" id="recenter" type="button" style="position:absolute;right:8px;top:8px;z-index:500">◎ me</button>
         <button class="ghost" id="fitShots" type="button" style="position:absolute;right:8px;top:48px;z-index:500">⤢ all</button>
       </div>
-      <p class="hint" id="mapHint" style="margin:8px 2px 0">Tap the map to scout a spot — amber pins are scenes you've already read.</p>
+      <p class="hint" id="mapHint" style="margin:8px 2px 0">Tap the map to scout a spot · amber pins are scenes you've already read.</p>
       <div class="card" id="pinCard" style="display:none">
         <h2 id="pinTitle">Scout pin</h2>
         <div class="looks" id="pinLooks"></div>
@@ -605,7 +605,7 @@
           <button class="tab" role="tab" aria-selected="false" data-ppane="ppane-reads" type="button">Reads</button>
         </div>
         <div id="ppane-shots" role="tabpanel">
-          <div id="shotList"><p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p></div>
+          <div id="shotList"><p class="hint">Pick a spot and a look above · shots land here ordered by their light windows.</p></div>
           <div class="actions" style="grid-template-columns:1fr;margin:10px 0 0">
             <button class="btn primary" id="routeShots" type="button">&#10230; Route the day in Google Maps</button>
           </div>
@@ -615,7 +615,7 @@
           </div>
         </div>
         <div id="ppane-reads" role="tabpanel" hidden>
-          <p class="hint" style="font-style:italic;margin:0 0 4px">Every read, remembered — tap one to see it on the map.</p>
+          <p class="hint" style="font-style:italic;margin:0 0 4px">Every read, remembered · tap one to see it on the map.</p>
           <div id="logList"><p class="hint">No reads in this project yet.</p></div>
           <div class="actions" style="margin:10px 0 0">
             <button class="btn" id="exportCsv" type="button">Light sheet (CSV)</button>
@@ -640,13 +640,13 @@
         <label class="btn" for="shot">Upload photo</label>
       </div>
       <input id="shot" type="file" accept="image/*" />
-      <p class="hint">Phone camera, or a pro camera over USB. Frames go to the server for analysis only — nothing renders until you ask.</p>
+      <p class="hint">Phone camera, or a pro camera over USB. Frames go to the server for analysis only · nothing renders until you ask.</p>
       <div class="card" id="finder">
         <div class="vfwrap">
           <video id="vf" autoplay playsinline muted></video>
           <canvas class="arstrip" id="arStrip" width="800" height="112" style="display:none"></canvas>
           <button class="arenable" id="arEnable" type="button">☀ Sun overlay</button>
-          <div class="vumeter" id="vuMeter">◉ light meter — warming up…</div>
+          <div class="vumeter" id="vuMeter">◉ light meter · warming up…</div>
         </div>
         <div class="vfbar">
           <div class="vfside"><select id="camSel" aria-label="Camera lens" hidden></select></div>
@@ -670,7 +670,7 @@
       <div id="cpane-meter" hidden>
         <div class="card">
           <h2>Light meter</h2>
-          <p class="hint" style="margin:0 0 10px">EV, f-stops, ISO, shutter — meter the scene without leaving Scrim. Live through the camera in the iPhone app; sunny-16 presets anywhere.</p>
+          <p class="hint" style="margin:0 0 10px">EV, f-stops, ISO, shutter · meter the scene without leaving Scrim. Live through the camera in the iPhone app; sunny-16 presets anywhere.</p>
           <div class="actions" style="margin:0;grid-template-columns:1fr">
             <a class="btn primary" href="/meter" style="text-decoration:none;text-align:center">☀ Open the light meter</a>
           </div>
@@ -687,13 +687,13 @@
       </div>
       <div class="card" id="studioEmpty">
         <h2>Light it by hand</h2>
-        <p class="hint" style="margin:0 0 10px">The studio maps your frame in 3D, then you light it by hand: drag real fixtures, hang silks, cut with negative fill — live, on your phone. When it sings, make it real.</p>
+        <p class="hint" style="margin:0 0 10px">The studio maps your frame in 3D, then you light it by hand: drag real fixtures, hang silks, cut with negative fill · live, on your phone. When it sings, make it real.</p>
         <div class="actions" style="margin:0">
           <button class="btn primary" id="studioUseLast" type="button">Use last read</button>
           <label class="btn" for="studioShot">Upload photo</label>
         </div>
         <div class="actions" style="margin:8px 0 0;grid-template-columns:1fr">
-          <button class="btn" id="proposeBoot" type="button">&#10022; Propose a setup &mdash; the gaffer rigs it for you</button>
+          <button class="btn" id="proposeBoot" type="button">&#10022; Propose a setup · the gaffer rigs it for you</button>
         </div>
         <input id="studioShot" type="file" accept="image/*" />
         <p class="status" id="studioBootStatus"></p>
@@ -701,7 +701,7 @@
       <div id="studio" style="display:none">
         <div class="stage" id="stage">
           <canvas id="glc"></canvas>
-          <button class="holdbtn" id="holdOrig" type="button">◉ hold — original</button>
+          <button class="holdbtn" id="holdOrig" type="button">◉ hold · original</button>
           <button class="holdbtn" id="fcBtn" type="button" style="right:auto;left:10px">▦ false color</button>
           <button class="holdbtn" id="clayBtn" type="button" style="right:auto;left:10px;bottom:48px">◇ clay</button>
         </div>
@@ -710,7 +710,7 @@
           <div class="hint" id="kmeter" style="margin:0 0 8px;color:var(--gold)"></div>
           <div class="hint" id="rigNote" style="display:none;margin:0 0 10px;color:var(--gold)"></div>
           <div class="actions" style="margin:0 0 10px;grid-template-columns:1fr">
-            <button class="btn" id="proposeInStudio" type="button">&#10022; Gaffer's proposal &mdash; rig this frame for me</button>
+            <button class="btn" id="proposeInStudio" type="button">&#10022; Gaffer's proposal · rig this frame for me</button>
           </div>
           <div class="lightsrow" id="lightsRow"></div>
           <div class="lightsrow" id="gripRow"></div>
@@ -757,7 +757,7 @@
       </div>
       <div class="chatwrap">
         <div class="chatlog" id="chatLog">
-          <div class="msg ai">Ask me anything about the light — what gear to bring, how to shape what you've got, when to shoot. If you've done a read in Camera, I can see that frame too.</div>
+          <div class="msg ai">Ask me anything about the light · what gear to bring, how to shape what you've got, when to shoot. If you've done a read in Camera, I can see that frame too.</div>
         </div>
         <div class="chatrow">
           <input id="chatInput" type="text" placeholder="Ask the light anything." autocomplete="off" enterkeyhint="send">
@@ -805,6 +805,37 @@ let heading = null;        // device compass heading, deg from north
 let recheckArm = false;
 let weather = null;        // {times:[], clouds:[]}
 
+/* ---------- intro: once per device, then straight on set ----------
+   Runs FIRST, before anything else wires up, so no later error can keep
+   the curtain down. Replay anytime: tap the Scrim wordmark three times. */
+const INTRO_HTML = $("intro") ? $("intro").outerHTML : "";
+function showIntro() {
+  if (!$("intro") && INTRO_HTML) document.body.insertAdjacentHTML("afterbegin", INTRO_HTML);
+  const el = $("intro");
+  if (!el) return;
+  el.classList.remove("bye");
+  el.style.display = "flex";
+  $("introGo").onclick = () => {
+    try { localStorage.setItem("scrim-intro-done", "1"); } catch { /* private mode */ }
+    track("intro_done");
+    el.classList.add("bye");
+    setTimeout(() => el.remove(), 650);
+  };
+}
+try {
+  if (localStorage.getItem("scrim-intro-done")) $("intro")?.remove();
+  else showIntro();
+} catch { showIntro(); }
+{
+  let introTaps = 0, introTapTimer = null;
+  document.querySelector(".wordmark").addEventListener("click", () => {
+    introTaps++;
+    clearTimeout(introTapTimer);
+    introTapTimer = setTimeout(() => { introTaps = 0; }, 600);
+    if (introTaps >= 3) { introTaps = 0; showIntro(); }
+  });
+}
+
 /* ---------- app shell ---------- */
 
 // Three places (Light / Camera / Set) plus two full-screen surfaces that no
@@ -829,7 +860,7 @@ $("askClose").addEventListener("click", () => gotoScreen(askReturn));
 /* ---- Camera mode dial: READ · METER · SCAN ---- */
 const DIAL_HINTS = {
   read: "One shot: the read, the plan, and a studio you can light by hand",
-  meter: "EV · f-stop · ISO — a light meter in your pocket",
+  meter: "EV · f-stop · ISO · a light meter in your pocket",
 };
 document.querySelectorAll(".cmode").forEach((b) => b.addEventListener("click", () => {
   document.querySelectorAll(".cmode").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
@@ -876,7 +907,7 @@ async function aiFetch(path, body) {
     localStorage.removeItem("scrim-code");
     showCodeCard();
     gotoScreen("screen-now");
-    throw new Error("Access code required — enter it on the Now tab and try again.");
+    throw new Error("Access code required · enter it on the Now tab and try again.");
   }
   return res;
 }
@@ -902,13 +933,24 @@ function acquirePosition({ highAccuracy = false, totalMs = 20000 } = {}) {
   });
 }
 
+// The unlock steps live in a different place in every browser, so detect
+// which one this actually is and name only that path.
 function geoErrorMessage(e) {
-  if (e && e.code === 1) {
-    return /iPhone|iPad|Android/i.test(navigator.userAgent)
-      ? "Location is blocked for this site. iPhone Chrome: ⋯ → Page Info → Permissions → Location. Safari: AA in the address bar → Website Settings. Then tap the pill up top to retry — or just type your city below."
-      : "Location is blocked in the browser. Click the tune/lock icon at the left of the address bar → Site settings → Location → Allow, then reload — or just type your city below.";
-  }
-  return "No location fix after 20 seconds. Tap the pill up top to retry — or just type your city below.";
+  if (!(e && e.code === 1)) return "No location fix after 20 seconds. Tap the pill up top to retry, or just type your city below.";
+  const ua = navigator.userAgent;
+  const iOS = /iPhone|iPad/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+  const chrome = /CriOS/i.test(ua) || (/Chrome/i.test(ua) && !/Edg|OPR/i.test(ua));
+  const firefox = /Firefox|FxiOS/i.test(ua);
+  const safari = /Safari/i.test(ua) && !chrome && !firefox && !/Android/i.test(ua);
+  let how;
+  if (iOS && safari) how = "Safari on iPhone/iPad: tap the AA (or page) icon in the address bar, then Website Settings, set Location to Allow. If it is missing, check iPhone Settings, Privacy and Security, Location Services, and make sure Safari Websites is allowed.";
+  else if (iOS && chrome) how = "Chrome on iPhone: tap the three dots, Page Info, Permissions, and allow Location. Also check iPhone Settings, Chrome, Location.";
+  else if (safari) how = "Safari on Mac: in the menu bar choose Safari, then Settings for This Website, and set Location to Allow. Also check System Settings, Privacy and Security, Location Services, and make sure Safari is on.";
+  else if (chrome) how = "Chrome: click the icon at the left of the address bar, open Site settings, set Location to Allow, then reload.";
+  else if (firefox) how = "Firefox: click the permissions icon at the left of the address bar, clear the Location block, then reload.";
+  else if (/Android/i.test(ua)) how = "Tap the lock icon in the address bar, open Permissions, and allow Location.";
+  else how = "Open this site's permissions from the address bar and allow Location, then reload.";
+  return `Location is blocked. ${how} Then tap the pill up top to retry, or just type your city below.`;
 }
 
 async function getLocation(force = false) {
@@ -966,7 +1008,7 @@ function fmtDur(mins) {
 }
 
 // Big numerals never overflow: with hours left show H:MM, inside the final
-// hour show M:SS — at most five glyphs at hero size.
+// hour show M:SS · at most five glyphs at hero size.
 function fmtClockBig(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
@@ -1012,9 +1054,9 @@ function renderWeather() {
   if (ghC != null && g) bits.push(`at golden hour ${ghC}%`);
   let read = "";
   if (ghC != null) {
-    if (ghC >= 75) read = " — expect flat, dim light; your soft window is effectively all afternoon";
-    else if (ghC >= 40) read = " — broken cloud, the light will come and go";
-    else read = " — clear golden hour, plan for it";
+    if (ghC >= 75) read = " · expect flat, dim light; your soft window is effectively all afternoon";
+    else if (ghC >= 40) read = " · broken cloud, the light will come and go";
+    else read = " · clear golden hour, plan for it";
   }
   $("weatherLine").textContent = `☁ ${bits.join(" · ")}${read}`;
 }
@@ -1102,9 +1144,9 @@ function renderSunLine() {
   let qual = n.quality;
   if (cl != null && n.altitudeDeg > 0) {
     if (cl >= 75) qual = "but heavy overcast has it soft, even, and shadowless";
-    else if (cl >= 40) qual = `${n.quality} when it breaks through — broken cloud keeps softening it`;
+    else if (cl >= 40) qual = `${n.quality} when it breaks through · broken cloud keeps softening it`;
   }
-  $("sunNow").innerHTML = `Sun ${n.altitudeDeg}&deg; up, from the ${n.direction} &mdash; ${qual}.`;
+  $("sunNow").innerHTML = `Sun ${n.altitudeDeg}&deg; up, from the ${n.direction} · ${qual}.`;
 }
 
 function updateDateLine() {
@@ -1152,12 +1194,12 @@ async function loadSun(forceLoc = false) {
     loadWeather(l);
   } catch (e) {
     clearInterval(ticker);
-    $("locPill").textContent = "no location — tap to retry";
+    $("locPill").textContent = "no location · tap to retry";
     $("clock").innerHTML = `<span class="err" style="font-size:14px;font-weight:400">${esc(e.message || e)}</span>`;
     $("sunNow").innerHTML = `
-      <div class="hint" style="text-align:left">No permission needed this way — type the nearest city:</div>
+      <div class="hint" style="text-align:left">No permission needed this way · type the nearest city:</div>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <input id="cityQ" type="text" placeholder="City — e.g. Brooklyn" style="flex:1;margin-top:0" autocomplete="off" enterkeyhint="search">
+        <input id="cityQ" type="text" placeholder="City · e.g. Brooklyn" style="flex:1;margin-top:0" autocomplete="off" enterkeyhint="search">
         <button class="ghost" id="citySearch" type="button">Find</button>
       </div>
       <div id="cityOut" class="times" style="margin-top:8px;text-align:left"></div>`;
@@ -1167,7 +1209,7 @@ async function loadSun(forceLoc = false) {
 }
 
 // City-name fallback: free Open-Meteo geocoding, same provider as the
-// weather — works even when browser location is denied or unavailable.
+// weather · works even when browser location is denied or unavailable.
 async function searchCity() {
   const q = $("cityQ").value.trim();
   if (!q) return;
@@ -1177,7 +1219,7 @@ async function searchCity() {
     const j = await r.json();
     const hits = j.results || [];
     if (!hits.length) {
-      $("cityOut").innerHTML = `<div class="hint">Nothing found — try the nearest bigger town.</div>`;
+      $("cityOut").innerHTML = `<div class="hint">Nothing found · try the nearest bigger town.</div>`;
       return;
     }
     $("cityOut").innerHTML = hits.map((h, i) =>
@@ -1193,14 +1235,14 @@ async function searchCity() {
       if (map) { map.setView([h.latitude, h.longitude], 12); userCentered = true; }
     }));
   } catch {
-    $("cityOut").innerHTML = `<div class="hint err">Search failed — check the connection and try again.</div>`;
+    $("cityOut").innerHTML = `<div class="hint err">Search failed · check the connection and try again.</div>`;
   }
 }
 
 $("locPill").addEventListener("click", () => loadSun(true));
 $("recenter").addEventListener("click", async () => {
   try { const l = await getLocation(); if (map) { map.setView([l.latitude, l.longitude], 14); userCentered = true; } }
-  catch { $("mapHint").textContent = "No location fix — tap the coordinates pill up top to retry."; }
+  catch { $("mapHint").textContent = "No location fix · tap the coordinates pill up top to retry."; }
 });
 updateDateLine();
 setInterval(() => { updateDateLine(); if (sun) { renderClock(); renderTimeline(); } }, 1000);
@@ -1212,7 +1254,7 @@ async function checkBackend() {
     if (h.clerk) initClerk(h.clerk);
     if (h.locked && !localStorage.getItem("scrim-code")) {
       showCodeCard();
-      if (h.clerk) $("codeCard").querySelector(".hint").textContent = "Sign in (top right) — or enter the crew access code below.";
+      if (h.clerk) $("codeCard").querySelector(".hint").textContent = "Sign in (top right) · or enter the crew access code below.";
     }
     if (h.gemini === false) {
       const b = $("banner");
@@ -1226,9 +1268,9 @@ async function checkBackend() {
 
 const LOOK_RULES = {
   golden: { name: "Soft & golden", test: (p, c) => p.altitudeDeg > 0 && p.altitudeDeg <= 8, none: "No golden window in the next 36 h at this latitude." },
-  drama:  { name: "Dramatic", test: (p, c) => p.altitudeDeg >= 10 && p.altitudeDeg <= 45 && (c == null || c < 55), none: "Needs direct sun — the forecast looks too overcast." },
-  dapple: { name: "Dappled canopy", test: (p, c) => p.altitudeDeg >= 15 && (c == null || c < 60), none: "Needs fairly high direct sun — none coming up." },
-  clean:  { name: "Clean commercial", test: (p, c) => p.altitudeDeg > 5 && c != null && c >= 70, none: "No overcast coming — use open shade or a big silk in any daylight." },
+  drama:  { name: "Dramatic", test: (p, c) => p.altitudeDeg >= 10 && p.altitudeDeg <= 45 && (c == null || c < 55), none: "Needs direct sun · the forecast looks too overcast." },
+  dapple: { name: "Dappled canopy", test: (p, c) => p.altitudeDeg >= 15 && (c == null || c < 60), none: "Needs fairly high direct sun · none coming up." },
+  clean:  { name: "Clean commercial", test: (p, c) => p.altitudeDeg > 5 && c != null && c >= 70, none: "No overcast coming · use open shade or a big silk in any daylight." },
 };
 
 function windowsForData(lookId, sunData, cloudFn) {
@@ -1300,7 +1342,7 @@ function renderCompass() {
   $("needle").style.transform = `rotate(${rel}deg)`;
   const signed = rel > 180 ? rel - 360 : rel;
   let where;
-  if (sun.now.altitudeDeg <= -6) where = "The sun is down — needle shows where it sits below the horizon";
+  if (sun.now.altitudeDeg <= -6) where = "The sun is down · needle shows where it sits below the horizon";
   else if (Math.abs(signed) <= 12) where = "You're facing the sun";
   else if (Math.abs(signed) >= 168) where = "The sun is behind you";
   else where = `Sun is ${Math.abs(Math.round(signed))}° to your ${signed > 0 ? "right" : "left"}`;
@@ -1332,7 +1374,7 @@ setTimeout(() => {
     $("dialTap").style.display = "";
     $("compassTxt").textContent = "Tap the dial once to wake the compass.";
   } else {
-    $("compassTxt").textContent = "No compass on this device — the map on Plan shows sun direction instead.";
+    $("compassTxt").textContent = "No compass on this device · the map on Plan shows sun direction instead.";
   }
 }, 2500);
 
@@ -1475,7 +1517,7 @@ if (navigator.mediaDevices?.addEventListener) {
 
 /* ---- the built-in light meter: live, in the viewfinder, reading the
    actual frame. No exposure metadata exists in a browser, so it reads what
-   a gaffer actually squints at — the RATIO: how far the bright side sits
+   a gaffer actually squints at · the RATIO: how far the bright side sits
    above the shadows, and whether either end is being lost. ---- */
 let meterTimer = null;
 const meterCanvas = document.createElement("canvas");
@@ -1501,13 +1543,13 @@ function startFinderMeter() {
       const clip = lums.filter((l) => l >= 250).length / n;
       const crush = lums.filter((l) => l <= 8).length / n;
       let word;
-      if (ratio < 2) word = "flat — add shape";
+      if (ratio < 2) word = "flat · add shape";
       else if (ratio < 4) word = "soft · balanced";
       else if (ratio < 9) word = "shaped · cinematic";
-      else if (ratio < 20) word = "punchy — mind the shadows";
-      else word = "harsh — fill or flag it";
+      else if (ratio < 20) word = "punchy · mind the shadows";
+      else word = "harsh · fill or flag it";
       const r = ratio < 10 ? ratio.toFixed(1) : String(Math.round(ratio));
-      $("vuMeter").innerHTML = `◉ contrast ≈ ${r}:1 — ${word}`
+      $("vuMeter").innerHTML = `◉ contrast ≈ ${r}:1 · ${word}`
         + (clip > 0.02 ? ` · <span style="color:#FF9D82">clipping ${Math.round(clip * 100)}%</span>` : "")
         + (crush > 0.1 ? ` · crushed ${Math.round(crush * 100)}%` : "");
     } catch { /* a dropped frame never kills the meter */ }
@@ -1516,12 +1558,12 @@ function startFinderMeter() {
 function stopFinderMeter() {
   clearInterval(meterTimer);
   meterTimer = null;
-  $("vuMeter").textContent = "◉ light meter — warming up…";
+  $("vuMeter").textContent = "◉ light meter · warming up…";
 }
 
 $("openCam").addEventListener("click", async () => {
   if (!navigator.mediaDevices?.getUserMedia) {
-    $("status").innerHTML = `<span class="err">Live view needs a modern browser over HTTPS — use Upload photo.</span>`;
+    $("status").innerHTML = `<span class="err">Live view needs a modern browser over HTTPS · use Upload photo.</span>`;
     return;
   }
   try {
@@ -1592,7 +1634,7 @@ function setActiveProject(id) {
   if (map) { refreshPins(); planGuidance(); $("pinCard").style.display = "none"; }
 }
 function newProject() {
-  const name = (window.prompt("Name the project — e.g. 'Marta's short', 'Brand film day 2'") || "").trim();
+  const name = (window.prompt("Name the project · e.g. 'Marta's short', 'Brand film day 2'") || "").trim();
   if (!name) return;
   const ps = loadProjects();
   const id = "p" + Date.now().toString(36);
@@ -1617,7 +1659,7 @@ function renderProjectRows() {
 
 function manageProject() {
   const act = activeProject();
-  const answer = window.prompt(`Rename "${act.name}" — or type DELETE to remove this project with its reads and shots.`, act.name);
+  const answer = window.prompt(`Rename "${act.name}" · or type DELETE to remove this project with its reads and shots.`, act.name);
   if (answer == null) return;
   const name = answer.trim();
   if (!name) return;
@@ -1699,7 +1741,7 @@ function renderHereNote() {
   if (!near) { note.style.display = "none"; return; }
   const when = new Date(near.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   note.style.display = "block";
-  note.textContent = `◎ You've read light here before — ${when}: ${near.sum || "see log"}.`;
+  note.textContent = `◎ You've read light here before · ${when}: ${near.sum || "see log"}.`;
 }
 
 function renderLog() {
@@ -1780,9 +1822,9 @@ function verdictFor(d) {
   const now = Date.now();
   const inGolden = g && now >= new Date(g.start) && now < new Date(g.end);
   const wait = g && !inGolden && new Date(g.start) > now
-    ? ` Or wait — <span class="gold">golden hour in ${fmtDur((new Date(g.start) - now) / 60000)}</span>.` : "";
+    ? ` Or wait · <span class="gold">golden hour in ${fmtDur((new Date(g.start) - now) / 60000)}</span>.` : "";
   if (d.hardness === "hard") return `Hard light. Work the moves below.${wait}`;
-  if (d.hardness === "medium") return `Workable light — one move makes it better.${wait}`;
+  if (d.hardness === "medium") return `Workable light · one move makes it better.${wait}`;
   if (d.hardness === "soft") return "You're in soft light. Shoot now.";
   return "";
 }
@@ -1815,7 +1857,7 @@ function kitList() {
 const LOOKS = [
   { id: "auto", name: "Gaffer's call", sub: "let the AI decide", brief: "auto" },
   { id: "golden", name: "Soft & golden", sub: "late-day warmth", brief: "Soften toward late golden hour: a low warm key, gentle fill on the shadow side, soft shadow edges, warm believable skin." },
-  { id: "drama", name: "Dramatic", sub: "shaped hard light", brief: "Dramatic and moody: keep the light directional and hard but shape it — a strong single key, deep controlled shadows with negative fill, cinematic contrast, nothing washed out." },
+  { id: "drama", name: "Dramatic", sub: "shaped hard light", brief: "Dramatic and moody: keep the light directional and hard but shape it · a strong single key, deep controlled shadows with negative fill, cinematic contrast, nothing washed out." },
   { id: "dapple", name: "Dappled canopy", sub: "light through leaves", brief: "Dappled light as if the sun comes through tree leaves overhead: broken pools of soft warm light drifting across the subject, soft shadow edges, background a touch darker so the subject reads." },
   { id: "clean", name: "Clean commercial", sub: "big soft key", brief: "Bright clean commercial look: a large soft key like an overcast sky or a big silk, open transparent shadows, neutral accurate color, crisp but flattering." },
 ];
@@ -1899,7 +1941,7 @@ function updatePlanUI() {
   $("planName").textContent = p.name;
   $("planBody").innerHTML = `
     ${p.approach ? `<div style="font-size:14px;font-weight:600">${esc(p.approach)}</div>` : ""}
-    ${fixes ? `<div class="listhead">The moves — numbers match the diagram</div><ol class="fixes">${fixes}</ol>` : `<p class="hint">No moves came back for this brief.</p>`}`;
+    ${fixes ? `<div class="listhead">The moves · numbers match the diagram</div><ol class="fixes">${fixes}</ol>` : `<p class="hint">No moves came back for this brief.</p>`}`;
   // natural window line: when does this look happen without gear?
   const winLine = (() => {
     if (!p.lookId || !LOOK_RULES[p.lookId]) return "";
@@ -1915,13 +1957,13 @@ function updatePlanUI() {
       <ul class="probs ok" style="font-size:14px">${p.gear.slice(0, 8).map((g) => `<li>${glossarize(esc(g))}</li>`).join("")}</ul>`);
   } else {
     $("planBody").insertAdjacentHTML("beforeend",
-      `<p class="hint" style="margin-top:10px">Tap a look above — or Gaffer's call — and the full packing list and overhead set map are drawn for it.</p>`);
+      `<p class="hint" style="margin-top:10px">Tap a look above · or Gaffer's call · and the full packing list and overhead set map are drawn for it.</p>`);
   }
   const ovTab = $("overheadTab");
   if (ovTab) {
     const has = Boolean(p.overhead && p.overhead.subject);
     ovTab.style.display = has ? "" : "none";
-    if (has) $("pane-overhead").innerHTML = overheadSvg(p.overhead) + `<p class="hint">Top-down set map — camera at the bottom, heights on each piece. From the plan, not measured.</p>`;
+    if (has) $("pane-overhead").innerHTML = overheadSvg(p.overhead) + `<p class="hint">Top-down set map · camera at the bottom, heights on each piece. From the plan, not measured.</p>`;
     else { if (ovTab.getAttribute("aria-selected") === "true") document.querySelector('[data-pane="pane-diagram"]')?.click(); $("pane-overhead").innerHTML = ""; }
   }
 
@@ -1929,7 +1971,7 @@ function updatePlanUI() {
   const marks = Array.isArray(p.diagram?.marks) ? p.diagram.marks : [];
   const sf = p.diagram?.sunFrom;
   const chips = marks.map((m, i) => {
-    // wait and move aren't places — they read as nonsense pinned to the frame,
+    // wait and move aren't places · they read as nonsense pinned to the frame,
     // so they live only in the numbered moves list
     if (m.tool === "wait" || m.tool === "move") return "";
     const x = clamp01(m.x), y = clamp01(m.y);
@@ -1942,7 +1984,7 @@ function updatePlanUI() {
     ? `<div class="dsun" style="left:${Math.min(92, Math.max(8, clamp01(sf.x) * 100))}%;top:${Math.min(94, Math.max(6, clamp01(sf.y) * 100))}%"><span>SUN</span></div>` : "";
   $("pane-diagram").innerHTML = `
     <div class="frame" id="diagFrame">${`<img src="${state.frame.dataUrl}" alt="your frame">`}${overlay}${sunChip}${chips}</div>
-    ${(overlay || chips) ? `<p class="hint">Drag a numbered chip if the gaffer placed it wrong — tap one to see its move. Corrections carry into the call sheet.</p>` : `<p class="hint">No diagram came back for this brief.</p>`}`;
+    ${(overlay || chips) ? `<p class="hint">Drag a numbered chip if the gaffer placed it wrong · tap one to see its move. Corrections carry into the call sheet.</p>` : `<p class="hint">No diagram came back for this brief.</p>`}`;
   wireMarks();
 }
 
@@ -2006,7 +2048,7 @@ async function fetchPlan(brief, name, lookId = null) {
     updatePlanUI();
     $("planStatus").innerHTML = "";
   } catch (e) {
-    if ($("planStatus")) $("planStatus").innerHTML = `<span class="err">Plan failed: ${esc(e.message || e)} — showing the previous plan.</span>`;
+    if ($("planStatus")) $("planStatus").innerHTML = `<span class="err">Plan failed: ${esc(e.message || e)} · showing the previous plan.</span>`;
   } finally {
     if ($("planCard")) setPlanning(false);
   }
@@ -2057,16 +2099,16 @@ function renderResults() {
     </div>
 
     <div class="card" id="planCard">
-      <h2>The plan — <span id="planName" style="color:var(--gold);text-transform:none;letter-spacing:0">Gaffer's call</span></h2>
+      <h2>The plan · <span id="planName" style="color:var(--gold);text-transform:none;letter-spacing:0">Gaffer's call</span></h2>
       <div id="planBody"></div>
       <div class="actions" style="margin:12px 0 0">
         <button class="btn primary" id="lightIt" type="button">Light it</button>
         <button class="btn" id="checkWork" type="button">Check my work</button>
       </div>
       <div class="actions" style="grid-template-columns:1fr;margin:8px 0 0">
-        <button class="btn" id="rigFromPlan" type="button">&#10022; Rig it in the studio &mdash; place the lights, then render</button>
+        <button class="btn" id="rigFromPlan" type="button">&#10022; Rig it in the studio · place the lights, then render</button>
       </div>
-      <p class="hint">Light it renders the look (one press, one render). Rig it in the studio: the gaffer places real fixtures on your frame as draggable lights — adjust them, then Make it real. Check my work: rig the moves, re-shoot the same frame, and the gaffer grades the change.</p>
+      <p class="hint">Light it renders the look (one press, one render). Rig it in the studio: the gaffer places real fixtures on your frame as draggable lights · adjust them, then Make it real. Check my work: rig the moves, re-shoot the same frame, and the gaffer grades the change.</p>
       <p class="status" id="renderStatus"></p>
     </div>
 
@@ -2159,7 +2201,7 @@ async function relight() {
         <div class="handle"></div>
       </div>
       <div class="taglabels"><span>Now</span><span>Relit</span></div>
-      <p class="hint">Drag to compare. Directional preview — it shows what the move would do.</p>
+      <p class="hint">Drag to compare. Directional preview · it shows what the move would do.</p>
       <div class="actions" style="grid-template-columns:1fr;margin:10px 0 0">
         <button class="btn" id="saveRender" type="button">Save render</button>
       </div>`;
@@ -2206,7 +2248,7 @@ async function recheck(afterFrame) {
     $("status").textContent = "";
     const c = j.check;
     const cls = c.verdict === "better" ? "good" : c.verdict === "worse" ? "err" : "";
-    const head = c.verdict === "better" ? "Better." : c.verdict === "worse" ? "Worse — undo that." : "About the same.";
+    const head = c.verdict === "better" ? "Better." : c.verdict === "worse" ? "Worse · undo that." : "About the same.";
     const list = (arr, ok) => (arr || []).length ? `<ul class="probs${ok ? " ok" : ""}">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
     $("recheckOut").innerHTML = `
       <div class="card">
@@ -2271,7 +2313,7 @@ function exportCallSheet() {
     x.fillStyle = "#191913"; x.font = "600 46px " + SERIF; x.textAlign = "left";
     x.fillText("Scrim", 48, 80);
     x.fillStyle = "#A6452D"; x.font = "600 22px " + MONO;
-    x.fillText("C A L L   S H E E T   —   " + p.name.toUpperCase().slice(0, 30), 48, 124);
+    x.fillText("C A L L   S H E E T   ·   " + p.name.toUpperCase().slice(0, 30), 48, 124);
     x.fillStyle = "#5C5B50"; x.font = "22px " + MONO;
     x.fillText(new Date().toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + (loc ? `  ·  ${loc.latitude.toFixed(3)}, ${loc.longitude.toFixed(3)}` : ""), 48, 160);
     x.strokeStyle = "#191913"; x.lineWidth = 2;
@@ -2316,7 +2358,7 @@ function exportCallSheet() {
     x.strokeStyle = "#DAD7C8"; x.lineWidth = 1;
     x.beginPath(); x.moveTo(48, H - 64); x.lineTo(W - 48, H - 64); x.stroke();
     x.fillStyle = "#5C5B50"; x.font = "20px " + MONO;
-    x.fillText("scrim — shape the light you already have", 48, H - 32);
+    x.fillText("scrim · shape the light you already have", 48, H - 32);
     c.toBlob((blob) => shareOrDownload(blob, "scrim-call-sheet.png", "Scrim call sheet"), "image/png");
   };
   img.src = state.frame.dataUrl;
@@ -2327,54 +2369,54 @@ function exportCallSheet() {
 const GLOSSARY = {
   "c-stand": "The all-purpose grip stand: three stacking legs, a riser, and a grip head that holds an arm. Rigs flags, silks, and small lights.",
   "combo stand": "A heavier stand with a junior (28mm) receiver for bigger lights. A mombo combo is the extra-tall, extra-beefy version.",
-  "mombo combo": "The tallest, heaviest combo stand — junior receiver, huge payload, goes to ~4m. For big lights and heavy rags outdoors.",
+  "mombo combo": "The tallest, heaviest combo stand · junior receiver, huge payload, goes to ~4m. For big lights and heavy rags outdoors.",
   "hi-hi roller": "A tall rolling stand (a high roller on steroids) with a junior receiver, used to fly big frames and lights high and move them fast.",
-  "high roller": "A tall stand on wheels with a junior receiver — flies big lights or frame corners and rolls around set.",
-  "hi roller": "A tall stand on wheels with a junior receiver — flies big lights or frame corners and rolls around set.",
+  "high roller": "A tall stand on wheels with a junior receiver · flies big lights or frame corners and rolls around set.",
+  "hi roller": "A tall stand on wheels with a junior receiver · flies big lights or frame corners and rolls around set.",
   "baby pin": "The standard 16mm stud smaller lights mount on. 'Baby' = 16mm, 'junior' = 28mm.",
   "junior": "The 28mm stud/receiver standard for heavier lights and stands.",
   "menace arm": "A boom rigged off a stand to hang a light out over the set (over talent, over water) where no stand can go.",
-  "gobo arm": "The steel arm held by a C-stand's grip head — what your flag or small light actually hangs on.",
+  "gobo arm": "The steel arm held by a C-stand's grip head · what your flag or small light actually hangs on.",
   "cardellini": "A screw-clamp that bites onto pipes, doors, and edges to mount lights or grip gear without a stand.",
-  "mafer": "A do-everything clamp with a baby pin — grabs speedrail, dolly track, furniture; a light goes on top.",
+  "mafer": "A do-everything clamp with a baby pin · grabs speedrail, dolly track, furniture; a light goes on top.",
   "apple box": "The wooden box of set life: raises furniture, actors, and lights. Full, half, quarter, and pancake sizes.",
   "stinger": "An extension cord, in set language.",
-  "speedrail": "Aluminium pipe used to build rigging — goalposts, wall spreaders, car mounts.",
+  "speedrail": "Aluminium pipe used to build rigging · goalposts, wall spreaders, car mounts.",
   "goalpost": "Two stands and a speedrail crossbar, used to fly a light or rag over the action from outside the frame.",
   "sandbag": "Weight for stand legs. The rule: every stand gets a bag; outdoors, more.",
   "silk": "Diffusion fabric on a frame that softens light passing through. China silk is light (~half stop); artificial silks come in stops.",
-  "china silk": "The classic lightweight diffusion fabric — softens the source about half a stop, keeps direction.",
-  "ultrabounce": "Heavy white bounce fabric — throws soft fill back at the subject; the black side doubles as negative fill.",
+  "china silk": "The classic lightweight diffusion fabric · softens the source about half a stop, keeps direction.",
+  "ultrabounce": "Heavy white bounce fabric · throws soft fill back at the subject; the black side doubles as negative fill.",
   "muslin": "Cotton bounce fabric; bleached is neutral, unbleached bounces warm. Heavier, warmer feel than ultrabounce.",
-  "floppy": "A 4x4 flag with a hinged extra flap that folds out — solid black, blocks or negs light; the fast way to kill spill.",
-  "flag": "A black fabric panel that blocks light — shapes edges, keeps flares off the lens, darkens a side.",
-  "cutter": "A long thin flag for slicing light off a specific area — walls, backgrounds, an actor's hot shoulder.",
-  "solid": "Any full-black rag — a big flag. A 12x12 solid kills a lot of sun.",
-  "rag": "Set word for any large fabric — silk, solid, ultrabounce — that goes on a frame.",
+  "floppy": "A 4x4 flag with a hinged extra flap that folds out · solid black, blocks or negs light; the fast way to kill spill.",
+  "flag": "A black fabric panel that blocks light · shapes edges, keeps flares off the lens, darkens a side.",
+  "cutter": "A long thin flag for slicing light off a specific area · walls, backgrounds, an actor's hot shoulder.",
+  "solid": "Any full-black rag · a big flag. A 12x12 solid kills a lot of sun.",
+  "rag": "Set word for any large fabric · silk, solid, ultrabounce · that goes on a frame.",
   "frame": "The metal square (4x4 up to 20x20) that fabric stretches onto; corners fly on stands.",
   "grid cloth": "Strong diffusion fabric (full/half/quarter strength). 'Silent' grid is the no-flap version for windy exteriors and sound takes.",
-  "silent grid": "Grid cloth without eyelet holes that flap in wind — the choice for exteriors and quiet sets.",
-  "magic cloth": "A dense diffusion that eats ~2 stops and gives a very soft, even glow — the moody-daylight favourite.",
-  "blackwrap": "Matte black aluminium foil — wraps around fixtures and practicals to shape or kill light where no flag fits.",
-  "duvetyne": "Black light-absorbing fabric — skirts lights, blacks out windows, kills reflections.",
-  "216": "Full white diffusion gel (Lee 216) — roughly a stop and a half of softening, clipped over frames or windows.",
-  "250": "Half white diffusion gel — softer than nothing, lighter touch than 216.",
-  "251": "Quarter white diffusion — barely-there softening that keeps most of the punch.",
-  "opal": "The lightest standard diffusion — takes the edge off without changing the source's character.",
-  "cto": "Colour Temperature Orange gel — warms a daylight source toward tungsten (full, 1/2, 1/4 strengths).",
-  "ctb": "Colour Temperature Blue gel — cools a tungsten source toward daylight.",
-  "hmi": "A daylight-balanced arc lamp (M18, M40, ARRIMAX) — the most punch per watt; the artificial sun.",
+  "silent grid": "Grid cloth without eyelet holes that flap in wind · the choice for exteriors and quiet sets.",
+  "magic cloth": "A dense diffusion that eats ~2 stops and gives a very soft, even glow · the moody-daylight favourite.",
+  "blackwrap": "Matte black aluminium foil · wraps around fixtures and practicals to shape or kill light where no flag fits.",
+  "duvetyne": "Black light-absorbing fabric · skirts lights, blacks out windows, kills reflections.",
+  "216": "Full white diffusion gel (Lee 216) · roughly a stop and a half of softening, clipped over frames or windows.",
+  "250": "Half white diffusion gel · softer than nothing, lighter touch than 216.",
+  "251": "Quarter white diffusion · barely-there softening that keeps most of the punch.",
+  "opal": "The lightest standard diffusion · takes the edge off without changing the source's character.",
+  "cto": "Colour Temperature Orange gel · warms a daylight source toward tungsten (full, 1/2, 1/4 strengths).",
+  "ctb": "Colour Temperature Blue gel · cools a tungsten source toward daylight.",
+  "hmi": "A daylight-balanced arc lamp (M18, M40, ARRIMAX) · the most punch per watt; the artificial sun.",
   "fresnel": "A lensed fixture with a focusable spot/flood beam and a clean hard shadow edge.",
-  "book light": "The softest setup there is: bounce a light into white, then diffuse the bounce — light 'opens like a book'.",
-  "china ball": "A paper lantern with a bulb — cheap, omnidirectional soft light, lovely for faces in tight spaces.",
-  "lantern": "A soft omnidirectional modifier (fabric china ball) — wraps a room in soft light from above.",
+  "book light": "The softest setup there is: bounce a light into white, then diffuse the bounce · light 'opens like a book'.",
+  "china ball": "A paper lantern with a bulb · cheap, omnidirectional soft light, lovely for faces in tight spaces.",
+  "lantern": "A soft omnidirectional modifier (fabric china ball) · wraps a room in soft light from above.",
   "negative fill": "Taking light AWAY: black fabric on the shadow side deepens contrast without adding a single watt.",
   "neg fill": "Taking light AWAY: black fabric on the shadow side deepens contrast without adding a single watt.",
-  "practical": "A light that appears in frame — a lamp, a sign, a candle — motivating where the movie light comes from.",
-  "cookie": "A cutout panel (cucoloris) that throws a broken pattern — fake window frames, leaves, blinds.",
+  "practical": "A light that appears in frame · a lamp, a sign, a candle · motivating where the movie light comes from.",
+  "cookie": "A cutout panel (cucoloris) that throws a broken pattern · fake window frames, leaves, blinds.",
   "polarizer": "A rotating filter that kills reflections on glass, water, and floors, and deepens skies.",
-  "scrim": "On set, also a metal mesh that dims a light without changing its quality — singles and doubles. (Yes, we named the app after the fabric kind.)",
-  "bounce": "Any white/silver surface that redirects light softly back at the subject — boards, beadboard, ultrabounce.",
+  "scrim": "On set, also a metal mesh that dims a light without changing its quality · singles and doubles. (Yes, we named the app after the fabric kind.)",
+  "bounce": "Any white/silver surface that redirects light softly back at the subject · boards, beadboard, ultrabounce.",
 };
 const GLOSSARY_RE = new RegExp("\\b(" + Object.keys(GLOSSARY).sort((a, b) => b.length - a.length).map((k) => k.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")).join("|") + ")\\b", "gi");
 
@@ -2502,7 +2544,7 @@ const studio = {
   dirty: false, holding: false, fc: false, clayPin: false, clayAuto: false, sunEl: null, sceneK: null,
 };
 const LIGHT_ROLES = ["Key", "Fill", "Rim"];
-// brief describes the EFFECT on the light only — naming the fabric makes the
+// brief describes the EFFECT on the light only · naming the fabric makes the
 // render model paint the fabric into the frame.
 const GRIP_TYPES = {
   silk: { name: "China silk 4x4", short: "SILK", code: 1, str: 0.8, brief: "soften and diffuse the light falling on" },
@@ -2731,7 +2773,7 @@ function glInit(photoImg, depthImg, maskImg) {
   studio.tex = { photo: mkTex(photoImg, 0), depth: mkTex(depthImg, 1) };
   if (maskImg) studio.tex.mask = mkTex(maskImg, 2);
   else {
-    // no mask: a single white texel means "aim" has no effect — identical to no segmentation
+    // no mask: a single white texel means "aim" has no effect · identical to no segmentation
     const t = gl.createTexture();
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, t);
@@ -2918,7 +2960,7 @@ function updateSunFeed() {
   const se = studio.sunEl;
   if (!se) {
     el.textContent = sun?.now && sun.now.altitudeDeg > -6
-      ? "No sun direction for this frame — shoot from the viewfinder with the compass on, or run a read first."
+      ? "No sun direction for this frame · shoot from the viewfinder with the compass on, or run a read first."
       : "";
     return;
   }
@@ -2932,7 +2974,7 @@ function updateSunFeed() {
     const role = studio.lights[studio.sel]?.role || LIGHT_ROLES[studio.sel] || "light";
     const dk = kelvinOf(l) - se.kelvin;
     const rel = sep < 0.22 ? `${role} rides the sun axis, boosting the existing key`
-      : sep > 0.62 ? `${role} opposes the sun — cross light / rim territory`
+      : sep > 0.62 ? `${role} opposes the sun · cross light / rim territory`
       : `${role} works ${dx < 0 ? "camera-left" : "camera-right"} of the sun as modeling light`;
     const tone = Math.abs(dk) < 400 ? "matched to the sun"
       : dk > 0 ? `${Math.abs(dk).toLocaleString()}K warmer than the sun (reads golden)`
@@ -2948,7 +2990,7 @@ function updateKMeter() {
   if (studio.sceneK) parts.push(`scene reads ${studio.sceneK.toLocaleString()}K`);
   if (studio.sunEl && studio.sceneK) {
     const d = studio.sceneK - studio.sunEl.kelvin;
-    if (Math.abs(d) >= 500) parts.push(d > 0 ? "scene cooler — likely shade or overcast mix" : "scene warmer — bounce or practicals in play");
+    if (Math.abs(d) >= 500) parts.push(d > 0 ? "scene cooler · likely shade or overcast mix" : "scene warmer · bounce or practicals in play");
   }
   $("kmeter").textContent = parts.length ? `Kelvin meter · ${parts.join(" · ")}` : "";
 }
@@ -3078,7 +3120,7 @@ function sceneKelvin(dataUrl) {
 
 /* ---- on-device vision: Depth Anything V2 + MediaPipe subject mask ----
    Both are lazy, cached, and optional: any failure falls back to the cloud
-   depth call and a maskless studio — never worse than before. */
+   depth call and a maskless studio · never worse than before. */
 
 let depthPipePromise = null;
 async function localDepth(frame, onStatus) {
@@ -3187,7 +3229,7 @@ async function studioLoad(frame) {
       let depthUrl = DEPTH_CACHE.get(frame.dataUrl);
       if (depthUrl) return depthUrl;
       try {
-        // on-device: fast, free, sharper geometry — but never let a stalled
+        // on-device: fast, free, sharper geometry · but never let a stalled
         // model download strand the user; 90 s covers a first download on 4G
         depthUrl = await Promise.race([
           localDepth(frame, setStatus),
@@ -3231,7 +3273,7 @@ async function studioLoad(frame) {
 }
 
 // (Live relight is gone: the live depth model never looked real enough to
-// ship, so the studio keeps one honest path — a still frame, lit by hand.)
+// ship, so the studio keeps one honest path · a still frame, lit by hand.)
 
 // sliders drive the selected light live
 [["sInt", "intensity"], ["sWarm", "warmth"], ["sSize", "size"], ["sDist", "z"]].forEach(([id, key]) => {
@@ -3287,7 +3329,7 @@ $("fcBtn").addEventListener("click", () => {
 
 $("studioUseLast").addEventListener("click", () => {
   if (state?.frame) studioLoad(state.frame);
-  else $("studioBootStatus").innerHTML = `<span class="err">No read yet — shoot or upload a frame first.</span>`;
+  else $("studioBootStatus").innerHTML = `<span class="err">No read yet · shoot or upload a frame first.</span>`;
 });
 $("studioShot").addEventListener("change", async (e) => {
   const file = e.target.files[0];
@@ -3433,7 +3475,7 @@ $("makeReal").addEventListener("click", async () => {
    literally dragging the gaffer's lights around. ---- */
 
 function applyRig(r) {
-  if (!r || !Array.isArray(r.lights) || !r.lights.length) throw new Error("The gaffer sent no lights back — try again.");
+  if (!r || !Array.isArray(r.lights) || !r.lights.length) throw new Error("The gaffer sent no lights back · try again.");
   const cl = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
   const order = { key: 0, fill: 1, rim: 2 };
   studio.lights = r.lights.slice(0, 3)
@@ -3458,7 +3500,7 @@ function applyRig(r) {
   studioRenderLights(); studioSyncSliders(); studioRenderHandles();
   updateSunFeed();
   requestDraw();
-  const note = [r.approach, r.note].filter((s) => typeof s === "string" && s.trim()).join(" — ");
+  const note = [r.approach, r.note].filter((s) => typeof s === "string" && s.trim()).join(" · ");
   const el = $("rigNote");
   el.style.display = note ? "" : "none";
   el.textContent = note ? `✦ ${note} Drag the pucks to taste, then Make it real.` : "";
@@ -3469,7 +3511,7 @@ async function proposeRig(btn) {
   if (proposing) return;
   const frame = studio.frame || state?.frame;
   if (!frame) {
-    $("studioBootStatus").innerHTML = `<span class="err">No frame yet — shoot a read in Camera or upload a photo first.</span>`;
+    $("studioBootStatus").innerHTML = `<span class="err">No frame yet · shoot a read in Camera or upload a photo first.</span>`;
     return;
   }
   proposing = true;
@@ -3525,8 +3567,8 @@ function planGuidance() {
   if (!map) return;
   const n = logForProject().filter((e) => e.lat != null).length;
   $("mapHint").textContent = n
-    ? "Tap the map to scout a spot — amber pins are this project's reads."
-    : "No reads in this project yet — read a frame on the Camera tab, or tap anywhere on the map to scout the light there.";
+    ? "Tap the map to scout a spot · amber pins are this project's reads."
+    : "No reads in this project yet · read a frame on the Camera tab, or tap anywhere on the map to scout the light there.";
 }
 document.querySelectorAll("[data-ppane]").forEach((t) => t.addEventListener("click", () => {
   document.querySelectorAll("[data-ppane]").forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
@@ -3538,7 +3580,7 @@ function initPlan() {
   renderLog();
   renderProjectRows();
   if (typeof L === "undefined") {
-    $("mapHint").innerHTML = `<span class="err">Map library didn't load — scene memory and the shot list below still work.</span>`;
+    $("mapHint").innerHTML = `<span class="err">Map library didn't load · scene memory and the shot list below still work.</span>`;
     return;
   }
   if (map) { setTimeout(() => map.invalidateSize(), 60); refreshPins(); planGuidance(); return; }
@@ -3553,7 +3595,7 @@ function initPlan() {
     planGuidance();
     setTimeout(() => map.invalidateSize(), 60);
   } catch (e) {
-    $("mapHint").innerHTML = `<span class="err">Map unavailable (${esc(e.message || e)}) — scene memory below still works.</span>`;
+    $("mapHint").innerHTML = `<span class="err">Map unavailable (${esc(e.message || e)}) · scene memory below still works.</span>`;
   }
 }
 
@@ -3592,7 +3634,7 @@ $("fitShots").addEventListener("click", () => {
     .concat(logForProject().filter((e) => e.lat != null).map((e) => [e.lat, e.lng]));
   if (loc) pts.push([loc.latitude, loc.longitude]);
   if (pts.length) map.fitBounds(pts, { padding: [36, 36], maxZoom: 16 });
-  else $("mapHint").textContent = "Nothing to frame yet — read a frame or add a shot first.";
+  else $("mapHint").textContent = "Nothing to frame yet · read a frame or add a shot first.";
 });
 
 // The optimal route IS the shot order (shots sort by their light windows):
@@ -3600,7 +3642,7 @@ $("fitShots").addEventListener("click", () => {
 $("routeShots").addEventListener("click", () => {
   const shots = sortedShots();
   if (!shots.length) {
-    $("mapHint").textContent = "No shots yet — tap the map, pick a look, Add to shot list.";
+    $("mapHint").textContent = "No shots yet · tap the map, pick a look, Add to shot list.";
     return;
   }
   const pts = shots.map((s) => `${Number(s.lat).toFixed(6)},${Number(s.lng).toFixed(6)}`);
@@ -3679,7 +3721,7 @@ const sortedShots = () => loadShots().filter((sh) => (sh.pid || "p1") === active
 
 $("addShot").addEventListener("click", () => {
   if (!pinSel?.windows?.length) {
-    $("pinStatus").innerHTML = `<span class="err">No window for that look here — try another look.</span>`;
+    $("pinStatus").innerHTML = `<span class="err">No window for that look here · try another look.</span>`;
     return;
   }
   const w = pinSel.windows[pinSel.winSel] || pinSel.windows[0];
@@ -3700,7 +3742,7 @@ function renderShots() {
         <span class="what">${esc(sh.lookName)} · ${esc(sh.label)}<small>${dayTag(sh.start)} ${fmt(sh.start)}–${fmt(sh.end)} · ${Number(sh.lat).toFixed(3)}, ${Number(sh.lng).toFixed(3)}</small></span>
         <button class="x" data-delshot="${i}" type="button" aria-label="Remove shot">✕</button>
       </div>`).join("")
-    : `<p class="hint">Pick a spot and a look above — shots land here ordered by their light windows.</p>`;
+    : `<p class="hint">Pick a spot and a look above · shots land here ordered by their light windows.</p>`;
   document.querySelectorAll("[data-delshot]").forEach((b) => b.addEventListener("click", () => {
     const victim = sortedShots()[Number(b.dataset.delshot)];
     const all = loadShots();
@@ -3731,7 +3773,7 @@ $("exportPlan").addEventListener("click", () => {
   x.fillStyle = "#191913"; x.font = "600 46px " + SERIF;
   x.fillText("Scrim", 48, 80);
   x.fillStyle = "#A6452D"; x.font = "600 22px " + MONO;
-  x.fillText(("D A Y   P L A N   —   " + activeProject().name.toUpperCase()).slice(0, 44), 48, 124);
+  x.fillText(("D A Y   P L A N   ·   " + activeProject().name.toUpperCase()).slice(0, 44), 48, 124);
   x.fillStyle = "#5C5B50"; x.font = "22px " + MONO;
   x.fillText(new Date(shots[0].start).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }), 48, 160);
   x.strokeStyle = "#191913"; x.lineWidth = 2;
@@ -3741,14 +3783,14 @@ $("exportPlan").addEventListener("click", () => {
     x.fillStyle = "#A6452D"; x.font = "600 34px " + MONO;
     x.fillText(`${fmt(sh.start)}`, 48, yy);
     x.fillStyle = "#191913"; x.font = "600 30px " + SERIF;
-    x.fillText(`${sh.lookName} — ${String(sh.label).slice(0, 34)}`, 230, yy);
+    x.fillText(`${sh.lookName} · ${String(sh.label).slice(0, 34)}`, 230, yy);
     x.fillStyle = "#5C5B50"; x.font = "22px " + MONO;
     x.fillText(`${dayTag(sh.start)} ${fmt(sh.start)}–${fmt(sh.end)} · ${Number(sh.lat).toFixed(4)}, ${Number(sh.lng).toFixed(4)}`, 230, yy + 36);
     x.strokeStyle = "#DAD7C8"; x.lineWidth = 1; x.beginPath(); x.moveTo(48, yy + 60); x.lineTo(W - 48, yy + 60); x.stroke();
     yy += rowH;
   });
   x.fillStyle = "#5C5B50"; x.font = "20px " + MONO;
-  x.fillText("scrim — shape the light you already have", 48, H - 32);
+  x.fillText("scrim · shape the light you already have", 48, H - 32);
   track("day_plan");
   c.toBlob((blob) => shareOrDownload(blob, "scrim-day-plan.png", "Scrim day plan"), "image/png");
 });
@@ -3884,10 +3926,10 @@ $("fbSend").addEventListener("click", async () => {
     });
     if (!r.ok) throw new Error("send failed");
     $("fbText").value = "";
-    $("fbStatus").innerHTML = `<span class="good">Got it — thank you. Every note makes this better.</span>`;
+    $("fbStatus").innerHTML = `<span class="good">Got it · thank you. Every note makes this better.</span>`;
     setTimeout(() => { $("fbSheet").style.display = "none"; $("fbStatus").textContent = ""; }, 1400);
   } catch {
-    $("fbStatus").innerHTML = `<span class="err">Couldn't send — try again in a moment.</span>`;
+    $("fbStatus").innerHTML = `<span class="err">Couldn't send · try again in a moment.</span>`;
   } finally {
     $("fbSend").disabled = false;
   }
@@ -3895,19 +3937,6 @@ $("fbSend").addEventListener("click", async () => {
 
 /* ---------- instruments: enter and leave the studio ---------- */
 $("studioBack").addEventListener("click", () => gotoScreen("screen-shoot"));
-
-/* ---------- intro: once per device, then straight on set ---------- */
-(() => {
-  const intro = $("intro");
-  if (localStorage.getItem("scrim-intro-done")) { intro.remove(); return; }
-  intro.style.display = "flex";
-  $("introGo").addEventListener("click", () => {
-    localStorage.setItem("scrim-intro-done", "1");
-    track("intro_done");
-    intro.classList.add("bye");
-    setTimeout(() => intro.remove(), 650);
-  });
-})();
 
 /* ---------- boot ---------- */
 track("app_open");

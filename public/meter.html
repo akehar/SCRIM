@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0D0C12">
-<title>Scrim — light meter</title>
+<title>Scrim · light meter</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/vendor/fonts/fonts.css">
 <style>
@@ -61,7 +61,7 @@
 
 <div class="card">
   <h2 id="evLabel">Exposure value</h2>
-  <div class="evbig"><span id="evNum">—</span><span style="font-size:20px;color:var(--muted)"> EV₁₀₀</span></div>
+  <div class="evbig"><span id="evNum">-</span><span style="font-size:20px;color:var(--muted)"> EV₁₀₀</span></div>
   <div class="evsub" id="evSub"></div>
   <button class="chip" id="meterBtn" type="button" style="display:none;margin-top:12px;width:100%;background:var(--ochre);border-color:var(--ochre);color:var(--paper);font-weight:600;min-height:46px">◉ &nbsp;Meter through the camera</button>
   <div class="chips" id="skyChips" style="margin-top:12px">
@@ -85,7 +85,7 @@
 </div>
 
 <div class="card">
-  <h2>Stops — pick your aperture, read your shutter</h2>
+  <h2>Stops · pick your aperture, read your shutter</h2>
   <table id="pairs"></table>
   <div class="cine" id="cineLine"></div>
 </div>
@@ -107,7 +107,7 @@
   const snapShutter = (t) => SHUTTERS.reduce((a, b) => Math.abs(Math.log2(b / t)) < Math.abs(Math.log2(a / t)) ? b : a);
 
   function render() {
-    $("evNum").textContent = state.ev == null ? "—" : (Math.round(state.ev * 10) / 10).toFixed(1);
+    $("evNum").textContent = state.ev == null ? "-" : (Math.round(state.ev * 10) / 10).toFixed(1);
     $("isoOut").textContent = state.iso;
     if (state.ev == null) { $("pairs").innerHTML = ""; $("cineLine").textContent = ""; $("evSub").textContent = ""; return; }
     const lux = 2.5 * Math.pow(2, state.ev);
@@ -125,10 +125,10 @@
       // brighter than any iris: shoot at a working stop and eat the rest with ND
       const work = 5.6;
       const stops = Math.round(2 * Math.log2(nCine / work));
-      $("cineLine").innerHTML = `◐ Cine · 24 fps · 180° (1/48): brighter than f/22 — shoot <b>f/${work} + ND ${(stops * 0.3).toFixed(1)}</b> (${stops} stops)`;
+      $("cineLine").innerHTML = `◐ Cine · 24 fps · 180° (1/48): brighter than f/22 · shoot <b>f/${work} + ND ${(stops * 0.3).toFixed(1)}</b> (${stops} stops)`;
     } else {
       const snapN = APERTURES.reduce((a, b) => Math.abs(Math.log2((b * b) / (nCine * nCine))) < Math.abs(Math.log2((a * a) / (nCine * nCine))) ? b : a);
-      $("cineLine").innerHTML = `◐ Cine · 24 fps · 180° shutter (1/48): <b>f/${nCine < 1 ? nCine.toFixed(1) : (Math.round(nCine * 10) / 10)}</b> — nearest stop f/${snapN}`;
+      $("cineLine").innerHTML = `◐ Cine · 24 fps · 180° shutter (1/48): <b>f/${nCine < 1 ? nCine.toFixed(1) : (Math.round(nCine * 10) / 10)}</b> · nearest stop f/${snapN}`;
     }
   }
 
@@ -153,7 +153,7 @@
     c.setAttribute("aria-pressed", "true");
     state.ev = Number(c.dataset.ev) + lowSunAdj;
     state.source = "sky";
-    $("evLabel").textContent = "Exposure value — by eye" + (lowSunAdj ? ` (sun is low: ${lowSunAdj} EV)` : "");
+    $("evLabel").textContent = "Exposure value · by eye" + (lowSunAdj ? ` (sun is low: ${lowSunAdj} EV)` : "");
     render();
   }));
 
@@ -186,7 +186,7 @@
       document.querySelectorAll("#skyChips .chip").forEach((x) => x.setAttribute("aria-pressed", "false"));
       state.ev = r.ev100;
       state.source = "camera";
-      $("evLabel").innerHTML = `<span id="liveDot"></span>Exposure value — camera reading`;
+      $("evLabel").innerHTML = `<span id="liveDot"></span>Exposure value · camera reading`;
       $("meterHint").textContent = `metered at ISO ${Math.round(r.iso)} · ${fmtShutter(snapShutter(r.shutter))} · f/${r.aperture.toFixed(1)}`;
       render();
     } catch (e) {
@@ -209,7 +209,7 @@
     $("meterBtn").style.display = "";
     $("meterHint").textContent = "Meter the actual scene with the camera, or set it by eye with the sky presets.";
   } else {
-    $("meterHint").textContent = "Camera metering runs inside the Scrim app on iPhone — set it by eye with the sky presets here.";
+    $("meterHint").textContent = "Camera metering runs inside the Scrim app on iPhone · set it by eye with the sky presets here.";
   }
   render();
 })();
